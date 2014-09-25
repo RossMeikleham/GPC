@@ -1,6 +1,6 @@
 {- GPC abstract syntax tree -}
 
-module AST(
+module GPC.AST(    
       Program(..)
     , TopLevel(..)
     , Stmt(..)
@@ -10,26 +10,29 @@ module AST(
     , Number(..)
     ) where
 
-data Program = Program [TopLevel]
+data Program = Program [TopLevel] deriving Show
 
 
 -- |Top Level Expressions
 data TopLevel =
         Func String String [(String, String)] [Stmt]  -- Return Type, Name, Arguments, Code
       | GlobalDecl Expr 
+       deriving Show
 
 
 -- |Statement
 data Stmt = 
         Decl Expr
-      | Expr  
-    
+      | Exp Expr  
+       deriving Show
+
 -- |Expression
 data Expr =
       BinOp BinOps Expr Expr
     | UnaryOp UnaryOps Expr
     | FunCall Expr
-
+    | None
+     deriving Show
 
 -- |Binary Operators
 data BinOps =
@@ -46,15 +49,19 @@ data BinOps =
     | BAnd
     | BXor
     | BOr
+     deriving Show
+
 
 -- |Unary Operators
 data UnaryOps =
       Not
     | Neg
     | BNot 
+     deriving Show
+
 
 -- |Number Types
 data Number =
       Int
     | Double
-    
+     deriving Show
