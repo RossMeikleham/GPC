@@ -9,24 +9,23 @@ module Lexer
     , semi
     , whiteSpace
     , comma
-    )
+    ) where
 
+import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
 
-
 lexer = Token.makeTokenParser languageDef
- where languageDef =
-     { Token.commentStart  = "/*"
+ where languageDef = emptyDef {
+       Token.commentStart  = "/*"
      , Token.commentEnd    = "*/"
      , Token.commentLine   = "//"
      , Token.nestedComments = True
      , Token.identStart    = letter
-     , Token.identLetter   = alphaNum
-     , Token.reservedNames = ["int","double","bool"]
-                             
+     , Token.identLetter   = alphaNum <|> oneOf "'_"
+     , Token.reservedNames = ["int","double","bool","if","else"]
      , Token.reservedOpNames = ["+","-","*","/",">>","<<","!","!="
                                ,"==","^","&","|","||","&&"
                                ]
