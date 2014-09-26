@@ -16,7 +16,7 @@ data Program = Program [TopLevel] deriving Show
 -- |Top Level Expressions
 data TopLevel =
         Func String String [(String, String)] [Stmt]  -- Return Type, Name, Arguments, Code
-      | GlobalDecl Expr 
+      | TlStmt Stmt
        deriving Show
 
 

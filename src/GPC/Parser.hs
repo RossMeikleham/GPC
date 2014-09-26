@@ -7,7 +7,7 @@ import Control.Monad
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
-import qualified Text.ParserCombinators.Parsec.Token as Token
+--import qualified Text.ParserCombinators.Parsec.Token as Token
 import Text.ParserCombinators.Parsec.Error;
 import Control.Applicative hiding ((<|>), many, optional, empty)
 
@@ -48,17 +48,12 @@ function = Func <$> typeT <*> ident <*> fArgs <*> block
     
 -- | Parse Function arguments
 args :: Parser [(String, String)] 
-args =  (:) <$> arg <*> args'
- where args' :: Parser [(String, String)]
-       args' = try ((:) <$> (comma *> arg) <*> args')
-               <|> return []
-
--- | Parse individual argument
-arg :: Parser (String,String) 
-arg = do 
-    aType <- typeT 
-    aName <- ident
-    return (aType, aName)
+args =  commaSep arg
+ where arg :: Parser (String,String) 
+       arg = do 
+           aType <- typeT 
+           aName <- ident
+           return (aType, aName)
 
 
 -- | Parse a block of statements encased in braces
@@ -66,29 +61,13 @@ block :: Parser [Stmt]
 block = braces stmts
 
 
--- | Parse multiple staements
+-- | Parse multiple statements
 stmts :: Parser [Stmt]
-stmts = try ((:) <$> stmt <* semi <*> stmts)
-        <|> return []
-
--- | Parse statement
-stmt :: Parser Stmt
-stmt = Exp <$> expr
+stmts = semiSep stmt
+    where stmt :: Parser Stmt
+          stmt = Exp <$> expr
 
 
 -- | Parse expression
 expr :: Parser Expr
 expr = pure (None)
-
-
-
-
-
-
-
-
-
-
-
-
-

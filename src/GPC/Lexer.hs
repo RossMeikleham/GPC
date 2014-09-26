@@ -13,6 +13,8 @@ module GPC.Lexer
     , comma
     , braces
     , typeT
+    , commaSep
+    , semiSep
     ) where
 
 import Text.ParserCombinators.Parsec
@@ -21,7 +23,8 @@ import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 import Control.Applicative hiding ((<|>), many, optional, empty)
 
-reservedTypes = ["int", "double", "bool"]
+reservedTypes = ["int", "double", "bool","void"]
+otherReserved = ["if", "else"]
 
 languageDef = emptyDef {
        Token.commentStart  = "/*"
@@ -30,7 +33,7 @@ languageDef = emptyDef {
      , Token.nestedComments = True
      , Token.identStart    = letter
      , Token.identLetter   = alphaNum <|> oneOf "'_"
-     , Token.reservedNames =   ["if","else"] ++ reservedTypes
+     , Token.reservedNames =   otherReserved ++ reservedTypes
      , Token.reservedOpNames = ["+","-","*","/",">>","<<","!","!="
                                ,"==","^","&","|","||","&&"
                                ]
@@ -48,9 +51,11 @@ semi = Token.semi lexer
 whiteSpace = Token.whiteSpace lexer            
 comma = Token.comma lexer
 braces = Token.braces lexer
+commaSep = Token.commaSep lexer
+semiSep = Token.semiSep lexer
 
 -- |When we need to use built in types
 typeT = Token.identifier typeLexer
  where typeLexer = Token.makeTokenParser languageDef 
-                   {Token.reservedNames = ["if", "else"]}
+                   {Token.reservedNames = otherReserved}
 
