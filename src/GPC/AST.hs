@@ -7,7 +7,6 @@ module GPC.AST(
     , Expr(..)
     , BinOps(..)
     , UnaryOps(..)
-    , Number(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show
@@ -22,8 +21,9 @@ data TopLevel =
 
 -- |Statement
 data Stmt = 
-        Decl Expr
+        Decl String String Expr --Type Name, assignment
       | Exp Expr  
+      | None -- Blank statement
        deriving Show
 
 -- |Expression
@@ -31,7 +31,8 @@ data Expr =
       BinOp BinOps Expr Expr
     | UnaryOp UnaryOps Expr
     | FunCall Expr
-    | None
+    | Ident String
+    | Literal String
      deriving Show
 
 -- |Binary Operators
@@ -60,8 +61,12 @@ data UnaryOps =
      deriving Show
 
 
--- |Number Types
-data Number =
-      Int
-    | Double
-     deriving Show
+data Literal =
+      Str String
+    | Ch Char
+    | Num (Either Integer Double)
+    | Bl Bool
+
+
+
+

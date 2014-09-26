@@ -38,7 +38,8 @@ topLevels =      try ((:) <$> topLevel <*> topLevels)
 
 -- | Parse Top Level definitions
 topLevel :: Parser TopLevel
-topLevel = function -- <|> globalDecl
+topLevel = try function 
+       <|> TlStmt <$> stmt
 
 
 -- | Parse Function definition
@@ -63,11 +64,31 @@ block = braces stmts
 
 -- | Parse multiple statements
 stmts :: Parser [Stmt]
-stmts = semiSep stmt
-    where stmt :: Parser Stmt
-          stmt = Exp <$> expr
+stmts = many1 stmt
 
+-- | Parse individual statement
+stmt :: Parser Stmt
+stmt = try (stmt' <* semi) <|> ((pure None) <* semi)
+ where stmt' :: Parser Stmt
+       stmt' = try decl
+           <|> (Exp <$> expr)
+            
 
 -- | Parse expression
 expr :: Parser Expr
-expr = pure (None)
+expr = pure $ Literal "Hello"  
+
+
+-- | Parse type declaration
+decl :: Parser Stmt
+decl = Decl <$> typeT <*> ident <* parseCh '=' <*> expr
+
+
+-- | Parse literal
+--literal :: Parser Literal
+--literal = Num   
+
+-- | Parse number
+
+
+
