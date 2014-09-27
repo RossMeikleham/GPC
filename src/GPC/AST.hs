@@ -33,7 +33,7 @@ data Expr =
     | UnaryOp UnaryOps Expr
     | FunCall Expr
     | Ident String
-    | Literal String
+    | Lit Literal
      deriving Show
 
 -- |Binary Operators
@@ -67,7 +67,7 @@ data Literal =
     | Ch Char
     | Num (Either Integer Double)
     | Bl Bool
-
+     deriving Show
 
 
 

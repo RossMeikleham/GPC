@@ -1,6 +1,6 @@
 {- GPC parser -}
 
-module GPC.Parser where
+module GPC.Parser(parseSource) where
 
 import System.IO
 import Control.Monad
@@ -15,6 +15,10 @@ import Control.Applicative hiding ((<|>), many, optional, empty)
 import GPC.AST
 import GPC.Lexer
 
+-- | Parse given source file, returns parse error on
+-- | failure otherwise returns the AST for the source
+parseSource :: String -> Either ParseError Program
+parseSource input = parse program "" input 
 
 run :: Show a => Parser a -> String -> IO ()
 run p input
@@ -76,7 +80,7 @@ stmt = try (stmt' <* semi) <|> ((pure None) <* semi)
 
 -- | Parse expression
 expr :: Parser Expr
-expr = literal
+expr = Lit <$> literal
 
 
 -- | Parse type declaration
