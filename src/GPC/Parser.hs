@@ -16,7 +16,7 @@ import Control.Arrow
 import GPC.AST
 import GPC.Lexer
 
--- | Parse given source file, returns parse error on
+-- | Parse given source file, returns parse error string on
 -- | failure otherwise returns the AST for the source
 parseSource :: String -> Either String Program
 parseSource input = either (Left . show) (Right) $ parse program "" input 
