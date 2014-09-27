@@ -1,11 +1,71 @@
 {- Unit Tests for parser -}
-module ParserTests where
+module GPC.ParserTests(parserTests) where
 
-import Test.Framework
-import Test.Framework.Provider.Hunit
+import Test.HUnit
 
 import GPC.Parser
 import GPC.AST
 
+-- |Return expected and actual programs
+-- |These are expected to pass and to be equal
+assignCheck :: [(Program, Either String Program)]
+assignCheck = [asInt, asChr, asBool, asDouble, asStr, asId]
+ where
+    -- |Check integer literal assignment
+    asInt = (Program [TlStmt (Decl "int" "x" (Lit (Num (Left 20))))], parseSource "int x = 20;")
+    -- |Check char literal assignment
+    asChr = (Program [TlStmt (Decl "char" "y" (Lit (Ch 'c')))], parseSource "char y = 'c';")
+    -- |Check bool literal assignment 
+    asBool = (Program [TlStmt (Decl "bool" "b" (Lit (Bl False)))], parseSource "bool b = false;")
+    -- |Check float literal assignment
+    asDouble = (Program [TlStmt (Decl "double" "d" (Lit (Num (Right 20.4))))], parseSource "double d = 20.4;")
+    -- |Check string literal assignment
+    asStr = (Program [TlStmt (Decl "string" "s" (Lit (Str "hi")))], parseSource "string s = \"hi\";")
+    -- |Check identifier assignment
+    asId = (Program [TlStmt (Decl "int" "i" (Ident "x"))], parseSource "int i =  x;")
 
 
+-- | List of Programs which should fail assignment by the parser
+assignFailCheck :: [Either String Program]
+assignFailCheck = [noSemi, noAssign]
+ where
+    -- | No semicolon at end of statement
+   noSemi = parseSource "int x ="
+    -- | No equals, variables are single assignment
+   noAssign = parseSource "float y;"
+     
+
+
+-- | Test valid variable assignment statement
+validAssignTest :: Program -> Either String Program -> Test
+validAssignTest e a = TestCase (do 
+ case a of
+    Left err -> assertFailure $ err
+    Right p -> assertEqual "" (show p) (show e))
+
+
+validAssignTests :: Test
+validAssignTests = makeLabels "validAssignTest" tests
+ where tests = map (uncurry validAssignTest) assignCheck
+
+-- | Test invalid variable assignment statement
+invalidAssignTest :: Either String Program -> Test
+invalidAssignTest a = TestCase (do 
+ case a of
+    Right err -> assertFailure $ "Program should have caused a parse error:" ++ 
+                 show err
+    Left _ -> assertEqual "" 1 1)
+
+invalidAssignTests :: Test
+invalidAssignTests = makeLabels "invalidAssignTest" tests
+ where tests = map (invalidAssignTest) assignFailCheck
+
+-- | Make labels for test cases given a string for example given name
+-- |assign, creates labels assign1 assign2 etc for tests
+makeLabels :: String -> [Test] -> Test
+makeLabels str tests = TestList $ map (uncurry TestLabel) $ zip labels tests
+ where labels = map(\x -> str ++ show x) [1..]
+
+
+parserTests :: Test
+parserTests = TestList [validAssignTests, invalidAssignTests]

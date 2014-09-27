@@ -3,22 +3,24 @@
 module GPC.Parser(parseSource) where
 
 import System.IO
-import Control.Monad
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 --import qualified Text.ParserCombinators.Parsec.Token as Token
 import Text.ParserCombinators.Parsec.Error;
-import Control.Applicative hiding ((<|>), many, optional, empty)
 
+import Control.Applicative hiding ((<|>), many, optional, empty)
+import Control.Monad
+import Control.Arrow
 
 import GPC.AST
 import GPC.Lexer
 
 -- | Parse given source file, returns parse error on
 -- | failure otherwise returns the AST for the source
-parseSource :: String -> Either ParseError Program
-parseSource input = parse program "" input 
+parseSource :: String -> Either String Program
+parseSource input = either (Left . show) (Right) $ parse program "" input 
+
 
 run :: Show a => Parser a -> String -> IO ()
 run p input
@@ -50,6 +52,7 @@ topLevel = try function
 function :: Parser TopLevel
 function = Func <$> typeT <*> ident <*> fArgs <*> block
  where fArgs = parens args
+
     
 -- | Parse Function arguments
 args :: Parser [(String, String)] 
@@ -69,6 +72,7 @@ block = braces stmts
 -- | Parse multiple statements
 stmts :: Parser [Stmt]
 stmts = many1 stmt
+
 
 -- | Parse individual statement
 stmt :: Parser Stmt
@@ -100,6 +104,3 @@ literal = Ch  <$> ch
 num :: Parser (Either Integer Double)
 num = Left  <$> try int
   <|> Right <$> float
-
-
-
