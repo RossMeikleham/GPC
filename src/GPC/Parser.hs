@@ -76,7 +76,7 @@ stmt = try (stmt' <* semi) <|> ((pure None) <* semi)
 
 -- | Parse expression
 expr :: Parser Expr
-expr = pure $ Literal "Hello"  
+expr = literal
 
 
 -- | Parse type declaration
@@ -85,10 +85,17 @@ decl = Decl <$> typeT <*> ident <* parseCh '=' <*> expr
 
 
 -- | Parse literal
---literal :: Parser Literal
---literal = Num   
+literal :: Parser Literal
+literal = Ch  <$> ch 
+      <|> Str <$> str 
+      <|> Bl  <$> bool 
+      <|> Num <$> num 
+
 
 -- | Parse number
+num :: Parser (Either Integer Double)
+num = Left  <$> try int
+  <|> Right <$> float
 
 
 

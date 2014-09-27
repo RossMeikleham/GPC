@@ -7,6 +7,7 @@ module GPC.AST(
     , Expr(..)
     , BinOps(..)
     , UnaryOps(..)
+    , Literal(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show

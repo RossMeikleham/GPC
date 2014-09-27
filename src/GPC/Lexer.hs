@@ -11,6 +11,7 @@ module GPC.Lexer
     , ch
     , str
     , float
+    , bool
     , semi
     , whiteSpace
     , comma
