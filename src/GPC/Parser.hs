@@ -4,8 +4,26 @@ module GPC.Parser(parseSource) where
 
 import Control.Applicative hiding ((<|>), many, optional, empty)
 import Text.ParserCombinators.Parsec
+import Text.Parsec.Expr
 import GPC.AST
 import GPC.Lexer
+
+
+-- |Binary operators from highest to lowest precedence
+binaryOps = [[binary "*"  Mul ,binary "/"  Div] --
+            ,[binary "+"  Add, binary "-"  Sub]
+            ,[binary "<<" ShiftL ,binary ">>" ShiftR] 
+            ,[binary "<"  Less ,binary "<=" LessEq 
+             ,binary ">"  Greater ,binary ">=" GreaterEq]
+            ,[binary "==" Equals ,binary "!=" NEquals]
+            ,[binary "&"  BAnd]
+            ,[binary "^"  BXor]
+            ,[binary "|"  BOr]
+            ,[binary "&&" And]
+            ,[binary "||" Or]
+            ]
+-- |All binary operators are infixed and left to right associative
+ where binary n c = Infix (reservedOp n >> return (BinOp c)) AssocLeft
 
 -- | Parse given source file, returns parse error string on
 -- | failure otherwise returns the AST for the source
@@ -63,11 +81,13 @@ stmt = try (stmt' <* semi) <|> ((pure None) <* semi)
        stmt' = try decl
            <|> (Exp <$> expr)
             
-
--- | Parse expression
 expr :: Parser Expr
-expr = Ident <$> ident
-   <|> Lit   <$> literal
+expr = buildExpressionParser binaryOps expr'
+ where expr' :: Parser Expr
+       expr' = try (Ident <$> ident)
+          <|> try (Lit   <$> literal)
+       --   <|> try ( --BinOp <$> expr <*> operator <*> expr 
+          <|> parens expr
 
 
 -- | Parse type declaration

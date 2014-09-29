@@ -44,6 +44,10 @@ data BinOps =
     | Div
     | And
     | Or
+    | Less
+    | LessEq
+    | Greater
+    | GreaterEq
     | Equals
     | NEquals
     | ShiftL
