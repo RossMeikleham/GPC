@@ -52,8 +52,9 @@ validAssignTests = makeLabels "validAssignTest" tests
 -- | Test invalid variable assignment statement
 invalidAssignTest :: Either String Program -> Test
 invalidAssignTest a = TestCase (
-    unless (isRight a) $ 
+    unless (isLeft a) $ 
     assertFailure "Program should have caused a parse error")
+ where isLeft = null . rights . return
 
 invalidAssignTests :: Test
 invalidAssignTests = makeLabels "invalidAssignTest" tests

@@ -10,7 +10,7 @@ import GPC.Lexer
 -- | Parse given source file, returns parse error string on
 -- | failure otherwise returns the AST for the source
 parseSource :: String -> Either String Program
-parseSource input = either (Left . show) Right $ parse program "" input 
+parseSource input = either (Left . show) (Right) $ parse program "" input 
 
 
 -- | Parse entire source file
@@ -58,7 +58,7 @@ stmts = many1 stmt
 
 -- | Parse individual statement
 stmt :: Parser Stmt
-stmt = try (stmt' <* semi) <|> (pure None <* semi)
+stmt = try (stmt' <* semi) <|> ((pure None) <* semi)
  where stmt' :: Parser Stmt
        stmt' = try decl
            <|> (Exp <$> expr)
@@ -66,7 +66,8 @@ stmt = try (stmt' <* semi) <|> (pure None <* semi)
 
 -- | Parse expression
 expr :: Parser Expr
-expr = Lit <$> literal
+expr = Ident <$> ident
+   <|> Lit   <$> literal
 
 
 -- | Parse type declaration
@@ -84,5 +85,5 @@ literal = Ch  <$> ch
 
 -- | Parse number
 num :: Parser (Either Integer Double)
-num = Left  <$> try int
-  <|> Right <$> float
+num = Right <$> try float
+  <|> Left  <$> int

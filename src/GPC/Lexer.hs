@@ -28,7 +28,7 @@ import qualified Text.ParserCombinators.Parsec.Token as Token
 import Control.Applicative hiding ((<|>), many, optional, empty)
 
 reservedTypes = ["int", "double", "bool","void"] :: [String]
-otherReserved = ["if", "else"] :: [String]
+otherReserved = ["if", "else", "true", "false"] :: [String]
 
 -- Define the tokens used in our language
 languageDef = emptyDef {
@@ -62,7 +62,7 @@ semiSep = Token.semiSep lexer
 -- Parse specific character
 parseCh c = reserved [c]
 -- Parse specific string
-parseStr = reserved 
+parseStr s = reserved s
 
 -- Setup parsers for literal values
 ch = Token.charLiteral lexer
