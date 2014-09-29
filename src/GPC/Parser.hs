@@ -25,6 +25,7 @@ binaryOps = [[binary "*"  Mul ,binary "/"  Div] --
 -- |All binary operators are infixed and left to right associative
  where binary n c = Infix (reservedOp n >> return (BinOp c)) AssocLeft
 
+
 -- | Parse given source file, returns parse error string on
 -- | failure otherwise returns the AST for the source
 parseSource :: String -> Either String Program

@@ -35,19 +35,54 @@ assignFailCheck = [noSemi, noAssign]
     -- | No equals, variables are single assignment
    noAssign = parseSource "float y;"
      
+-- | Check binary operators are individually parsed
+binOpCheck :: [(Program, Either String Program)]
+binOpCheck = [asMul, asEq, asShift, asPrece, asPrece2, parensCheck]
+ where
+    -- Check multiplication assignment of 2 identities
+    asMul = (Program [TlStmt (Decl "int" "i" 
+            (BinOp Mul (Ident "x") (Ident "y")))] 
+            ,parseSource "int i = x * y;")
+    -- Check equality assignment of a literal and identity
+    asEq = (Program [TlStmt (Decl "bool" "b"
+           (BinOp Equals (Lit (Bl True)) (Ident "b")))]
+           ,parseSource "bool b = true == b;")
+    -- Check shift assignment of 3 values 
+    asShift = (Program [TlStmt (Decl "int" "i"
+            (BinOp ShiftL (BinOp ShiftL (Lit (Num (Left 4))) (Lit (Num (Left 3))))
+                   (Lit (Num (Left 2)))))]
+            ,parseSource "int i = 4 << 3 << 2;")
+    -- Check operator precedence works
+    asPrece = (Program [TlStmt (Decl "int" "j"
+              (BinOp Add (Ident "a") (BinOp Mul (Ident "b") (Ident "c"))))]
+              ,parseSource "int j = a + b * c;") 
 
-
--- | Test valid variable assignment statement
-validAssignTest :: Program -> Either String Program -> Test
-validAssignTest e a = TestCase (
+    asPrece2 = (Program [TlStmt (Decl "int" "k"
+               (BinOp Add (BinOp Mul (Ident "a") (Ident "b")) (Ident "c")))]
+               ,parseSource "int k = a * b + c;")
+    -- Check precedence with parens
+    parensCheck = (Program [TlStmt (Decl "int" "l"
+                  (BinOp Mul (Ident "a") (BinOp Add (Ident "b") (Ident "c"))))]
+                  ,parseSource "int l = a * (  b +  c);")
+    
+-- | Test valid statements
+validTest :: Program -> Either String Program -> Test
+validTest e a = TestCase (
  case a of
     Left err -> assertFailure err
     Right p -> assertEqual "" (show p) (show e))
 
+validTests :: String -> [(Program, Either String Program)] -> Test
+validTests s ps = makeLabels s tests
+    where tests = map (uncurry validTest) ps
 
+-- | Test valid assignments 
 validAssignTests :: Test
-validAssignTests = makeLabels "validAssignTest" tests
- where tests = map (uncurry validAssignTest) assignCheck
+validAssignTests = validTests "validAssignTest" assignCheck
+
+-- | Test valid assignments with binary operators
+validOpTests :: Test
+validOpTests = validTests "validOpTest" binOpCheck
 
 -- | Test invalid variable assignment statement
 invalidAssignTest :: Either String Program -> Test
@@ -60,6 +95,7 @@ invalidAssignTests :: Test
 invalidAssignTests = makeLabels "invalidAssignTest" tests
  where tests = map invalidAssignTest assignFailCheck
 
+
 -- | Make labels for test cases given a string for example given name
 -- |assign, creates labels assign1 assign2 etc for tests
 makeLabels :: String -> [Test] -> Test
@@ -70,4 +106,4 @@ makeLabels str tests = TestList $ zipWith TestLabel labels tests
        showInt = show
 
 parserTests :: Test
-parserTests = TestList [validAssignTests, invalidAssignTests]
+parserTests = TestList [validAssignTests, invalidAssignTests, validOpTests]
