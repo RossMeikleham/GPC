@@ -2,33 +2,15 @@
 
 module GPC.Parser(parseSource) where
 
-import System.IO
-import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Expr
-import Text.ParserCombinators.Parsec.Language
---import qualified Text.ParserCombinators.Parsec.Token as Token
-import Text.ParserCombinators.Parsec.Error;
-
 import Control.Applicative hiding ((<|>), many, optional, empty)
-import Control.Monad
-import Control.Arrow
-
+import Text.ParserCombinators.Parsec
 import GPC.AST
 import GPC.Lexer
 
 -- | Parse given source file, returns parse error string on
 -- | failure otherwise returns the AST for the source
 parseSource :: String -> Either String Program
-parseSource input = either (Left . show) (Right) $ parse program "" input 
-
-
-run :: Show a => Parser a -> String -> IO ()
-run p input
-        = case parse p "" input of
-            Left err -> do{ putStr "parse error at "
-                          ; print err
-                          }
-            Right x  -> print x
+parseSource input = either (Left . show) Right $ parse program "" input 
 
 
 -- | Parse entire source file
@@ -76,7 +58,7 @@ stmts = many1 stmt
 
 -- | Parse individual statement
 stmt :: Parser Stmt
-stmt = try (stmt' <* semi) <|> ((pure None) <* semi)
+stmt = try (stmt' <* semi) <|> (pure None <* semi)
  where stmt' :: Parser Stmt
        stmt' = try decl
            <|> (Exp <$> expr)

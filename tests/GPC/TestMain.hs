@@ -11,16 +11,13 @@ allTests = TestList [parserTests]
 -- |Need to convert HUnit test results to Cabal test suite so
 -- |our tests can be run with cabal
 convertToCabalTests :: IO TS.Progress
-convertToCabalTests = do 
-    (Counts _ _ er fl) <- hunitTests
-    testResult er fl
- where 
-    testResult e f
+convertToCabalTests = hunitTests >>= testResult
+ where testResult (Counts _ _ e f) 
         | e > 0 = return $ TS.Finished $ TS.Error 
               "An error occured running one or more tests"
         | f > 0 = return $ TS.Finished $ TS.Fail 
               "One of more tests failed"
-        | otherwise  = return $ TS.Finished $ TS.Pass
+        | otherwise  = return $ TS.Finished TS.Pass
    
 -- |Run HUnit tests
 hunitTests :: IO Counts

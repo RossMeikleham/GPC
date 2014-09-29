@@ -1,8 +1,9 @@
 {- Unit Tests for parser -}
 module GPC.ParserTests(parserTests) where
 
+import Data.Either
+import Control.Monad
 import Test.HUnit
-
 import GPC.Parser
 import GPC.AST
 
@@ -38,9 +39,9 @@ assignFailCheck = [noSemi, noAssign]
 
 -- | Test valid variable assignment statement
 validAssignTest :: Program -> Either String Program -> Test
-validAssignTest e a = TestCase (do 
+validAssignTest e a = TestCase (
  case a of
-    Left err -> assertFailure $ err
+    Left err -> assertFailure err
     Right p -> assertEqual "" (show p) (show e))
 
 
@@ -50,22 +51,22 @@ validAssignTests = makeLabels "validAssignTest" tests
 
 -- | Test invalid variable assignment statement
 invalidAssignTest :: Either String Program -> Test
-invalidAssignTest a = TestCase (do 
- case a of
-    Right err -> assertFailure $ "Program should have caused a parse error:" ++ 
-                 show err
-    Left _ -> assertEqual "" 1 1)
+invalidAssignTest a = TestCase (
+    unless (isRight a) $ 
+    assertFailure "Program should have caused a parse error")
 
 invalidAssignTests :: Test
 invalidAssignTests = makeLabels "invalidAssignTest" tests
- where tests = map (invalidAssignTest) assignFailCheck
+ where tests = map invalidAssignTest assignFailCheck
 
 -- | Make labels for test cases given a string for example given name
 -- |assign, creates labels assign1 assign2 etc for tests
 makeLabels :: String -> [Test] -> Test
-makeLabels str tests = TestList $ map (uncurry TestLabel) $ zip labels tests
- where labels = map(\x -> str ++ show x) [1..]
-
+makeLabels str tests = TestList $ zipWith TestLabel labels tests
+ where labels = map(str ++) nums
+       nums = map showInt [1..]
+       showInt :: Int -> String
+       showInt = show
 
 parserTests :: Test
 parserTests = TestList [validAssignTests, invalidAssignTests]

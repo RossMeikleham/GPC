@@ -23,15 +23,14 @@ module GPC.Lexer
     ) where
 
 import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 import Control.Applicative hiding ((<|>), many, optional, empty)
 
-reservedTypes = ["int", "double", "bool","void"]
-otherReserved = ["if", "else"]
-boolValues = ["true", "false"]
+reservedTypes = ["int", "double", "bool","void"] :: [String]
+otherReserved = ["if", "else"] :: [String]
 
+-- Define the tokens used in our language
 languageDef = emptyDef {
        Token.commentStart  = "/*"
      , Token.commentEnd    = "*/"
@@ -45,11 +44,12 @@ languageDef = emptyDef {
                                ]
      , Token.caseSensitive = True
      }
+     
 lexer = Token.makeTokenParser languageDef
              
-             
-ident = Token.identifier lexer
-reserved = Token.reserved lexer
+-- Setup parsers for language             
+ident = Token.identifier lexer 
+reserved = Token.reserved lexer 
 reservedOp = Token.reservedOp lexer 
 parens = Token.parens lexer
 semi = Token.semi lexer 
@@ -62,29 +62,17 @@ semiSep = Token.semiSep lexer
 -- Parse specific character
 parseCh c = reserved [c]
 -- Parse specific string
-parseStr s = reserved s
+parseStr = reserved 
 
-
-
+-- Setup parsers for literal values
 ch = Token.charLiteral lexer
 int = Token.hexadecimal lexer <|> Token.octal lexer <|> Token.integer lexer 
 float = Token.float lexer
 str = Token.stringLiteral lexer
-
--- |Parse boolean values
 bool = parseStr "true" *> pure True
    <|> parseStr "false" *> pure False 
-
 
 -- |When we need to use built in types
 typeT = Token.identifier typeLexer
  where typeLexer = Token.makeTokenParser languageDef 
                    {Token.reservedNames = otherReserved}
-
-
-
-
-
-
-
-
