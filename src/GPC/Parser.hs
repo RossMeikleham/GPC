@@ -93,9 +93,10 @@ stmt = try (stmt' <* semi) <|> ((pure None) <* semi)
 expr :: Parser Expr
 expr = buildExpressionParser operators expr'
  where expr' :: Parser Expr
-       expr' = try (Ident <$> ident)
-          <|> try (Lit   <$> literal)
-          <|> parens expr
+       expr' = try (funCall) 
+           <|> try (Ident <$> ident)
+           <|> try (Lit   <$> literal)
+           <|> parens expr
 
 
 -- | Parse type declaration
@@ -109,6 +110,11 @@ literal = Ch  <$> ch
       <|> Str <$> str 
       <|> Bl  <$> bool 
       <|> Num <$> num 
+
+-- | Parse function call
+funCall :: Parser Expr
+funCall = FunCall <$> ident <*> args
+    where args = parens $ commaSep expr
 
 
 -- | Parse number

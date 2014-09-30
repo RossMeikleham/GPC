@@ -31,7 +31,7 @@ data Stmt =
 data Expr =
       BinOp BinOps Expr Expr
     | UnaryOp UnaryOps Expr
-    | FunCall Expr
+    | FunCall String [Expr] --Name args
     | Ident String
     | Lit Literal
      deriving Show

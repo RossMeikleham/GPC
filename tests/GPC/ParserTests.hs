@@ -68,7 +68,7 @@ binOpCheck = [asMul, asEq, asShift, asPrece, asPrece2, parensCheck]
        
 -- | Check unary operators are individually parsed
 unOpCheck :: [(Program, Either String Program)]
-unOpCheck = [asNot, asPrece, asPrece2] -- asparens]
+unOpCheck = [asNot, asPrece, asPrece2, asParens]
  where
     -- Check assignment of not identity
     asNot = (Program [TlStmt (Decl "bool" "i" 
@@ -77,13 +77,38 @@ unOpCheck = [asNot, asPrece, asPrece2] -- asparens]
     -- Check precedence with binary operators   
     asPrece = (Program [TlStmt (Decl "int" "j"
              (BinOp Add (Ident "a") (UnaryOp BNot (Ident "b"))))]
-             ,parseSource "int j = a + ~b;")
-    
+             ,parseSource "int j = a + ~b;")    
     -- Check precedence with binary operators   
     asPrece2 = (Program [TlStmt (Decl "int" "j"
              (BinOp Add (UnaryOp BNot (Ident "a")) (Ident "b")))]
              ,parseSource "int j = ~ a + b;")
-    
+    -- Check precedence with parenthesis
+    asParens = (Program [TlStmt (Decl "int" "k"
+               (UnaryOp Neg (BinOp Sub (Ident "a") (Ident "b"))))]
+               ,parseSource "int k = -(a - b);")
+
+
+-- | Check function calls are correctly parsed
+funCallCheck :: [(Program, Either String Program)]
+funCallCheck = [noArgs, singleArgs, multiArgs, multiComplexArgs]
+ where
+    -- Check function with no arguments
+    noArgs = (Program [TlStmt (Decl "int" "i"
+             (FunCall "test" []))]
+             ,parseSource "int i = test();")
+    -- Check function with one argument
+    singleArgs = (Program [TlStmt (Decl "test" "j"
+                 (FunCall "func" [Ident "a"]))]
+                 ,parseSource "test j = func(a);")
+    -- Check function with multiple arguments
+    multiArgs = (Program [TlStmt (Decl "blarg" "m"
+                (FunCall "destroyAllHumans" [Ident "a", Ident "b"]))]
+                ,parseSource "blarg m = destroyAllHumans(a, b);")
+    -- Check function with multiple arguments with expressions
+    multiComplexArgs = (Program [TlStmt (Decl "int" "a"
+                      (FunCall "call" [BinOp Mul (Ident "a") (Ident "b"),
+                      UnaryOp Neg (Ident "c")]))]
+                      ,parseSource "int a = call(a * b, -c);")
     
 validTest :: Program -> Either String Program -> Test
 validTest e a = TestCase (
@@ -107,6 +132,9 @@ validOpTests = validTests "validOpTest" binOpCheck
 validUnOpTests :: Test
 validUnOpTests = validTests "validUnOpTest" unOpCheck
 
+validFunCallTests :: Test
+validFunCallTests = validTests "validFunCallTest" funCallCheck
+
 -- | Test invalid variable assignment statement
 invalidAssignTest :: Either String Program -> Test
 invalidAssignTest a = TestCase (
@@ -129,4 +157,7 @@ makeLabels str tests = TestList $ zipWith TestLabel labels tests
        showInt = show
 
 parserTests :: Test
-parserTests = TestList [validAssignTests, invalidAssignTests, validOpTests, validUnOpTests]
+parserTests = TestList [validAssignTests, invalidAssignTests
+                       ,validOpTests, validUnOpTests
+                       ,validFunCallTests
+                       ]
