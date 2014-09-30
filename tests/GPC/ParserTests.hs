@@ -63,9 +63,28 @@ binOpCheck = [asMul, asEq, asShift, asPrece, asPrece2, parensCheck]
     -- Check precedence with parens
     parensCheck = (Program [TlStmt (Decl "int" "l"
                   (BinOp Mul (Ident "a") (BinOp Add (Ident "b") (Ident "c"))))]
-                  ,parseSource "int l = a * (  b +  c);")
+                  ,parseSource "int l = a * (  b +  c);") 
     
--- | Test valid statements
+       
+-- | Check unary operators are individually parsed
+unOpCheck :: [(Program, Either String Program)]
+unOpCheck = [asNot, asPrece, asPrece2] -- asparens]
+ where
+    -- Check assignment of not identity
+    asNot = (Program [TlStmt (Decl "bool" "i" 
+            (UnaryOp Not (Ident "x")))] 
+            ,parseSource "bool i = !x;")
+    -- Check precedence with binary operators   
+    asPrece = (Program [TlStmt (Decl "int" "j"
+             (BinOp Add (Ident "a") (UnaryOp BNot (Ident "b"))))]
+             ,parseSource "int j = a + ~b;")
+    
+    -- Check precedence with binary operators   
+    asPrece2 = (Program [TlStmt (Decl "int" "j"
+             (BinOp Add (UnaryOp BNot (Ident "a")) (Ident "b")))]
+             ,parseSource "int j = ~ a + b;")
+    
+    
 validTest :: Program -> Either String Program -> Test
 validTest e a = TestCase (
  case a of
@@ -83,6 +102,10 @@ validAssignTests = validTests "validAssignTest" assignCheck
 -- | Test valid assignments with binary operators
 validOpTests :: Test
 validOpTests = validTests "validOpTest" binOpCheck
+
+-- | Test valid assignments with unary operators
+validUnOpTests :: Test
+validUnOpTests = validTests "validUnOpTest" unOpCheck
 
 -- | Test invalid variable assignment statement
 invalidAssignTest :: Either String Program -> Test
@@ -106,4 +129,4 @@ makeLabels str tests = TestList $ zipWith TestLabel labels tests
        showInt = show
 
 parserTests :: Test
-parserTests = TestList [validAssignTests, invalidAssignTests, validOpTests]
+parserTests = TestList [validAssignTests, invalidAssignTests, validOpTests, validUnOpTests]

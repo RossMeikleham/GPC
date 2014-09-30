@@ -1,6 +1,6 @@
 // Hello World implementation in GPC
 
-// Must assign y before displaying it, so need sequential execution  
+// Must assign y before displaying it, so need sequential evaluation 
 int hello_world() { 
     seq {
         string y = "Hello World";
