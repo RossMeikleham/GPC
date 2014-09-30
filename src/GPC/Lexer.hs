@@ -28,7 +28,7 @@ import qualified Text.ParserCombinators.Parsec.Token as Token
 import Control.Applicative hiding ((<|>), many, optional, empty)
 
 reservedTypes = ["int", "double", "bool","void"] :: [String]
-otherReserved = ["if", "else", "true", "false"] :: [String]
+otherReserved = ["if", "else", "true", "false", "seq", "par","return"] :: [String]
 
 -- Define the tokens used in our language
 languageDef = emptyDef {

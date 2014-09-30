@@ -23,6 +23,8 @@ data TopLevel =
 -- |Statement
 data Stmt = 
         Decl String String Expr --Type Name, assignment
+      | Seq [Stmt] -- |Evauldate statements in sequential order
+      | Par [Stmt] -- |Evaluate statement in parallel (default)
       | Exp Expr  
       | None -- Blank statement
        deriving Show

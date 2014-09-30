@@ -88,7 +88,15 @@ stmt :: Parser Stmt
 stmt = try (stmt' <* semi) <|> ((pure None) <* semi)
  where stmt' :: Parser Stmt
        stmt' = try decl
-           <|> (Exp <$> expr)
+           <|> try (Exp <$> expr)
+           <|> try (seqBlock)
+           <|> try (parBlock)
+
+seqBlock :: Parser Stmt
+seqBlock = Seq <$> (reserved "seq" *> block)
+
+parBlock :: Parser Stmt
+parBlock = Par <$> (reserved "par" *> block)
             
 expr :: Parser Expr
 expr = buildExpressionParser operators expr'
