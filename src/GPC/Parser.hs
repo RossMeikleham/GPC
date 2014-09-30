@@ -8,6 +8,10 @@ import Text.Parsec.Expr
 import GPC.AST
 import GPC.Lexer
 
+-- |Combine all operators into one table
+-- |Unary ops all have higher precedence than binary ones
+-- |so they are at the front of the list
+operators = unaryOps ++ binaryOps
 
 -- |Binary operators from highest to lowest precedence
 binaryOps = [[binary "*"  Mul ,binary "/"  Div] --
@@ -24,6 +28,10 @@ binaryOps = [[binary "*"  Mul ,binary "/"  Div] --
             ]
 -- |All binary operators are infixed and left to right associative
  where binary n c = Infix (reservedOp n >> return (BinOp c)) AssocLeft
+
+-- |Unary operators from highest to lowest precedence
+unaryOps = [[unary "-" Neg, unary "!" Not, unary "~" BNot]]
+ where unary n c = Prefix (reservedOp n >> return (UnaryOp c))
 
 
 -- | Parse given source file, returns parse error string on
@@ -83,11 +91,10 @@ stmt = try (stmt' <* semi) <|> ((pure None) <* semi)
            <|> (Exp <$> expr)
             
 expr :: Parser Expr
-expr = buildExpressionParser binaryOps expr'
+expr = buildExpressionParser operators expr'
  where expr' :: Parser Expr
        expr' = try (Ident <$> ident)
           <|> try (Lit   <$> literal)
-       --   <|> try ( --BinOp <$> expr <*> operator <*> expr 
           <|> parens expr
 
 
