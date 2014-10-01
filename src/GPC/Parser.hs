@@ -59,7 +59,7 @@ topLevel = try function
 
 -- | Parse Function definition
 function :: Parser TopLevel
-function = Func <$> typeT <*> ident <*> fArgs <*> block
+function = Func <$> typeT <*> ident <*> fArgs <*> funBlock
  where fArgs = parens args
 
     
@@ -73,10 +73,20 @@ args =  commaSep arg
            return (aType, aName)
 
 
+funBlock :: Parser [FunStmt]
+funBlock = braces funStmts
+
+funStmts :: Parser [FunStmt]
+funStmts = many1 funStmt
+
+funStmt :: Parser FunStmt
+funStmt = try (Return <$> (reserved "return" *> expr))
+      <|> FStmt <$> stmt
+
+
 -- | Parse a block of statements encased in braces
 block :: Parser [Stmt]
 block = braces stmts
-
 
 -- | Parse multiple statements
 stmts :: Parser [Stmt]

@@ -8,6 +8,7 @@ module GPC.AST(
     , BinOps(..)
     , UnaryOps(..)
     , Literal(..)
+    , FunStmt(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show
@@ -15,10 +16,15 @@ data Program = Program [TopLevel] deriving Show
 
 -- |Top Level Expressions
 data TopLevel =
-        Func String String [(String, String)] [Stmt]  -- Return Type, Name, Arguments, Code
+        Func String String [(String, String)] [FunStmt]  -- Return Type, Name, Arguments, Code
       | TlStmt Stmt
        deriving Show
 
+-- | Function statements, can include return
+data FunStmt =
+       FStmt Stmt
+     | Return Expr
+      deriving Show
 
 -- |Statement
 data Stmt = 
