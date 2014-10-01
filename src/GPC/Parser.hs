@@ -85,12 +85,12 @@ stmts = many1 stmt
 
 -- | Parse individual statement
 stmt :: Parser Stmt
-stmt = try (stmt' <* semi) <|> ((pure None) <* semi)
+stmt = try seqBlock
+   <|> try parBlock       
+   <|> (stmt' <* semi) <|> ((pure None) <* semi)
  where stmt' :: Parser Stmt
        stmt' = try decl
            <|> try (Exp <$> expr)
-           <|> try (seqBlock)
-           <|> try (parBlock)
 
 seqBlock :: Parser Stmt
 seqBlock = Seq <$> (reserved "seq" *> block)

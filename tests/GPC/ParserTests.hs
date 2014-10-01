@@ -109,7 +109,23 @@ funCallCheck = [noArgs, singleArgs, multiArgs, multiComplexArgs]
                       (FunCall "call" [BinOp Mul (Ident "a") (Ident "b"),
                       UnaryOp Neg (Ident "c")]))]
                       ,parseSource "int a = call(a * b, -c);")
+
+
+-- | Check sequential/parallel blocks are correctly parsed
+seqParBlockCheck :: [(Program, Either String Program)]
+seqParBlockCheck = [seqB, parB, seqMultiB]
+ where
+    seqB = (Program [TlStmt (Seq [Decl "int" "i" (Ident "x")])],
+           parseSource "seq {int i = x;}")
     
+    parB = (Program [TlStmt (Par [Decl "int" "i" (Ident "x")])],
+           parseSource "par {int i = x;}")
+
+    seqMultiB = (Program [TlStmt (Seq [Decl "int" "i" (Ident "x"),
+                                       Decl "int" "j" (Ident "y")])],
+           parseSource "seq {int i = x; int j = y;}")
+
+
 validTest :: Program -> Either String Program -> Test
 validTest e a = TestCase (
  case a of
@@ -132,8 +148,13 @@ validOpTests = validTests "validOpTest" binOpCheck
 validUnOpTests :: Test
 validUnOpTests = validTests "validUnOpTest" unOpCheck
 
+-- | Test valid function call expressions
 validFunCallTests :: Test
 validFunCallTests = validTests "validFunCallTest" funCallCheck
+
+-- | Test valid sequential/parallel blocks
+validSeqParTests :: Test
+validSeqParTests = validTests "seqParTest" seqParBlockCheck
 
 -- | Test invalid variable assignment statement
 invalidAssignTest :: Either String Program -> Test
@@ -159,5 +180,5 @@ makeLabels str tests = TestList $ zipWith TestLabel labels tests
 parserTests :: Test
 parserTests = TestList [validAssignTests, invalidAssignTests
                        ,validOpTests, validUnOpTests
-                       ,validFunCallTests
+                       ,validFunCallTests, validSeqParTests
                        ]
