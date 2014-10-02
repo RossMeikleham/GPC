@@ -4,9 +4,10 @@ module TestMain where
 import Test.HUnit
 import qualified Distribution.TestSuite as TS
 import GPC.ParserTests
+import GPC.CodeGenTests
 
 allTests :: Test 
-allTests = TestList [parserTests] 
+allTests = TestList [parserTests, codeGenTests] 
 
 -- |Need to convert HUnit test results to Cabal test suite so
 -- |our tests can be run with cabal

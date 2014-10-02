@@ -6,9 +6,10 @@ import Control.Monad
 import Test.HUnit
 import GPC.Parser
 import GPC.AST
+import GPC.Tests
 
--- |Return expected and actual programs
--- |These are expected to pass and to be equal
+-- | Return expected and actual programs
+-- | These are expected to pass and to be equal
 assignCheck :: [(Program, Either String Program)]
 assignCheck = [asInt, asChr, asBool, asDouble, asStr, asId]
  where
@@ -188,15 +189,6 @@ invalidAssignTests :: Test
 invalidAssignTests = makeLabels "invalidAssignTest" tests
  where tests = map invalidAssignTest assignFailCheck
 
-
--- | Make labels for test cases given a string for example given name
--- |assign, creates labels assign1 assign2 etc for tests
-makeLabels :: String -> [Test] -> Test
-makeLabels str tests = TestList $ zipWith TestLabel labels tests
- where labels = map(str ++) nums
-       nums = map showInt [1..]
-       showInt :: Int -> String
-       showInt = show
 
 parserTests :: Test
 parserTests = TestList [validAssignTests, invalidAssignTests

@@ -23,8 +23,8 @@ Test-Suite Gannet-Tests
   build-depends:      base >=4.6 && <4.8, parsec >=3.1 && <3.2, HUnit, Cabal
   ghc-options  :      -Wall -fno-warn-missing-signatures 
   default-language:   Haskell2010
-  other-modules:      GPC.AST GPC.ParserTests GPC.Lexer GPC.Parser
-         
+  other-modules:      GPC.AST GPC.ParserTests GPC.Lexer GPC.Parser GPC.Tests GPC.CodeGen
+                      GPC.CodeGenTests
 executable Gannet-Parallel-C
   main-is:             Main.hs
   -- other-modules:       

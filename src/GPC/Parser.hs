@@ -73,14 +73,15 @@ args =  commaSep arg
            return (aType, aName)
 
 
-
 -- | Parse a block of statements encased in braces
 block :: Parser [Stmt]
 block = braces stmts
 
+
 -- | Parse multiple statements
 stmts :: Parser [Stmt]
 stmts = many1 stmt
+
 
 -- | Parse individual statement
 stmt :: Parser Stmt
@@ -94,18 +95,25 @@ stmt = try (Return <$> (reserved "return" *> expr))
        stmt' = try decl
            <|> try (Exp <$> expr)
 
+
 -- | Parse if statement
 ifStmt :: Parser Stmt
 ifStmt = try (IfElse <$> parseIf <*> stmt <*> (reserved "else" *> stmt))
      <|>      If     <$> parseIf <*> stmt
  where parseIf = (reserved "if" *> parens expr)
 
+
+-- | Parse block to be executed sequentially
 seqBlock :: Parser Stmt
 seqBlock = Seq <$> (reserved "seq" *> block)
 
+
+-- | Parse block to be executed in parallel
 parBlock :: Parser Stmt
 parBlock = Par <$> (reserved "par" *> block)
-            
+
+
+-- | Parse Expression
 expr :: Parser Expr
 expr = buildExpressionParser operators expr'
  where expr' :: Parser Expr
@@ -126,6 +134,7 @@ literal = Ch  <$> ch
       <|> Str <$> str 
       <|> Bl  <$> bool 
       <|> Num <$> num 
+
 
 -- | Parse function call
 funCall :: Parser Expr

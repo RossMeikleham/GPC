@@ -6,7 +6,11 @@ int hello_world() {
         string y = "Hello World";
         display(y);
     }
-    return 0;
+    if (true) {
+        return 0;
+    } else {
+        return 1;
+    }
 }
 
 hello_word();
