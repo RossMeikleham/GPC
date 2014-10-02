@@ -59,7 +59,7 @@ topLevel = try function
 
 -- | Parse Function definition
 function :: Parser TopLevel
-function = Func <$> typeT <*> ident <*> fArgs <*> funBlock
+function = Func <$> typeT <*> ident <*> fArgs <*> block
  where fArgs = parens args
 
     
@@ -73,16 +73,6 @@ args =  commaSep arg
            return (aType, aName)
 
 
-funBlock :: Parser [FunStmt]
-funBlock = braces funStmts
-
-funStmts :: Parser [FunStmt]
-funStmts = many1 funStmt
-
-funStmt :: Parser FunStmt
-funStmt = try (Return <$> (reserved "return" *> expr))
-      <|> FStmt <$> stmt
-
 
 -- | Parse a block of statements encased in braces
 block :: Parser [Stmt]
@@ -92,15 +82,22 @@ block = braces stmts
 stmts :: Parser [Stmt]
 stmts = many1 stmt
 
-
 -- | Parse individual statement
 stmt :: Parser Stmt
-stmt = try seqBlock
+stmt = try (Return <$> (reserved "return" *> expr))
+   <|> try ifStmt
+   <|> try seqBlock
    <|> try parBlock       
    <|> (stmt' <* semi) <|> ((pure None) <* semi)
  where stmt' :: Parser Stmt
        stmt' = try decl
            <|> try (Exp <$> expr)
+
+-- | Parse if statement
+ifStmt :: Parser Stmt
+ifStmt = try (IfElse <$> parseIf <*> stmt <*> (reserved "else" *> stmt))
+     <|>      If     <$> parseIf <*> stmt
+ where parseIf = (reserved "if" *> parens expr)
 
 seqBlock :: Parser Stmt
 seqBlock = Seq <$> (reserved "seq" *> block)
