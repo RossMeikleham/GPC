@@ -85,6 +85,7 @@ stmts = many1 stmt
 -- | Parse individual statement
 stmt :: Parser Stmt
 stmt = try (Return <$> (reserved "return" *> expr))
+   <|> try (BlockStmt <$> block)
    <|> try ifStmt
    <|> try seqBlock
    <|> try parBlock       

@@ -125,6 +125,23 @@ seqParBlockCheck = [seqB, parB, seqMultiB]
                                        Decl "int" "j" (Ident "y")])],
            parseSource "seq {int i = x; int j = y;}")
 
+-- | Check If-Else statements are correctly parsed
+ifElseCheck :: [(Program, Either String Program)]
+ifElseCheck = [ifCheck, elseCheck]
+ where
+    -- Check If by itself
+    ifCheck = (Program [TlStmt 
+              (If (UnaryOp Not (Ident "x")) 
+                (BlockStmt [Exp $ Ident "y"])
+              )],
+              parseSource "if (!x) {y;}") 
+    -- Check If with Else
+    elseCheck = (Program [TlStmt
+                (IfElse (UnaryOp Not (Ident "z"))
+                    (Exp $ Ident "y")
+                    (Exp $ Ident "a")
+                )],
+                parseSource "if (!z) y; else a;")
 
 validTest :: Program -> Either String Program -> Test
 validTest e a = TestCase (
@@ -156,6 +173,10 @@ validFunCallTests = validTests "validFunCallTest" funCallCheck
 validSeqParTests :: Test
 validSeqParTests = validTests "seqParTest" seqParBlockCheck
 
+-- | Test valid if/else statements
+validIfElseTests :: Test
+validIfElseTests = validTests "ifElseTest" ifElseCheck
+
 -- | Test invalid variable assignment statement
 invalidAssignTest :: Either String Program -> Test
 invalidAssignTest a = TestCase (
@@ -181,4 +202,5 @@ parserTests :: Test
 parserTests = TestList [validAssignTests, invalidAssignTests
                        ,validOpTests, validUnOpTests
                        ,validFunCallTests, validSeqParTests
+                       ,validIfElseTests
                        ]
