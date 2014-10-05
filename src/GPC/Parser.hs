@@ -7,9 +7,10 @@ import Text.ParserCombinators.Parsec
 import Text.Parsec.Expr
 import GPC.AST
 import GPC.Lexer
+import Control.Arrow
 
--- |Combine all operators into one table
--- |Unary ops all have higher precedence than binary ones
+-- |Entire operator table
+-- |Unary ops have higher precedence than binary ones
 -- |so they are at the front of the list
 operators = unaryOps ++ binaryOps
 
@@ -31,13 +32,14 @@ binaryOps = [[binary "*"  Mul ,binary "/"  Div] --
 
 -- |Unary operators from highest to lowest precedence
 unaryOps = [[unary "-" Neg, unary "!" Not, unary "~" BNot]]
+ -- | All Unary operators are prefixed
  where unary n c = Prefix (reservedOp n >> return (UnaryOp c))
 
 
 -- | Parse given source file, returns parse error string on
 -- | failure otherwise returns the AST for the source
 parseSource :: String -> Either String Program
-parseSource input = either (Left . show) (Right) $ parse program "" input 
+parseSource = left show . parse program ""
 
 
 -- | Parse entire source file

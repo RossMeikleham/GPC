@@ -2,10 +2,11 @@
 
 import System.Environment
 import GPC.Parser
+import GPC.CodeGen
 
 parseResult p = case p of
     Left err -> print err
-    Right v -> print $ show v
+    Right v -> print $ genCode v
     
 
 main = do

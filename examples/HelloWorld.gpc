@@ -6,6 +6,7 @@ int hello_world() {
         string y = "Hello World";
         display(y);
     }
+
     if (true) {
         return 0;
     } else {

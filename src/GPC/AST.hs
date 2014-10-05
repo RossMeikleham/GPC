@@ -22,7 +22,7 @@ data TopLevel =
 -- |Statement
 data Stmt = 
         Decl String String Expr --Type Name, assignment
-      | Seq [Stmt] -- |Evauldate statements in sequential order
+      | Seq [Stmt] -- |Evaluate statements in sequential order
       | Par [Stmt] -- |Evaluate statement in parallel (default)
       | Exp Expr
       | If Expr Stmt  
@@ -77,6 +77,3 @@ data Literal =
     | Num (Either Integer Double)
     | Bl Bool
      deriving Show
-
-
-
