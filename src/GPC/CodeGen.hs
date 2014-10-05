@@ -2,45 +2,51 @@
 
 module GPC.CodeGen (genCode) where
 
+import Text.PrettyPrint hiding (Str)
 import GPC.AST
 
+nestLevel = 4 -- Number of spaces to nest
+
+concatMapDocs :: (a -> Doc) -> [a] -> Doc
+concatMapDocs f ds = hcat $ map f ds 
+
 -- Generate GPIR code from Program AST
-genCode :: Program -> String
-genCode (Program xs) = concatMap genTopLevel xs
+genCode :: Program -> String 
+genCode (Program xs) = render $ concatMapDocs genTopLevel xs
 
 
 -- Generate code from Top Level statements
-genTopLevel :: TopLevel -> String
+genTopLevel :: TopLevel -> Doc
 genTopLevel (TlStmt ss) = genStmt ss
 genTopLevel (Func _ n args rest) = case args of
     -- Simple begin label for no argument functions
-    [] -> letExp $ label n $ begin $ concatMap genStmt rest
+    [] -> letExp $ label (text n) $ begin $ concatMapDocs genStmt rest
     -- Need to generate lambda for functions with arguments
-    _  -> "placeholder"
+    _  -> text "placeholder"
 
 -- |Generate code for statements
-genStmt :: Stmt -> String
-genStmt (Decl _ name ex) = assign name $ genExpr ex
-genStmt (Seq s) = letExp $ concatMap genStmt s
-genStmt (Par ss) = parens $ concatMap genStmt ss
+genStmt :: Stmt -> Doc
+genStmt (Decl _ name ex) = assign (text name) $ genExpr ex
+genStmt (Seq s) = letExp $ concatMapDocs genStmt s
+genStmt (Par ss) = parens' $ concatMapDocs genStmt ss
 genStmt (Exp e) = genExpr e
 genStmt (If e s) =  ifStmt e s
 genStmt (IfElse e s1 s2) = ifElseStmt e s1 s2 
 genStmt (Return e) = genReturn $ genExpr e 
-genStmt (BlockStmt ss) = concatMap genStmt ss
-genStmt (None) = ""
+genStmt (BlockStmt ss) = concatMapDocs genStmt ss
+genStmt (None) = text ""
         
 -- |Generate code for expressions
-genExpr :: Expr -> String
+genExpr :: Expr -> Doc
 genExpr (Lit l) = genLit l
-genExpr (FunCall n args) = apply n $ concatMap genExpr args
-genExpr (Ident s) = s
+genExpr (FunCall n args) = apply (text n) $ concatMapDocs genExpr args
+genExpr (Ident s) = text s
 
 -- | Generate Literal 
-genLit :: Literal -> String
-genLit l = "`" ++ genLit' l
+genLit :: Literal -> Doc
+genLit l =  (char '\'') <> text (genLit' l)
  where   
-    genLit' :: Literal -> String 
+    genLit' :: Literal -> String
     genLit' (Str s) = s
     genLit' (Ch  c) = show c
     genLit' (Bl  b) = show b
@@ -50,38 +56,38 @@ genLit l = "`" ++ genLit' l
 
 
 -- | Generate apply
-apply :: String -> String -> String
-apply n s = deferParens $ "apply " ++ n  ++ " " ++ s
+apply :: Doc -> Doc -> Doc
+apply n s = deferParens $ text "apply" <+> n <+> s
 
-ifStmt :: Expr -> Stmt -> String 
-ifStmt cond ex = parens $ "if " ++ (parens $ genExpr cond) ++ thenStmt 
+ifStmt :: Expr -> Stmt -> Doc
+ifStmt cond ex = parens' $ text "if" <+> (parens' $ genExpr cond) <> thenStmt 
  where thenStmt = deferParens $ genStmt ex 
 
-ifElseStmt :: Expr -> Stmt -> Stmt -> String
-ifElseStmt cond ex elStmt= ifStmt cond ex ++ elseStmt
+ifElseStmt :: Expr -> Stmt -> Stmt -> Doc
+ifElseStmt cond ex elStmt= ifStmt cond ex <> elseStmt
  where elseStmt = deferParens $ genStmt elStmt
 
-genReturn :: String -> String
-genReturn s = deferParens $ "return " ++ s
+genReturn :: Doc -> Doc
+genReturn s = deferParens $ text "return" <+> s
 
 -- | Assign expression to variable
-assign :: String -> String -> String
-assign n s = deferParens $ "assign " ++ n ++ " " ++ s
+assign :: Doc -> Doc -> Doc
+assign n s = deferParens $ text "assign" <+> n <+> s
 
-label :: String -> String -> String
-label n s = deferParens $ "label " ++ n ++ " " ++  s
+label :: Doc -> Doc -> Doc
+label n s = deferParens $ text "label" <+> n <+> s
 
-letExp :: String -> String
-letExp s =  parens $ "let " ++ s 
+letExp :: Doc -> Doc
+letExp s =  parens' $ text "let" <+> s 
 
-begin :: String -> String
-begin s = parens $ "begin " ++ s
-
-
-parens :: String -> String
-parens s = "(" ++ s ++ ")" 
+begin :: Doc -> Doc
+begin s = parens' $ text "begin" <+> s
 
 -- |Parens to defer evaluation
-deferParens :: String -> String
-deferParens s = "'(" ++ s ++ ")"
+deferParens :: Doc -> Doc
+deferParens s = nest nestLevel $ char '\'' <> parens s
+
+parens' x = nest nestLevel $ parens x 
+
+
 
