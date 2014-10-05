@@ -16,6 +16,16 @@ cabal configure --enable-tests
 cabal build
 ```
 
+Installing
+==========
+`cabal install`
+
+Running
+=======
+`Gannet-Parallel-C source-file.gpc`
+If compilation is successful this should generate a GPIR file of the same name as the source but with a .td extension, this file will be in the same folder as the source file.
+
+
 Running Tests
 =============
 `cabal test`
