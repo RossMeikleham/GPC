@@ -14,7 +14,7 @@ int hello_world() {
     }
 }
 
-hello_word();
+hello_world();
 
 /* Compiler should generate helloWorld.yml config
  * as well as helloWorld.td gannet source file

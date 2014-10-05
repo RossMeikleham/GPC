@@ -1,15 +1,16 @@
 -- PlaceHolder Main--
 
+import Data.List.Split
 import System.Environment
 import GPC.Parser
 import GPC.CodeGen
 
-outputCode :: String -> IO()
-outputCode s = mapM_ putStrLn (lines s)
+outputCode :: FilePath -> String -> IO()
+outputCode f s = writeFile f s --mapM_ putStrLn (lines s)
 
-parseResult p = case p of
+parseResult f p = case p of
     Left err -> print err
-    Right v -> outputCode $ genCode v
+    Right v -> outputCode f $ genCode v
     
 
 main = do
@@ -17,7 +18,8 @@ main = do
         progName <- getProgName
 
         let file = head args
+            outFile = (head $ splitOn "." file) ++ ".td"
 
         if length args <= 0
             then putStrLn ("Usage " ++ progName ++ " file")
-            else parseResult . parseSource =<< readFile file
+            else (parseResult outFile) . parseSource =<< readFile file
