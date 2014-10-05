@@ -2,7 +2,7 @@
 
 module GPC.CodeGen (genCode) where
 
-import Text.PrettyPrint hiding (Str)
+import Text.PrettyPrint.Leijen hiding (Str)
 import GPC.AST
 
 nestLevel = 4 -- Number of spaces to nest
@@ -11,9 +11,9 @@ concatMapDocs :: (a -> Doc) -> [a] -> Doc
 concatMapDocs f ds = hcat $ map f ds 
 
 -- Generate GPIR code from Program AST
-genCode :: Program -> String 
-genCode (Program xs) = render $ concatMapDocs genTopLevel xs
-
+genCode :: Program -> String
+genCode (Program xs) = show doc
+ where doc = concatMapDocs genTopLevel xs
 
 -- Generate code from Top Level statements
 genTopLevel :: TopLevel -> Doc
@@ -40,8 +40,7 @@ genStmt (None) = text ""
 genExpr :: Expr -> Doc
 genExpr (Lit l) = genLit l
 genExpr (FunCall n args) = apply (text n) $ concatMapDocs genExpr args
-genExpr (Ident s) = text s
-
+genExpr (Ident s) = text s 
 -- | Generate Literal 
 genLit :: Literal -> Doc
 genLit l =  (char '\'') <> text (genLit' l)
@@ -60,12 +59,15 @@ apply :: Doc -> Doc -> Doc
 apply n s = deferParens $ text "apply" <+> n <+> s
 
 ifStmt :: Expr -> Stmt -> Doc
-ifStmt cond ex = parens' $ text "if" <+> (parens' $ genExpr cond) <> thenStmt 
+ifStmt cond ex = parens' $ text "if" <+> (parens $ genExpr cond) <> thenStmt 
  where thenStmt = deferParens $ genStmt ex 
 
 ifElseStmt :: Expr -> Stmt -> Stmt -> Doc
-ifElseStmt cond ex elStmt= ifStmt cond ex <> elseStmt
- where elseStmt = deferParens $ genStmt elStmt
+ifElseStmt cond ex elStmt= 
+    parens' $ text "if" <+> (parens $ genExpr cond) <> thenStmt <> elseStmt
+ where 
+    thenStmt = deferParens $ genStmt ex 
+    elseStmt = deferParens $ genStmt elStmt
 
 genReturn :: Doc -> Doc
 genReturn s = deferParens $ text "return" <+> s
@@ -85,9 +87,9 @@ begin s = parens' $ text "begin" <+> s
 
 -- |Parens to defer evaluation
 deferParens :: Doc -> Doc
-deferParens s = nest nestLevel $ char '\'' <> parens s
+deferParens s = nest' 4 $ char '\'' <> parens s
 
-parens' x = nest nestLevel $ parens x 
+parens' x = nest' 4 $ parens x
 
-
-
+nest' :: Int -> Doc -> Doc
+nest' n d = text "" <$> nest n d

@@ -4,9 +4,12 @@ import System.Environment
 import GPC.Parser
 import GPC.CodeGen
 
+outputCode :: String -> IO()
+outputCode s = mapM_ putStrLn (lines s)
+
 parseResult p = case p of
     Left err -> print err
-    Right v -> print $ genCode v
+    Right v -> outputCode $ genCode v
     
 
 main = do
