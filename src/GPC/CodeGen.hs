@@ -10,10 +10,12 @@ nestLevel = 4 -- Number of spaces to nest
 concatMapDocs :: (a -> Doc) -> [a] -> Doc
 concatMapDocs f ds = hcat $ map f ds 
 
+
 -- Generate GPIR code from Program AST
 genCode :: Program -> String
 genCode (Program xs) = show doc
  where doc = concatMapDocs genTopLevel xs
+
 
 -- Generate code from Top Level statements
 genTopLevel :: TopLevel -> Doc
@@ -22,7 +24,10 @@ genTopLevel (Func _ n args rest) = case args of
     -- Simple begin label for no argument functions
     [] -> letExp $ label (text n) $ begin $ concatMapDocs genStmt rest
     -- Need to generate lambda for functions with arguments
-    _  -> text "placeholder"
+    _  -> letExp $ label (text n) $ lambda (map text vars) $ 
+            begin $ concatMapDocs genStmt rest
+ where vars = map snd args
+
 
 -- |Generate code for statements
 genStmt :: Stmt -> Doc
@@ -35,6 +40,7 @@ genStmt (IfElse e s1 s2) = ifElseStmt e s1 s2
 genStmt (Return e) = genReturn $ genExpr e 
 genStmt (BlockStmt ss) = concatMapDocs genStmt ss
 genStmt (None) = text ""
+
         
 -- |Generate code for expressions
 genExpr :: Expr -> Doc
@@ -72,16 +78,24 @@ ifElseStmt cond ex elStmt=
 genReturn :: Doc -> Doc
 genReturn s = deferParens $ text "return" <+> s
 
+-- | Generate lambda
+lambda :: [Doc] -> Doc -> Doc
+lambda xs s = parens $ text "lambda" <+> vars <+> s
+ where vars = foldl1 (<+>) $ map (\m -> char '\'' <> m) xs
+
 -- | Assign expression to variable
 assign :: Doc -> Doc -> Doc
 assign n s = deferParens $ text "assign" <+> n <+> s
 
+-- | Generate Label
 label :: Doc -> Doc -> Doc
 label n s = deferParens $ text "label" <+> n <+> s
 
+-- | Generate Expression
 letExp :: Doc -> Doc
 letExp s =  parens' $ text "let" <+> s 
 
+-- | Generate begin, returns value of last expression
 begin :: Doc -> Doc
 begin s = parens' $ text "begin" <+> s
 
