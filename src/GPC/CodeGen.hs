@@ -46,7 +46,7 @@ genLit :: Literal -> Doc
 genLit l =  (char '\'') <> text (genLit' l)
  where   
     genLit' :: Literal -> String
-    genLit' (Str s) = s
+    genLit' (Str s) = "\"" ++ s ++ "\""
     genLit' (Ch  c) = show c
     genLit' (Bl  b) = show b
     genLit' (Num n) = case n of
