@@ -2,16 +2,18 @@
 
 module GPC.CodeGen (genCode) where
 
+import Data.Char
 import Text.PrettyPrint.Leijen hiding (Str)
 import GPC.AST
 
-nestLevel = 4 -- Number of spaces to nest
+nestLevel = 4 -- |Number of spaces to nest
 
+-- | Concatonate a list of Docs with hcat
 concatMapDocs :: (a -> Doc) -> [a] -> Doc
 concatMapDocs f ds = hcat $ map f ds 
 
 
--- Generate GPIR code from Program AST
+-- |Generate GPIR code from Program AST
 genCode :: Program -> String
 genCode (Program xs) = show doc
  where doc = concatMapDocs genTopLevel xs
@@ -45,7 +47,7 @@ genStmt (None) = text ""
 -- |Generate code for expressions
 genExpr :: Expr -> Doc
 genExpr (Lit l) = genLit l
-genExpr (FunCall n args) = apply (text n) $ concatMapDocs genExpr args
+genExpr (FunCall n args) = apply (text n) $ foldl (<+>) empty $ map genExpr args
 genExpr (Ident s) = text s 
 -- | Generate Literal 
 genLit :: Literal -> Doc
@@ -54,7 +56,7 @@ genLit l =  (char '\'') <> text (genLit' l)
     genLit' :: Literal -> String
     genLit' (Str s) = "\"" ++ s ++ "\""
     genLit' (Ch  c) = show c
-    genLit' (Bl  b) = show b
+    genLit' (Bl  b) = map toLower (show b)
     genLit' (Num n) = case n of
         Left i -> show i
         Right d -> show d
@@ -62,7 +64,7 @@ genLit l =  (char '\'') <> text (genLit' l)
 
 -- | Generate apply
 apply :: Doc -> Doc -> Doc
-apply n s = deferParens $ text "apply" <+> n <+> s
+apply n s = deferParens $ text "apply" <+> n <> s
 
 ifStmt :: Expr -> Stmt -> Doc
 ifStmt cond ex = parens' $ text "if" <+> (parens $ genExpr cond) <> thenStmt 
@@ -75,6 +77,7 @@ ifElseStmt cond ex elStmt=
     thenStmt = deferParens $ genStmt ex 
     elseStmt = deferParens $ genStmt elStmt
 
+-- | Generate return
 genReturn :: Doc -> Doc
 genReturn s = deferParens $ text "return" <+> s
 

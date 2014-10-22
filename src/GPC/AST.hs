@@ -15,20 +15,26 @@ data Program = Program [TopLevel] deriving Show
 
 -- |Top Level Expressions
 data TopLevel =
-        Func String String [(String, String)] [Stmt]  -- Return Type, Name, Arguments, Code
-      | TlStmt Stmt
+        Func Type Ident [(Type, Ident)] [Stmt]  -- |Return Type, Name, Arguments, Code
+      | TLObjs Objects -- |External objects
+      | TlAssign ConstAssignment 
        deriving Show
+
+
+data Objects = Obj1 ClassName -- |Single Object of Class
+             | ObjM ClassName ConstExpr -- |Array of Objects
+               
 
 -- |Statement
 data Stmt = 
-        Decl String String Expr --Type Name, assignment
-      | Seq [Stmt] -- |Evaluate statements in sequential order
-      | Par [Stmt] -- |Evaluate statement in parallel (default)
+        Assign Type Ident Expr -- |Type Name, assignment
+      | Seq BlockStmt -- |Evaluate statements in sequential order
+      | BStmt BlockStmt -- | Statements in enclosed block
       | Exp Expr
       | If Expr Stmt  
       | IfElse Expr Stmt Stmt
       | Return Expr
-      | BlockStmt [Stmt] -- | Statements in enclosed block
+      | For Int Int Int Stmt --Start, Stop, Step, statements
       | None -- Blank statement
        deriving Show
 
@@ -40,6 +46,15 @@ data Expr =
     | Ident String
     | Lit Literal
      deriving Show
+
+data ConstAssignment = ConstAssignment Ident Ident ConstExpr
+
+-- |Constant Expressions which can be evaluated at compile-time
+data ConstExpr =
+     ConstBinOp BinOps ConstExpr ConstExpr 
+    |ConstUnaryOp UnaryOps ConstExpr
+    |ConstLit Literal
+
 
 -- |Binary Operators
 data BinOps =
@@ -77,3 +92,9 @@ data Literal =
     | Num (Either Integer Double)
     | Bl Bool
      deriving Show
+
+
+data ClassName = ClassName String
+data Ident = Ident String
+data Type = Ident String
+data BlockStmt = [Stmt]
