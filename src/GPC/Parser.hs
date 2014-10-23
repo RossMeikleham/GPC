@@ -27,7 +27,8 @@ binaryOps = [[binary "*"  Mul ,binary "/"  Div] --
             ,[binary "&&" And]
             ,[binary "||" Or]
             ]
--- |All binary operators are infixed and left to right associative
+
+ -- |All binary operators are infixed and left to right associative
  where binary n c = Infix (reservedOp n >> return (BinOp c)) AssocLeft
 
 -- |Unary operators from highest to lowest precedence
@@ -55,29 +56,30 @@ topLevels =      try ((:) <$> topLevel <*> topLevels)
 
 -- | Parse Top Level definitions
 topLevel :: Parser TopLevel
-topLevel = try function 
-       <|> TlStmt <$> stmt
+topLevel = try function
+        <|> (TlAssign <$> assign)
+
 
 
 -- | Parse Function definition
 function :: Parser TopLevel
-function = Func <$> typeT <*> ident <*> fArgs <*> block
+function = Func <$> parseType <*> parseIdent <*> fArgs <*> block
  where fArgs = parens args
 
     
 -- | Parse Function arguments
-args :: Parser [(String, String)] 
+args :: Parser [(Type, Ident)] 
 args =  commaSep arg
- where arg :: Parser (String,String) 
+ where arg :: Parser (Type,Ident) 
        arg = do 
-           aType <- typeT 
-           aName <- ident
+           aType <- Type <$> typeT 
+           aName <- Ident <$> ident
            return (aType, aName)
 
 
 -- | Parse a block of statements encased in braces
-block :: Parser [Stmt]
-block = braces stmts
+block :: Parser BlockStmt
+block = BlockStmt <$> braces stmts
 
 
 -- | Parse multiple statements
@@ -88,13 +90,13 @@ stmts = many1 stmt
 -- | Parse individual statement
 stmt :: Parser Stmt
 stmt = try (Return <$> (reserved "return" *> expr))
-   <|> try (BlockStmt <$> block)
+   <|> try (BStmt <$> block)
    <|> try ifStmt
    <|> try seqBlock
    <|> try parBlock       
    <|> (stmt' <* semi) <|> ((pure None) <* semi)
  where stmt' :: Parser Stmt
-       stmt' = try decl
+       stmt' = try (AssignStmt <$> assign) 
            <|> try (Exp <$> expr)
 
 
@@ -112,7 +114,7 @@ seqBlock = Seq <$> (reserved "seq" *> block)
 
 -- | Parse block to be executed in parallel
 parBlock :: Parser Stmt
-parBlock = Par <$> (reserved "par" *> block)
+parBlock = BStmt <$> (reserved "par" *> block)
 
 
 -- | Parse Expression
@@ -120,14 +122,14 @@ expr :: Parser Expr
 expr = buildExpressionParser operators expr'
  where expr' :: Parser Expr
        expr' = try (funCall) 
-           <|> try (Ident <$> ident)
+           <|> try (ExpIdent <$> parseIdent)
            <|> try (Lit   <$> literal)
            <|> parens expr
 
 
--- | Parse type declaration
-decl :: Parser Stmt
-decl = Decl <$> typeT <*> ident <* parseCh '=' <*> expr
+-- | Parse variable assignment
+assign :: Parser Assign
+assign = Assign <$> parseType <*> parseIdent <* parseCh '=' <*> expr
 
 
 -- | Parse literal
@@ -143,6 +145,11 @@ funCall :: Parser Expr
 funCall = FunCall <$> ident <*> args
     where args = parens $ commaSep expr
 
+parseIdent :: Parser Ident
+parseIdent = Ident <$> ident
+
+parseType :: Parser Type
+parseType = Type <$> typeT
 
 -- | Parse number
 num :: Parser (Either Integer Double)

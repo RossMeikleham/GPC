@@ -21,26 +21,26 @@ genCode (Program xs) = show doc
 
 -- Generate code from Top Level statements
 genTopLevel :: TopLevel -> Doc
-genTopLevel (TlStmt ss) = genStmt ss
-genTopLevel (Func _ n args rest) = case args of
+--genTopLevel (TlStmt ss) = genStmt ss
+genTopLevel (Func _ (Ident n) args (BlockStmt rest)) = case args of
     -- Simple begin label for no argument functions
     [] -> letExp $ label (text n) $ begin $ concatMapDocs genStmt rest
     -- Need to generate lambda for functions with arguments
     _  -> letExp $ label (text n) $ lambda (map text vars) $ 
             begin $ concatMapDocs genStmt rest
- where vars = map snd args
+ where vars = map (\(Type t, Ident i) -> i) args
 
 
 -- |Generate code for statements
 genStmt :: Stmt -> Doc
-genStmt (Decl _ name ex) = assign (text name) $ genExpr ex
-genStmt (Seq s) = letExp $ concatMapDocs genStmt s
-genStmt (Par ss) = parens' $ concatMapDocs genStmt ss
+genStmt (AssignStmt (Assign _ (Ident name) ex)) = assign (text name) $ genExpr ex
+genStmt (Seq (BlockStmt s)) = letExp $ concatMapDocs genStmt s
+--genStmt (Par ss) = parens' $ concatMapDocs genStmt ss
 genStmt (Exp e) = genExpr e
 genStmt (If e s) =  ifStmt e s
 genStmt (IfElse e s1 s2) = ifElseStmt e s1 s2 
 genStmt (Return e) = genReturn $ genExpr e 
-genStmt (BlockStmt ss) = concatMapDocs genStmt ss
+genStmt (BStmt (BlockStmt ss)) = concatMapDocs genStmt ss
 genStmt (None) = text ""
 
         
@@ -48,7 +48,7 @@ genStmt (None) = text ""
 genExpr :: Expr -> Doc
 genExpr (Lit l) = genLit l
 genExpr (FunCall n args) = apply (text n) $ foldl (<+>) empty $ map genExpr args
-genExpr (Ident s) = text s 
+genExpr (ExpIdent (Ident s)) = text s 
 -- | Generate Literal 
 genLit :: Literal -> Doc
 genLit l =  (char '\'') <> text (genLit' l)

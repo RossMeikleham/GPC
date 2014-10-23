@@ -14,17 +14,17 @@ assignCheck :: [(Program, Either String Program)]
 assignCheck = [asInt, asChr, asBool, asDouble, asStr, asId]
  where
     -- |Check integer literal assignment
-    asInt = (Program [TlStmt (Decl "int" "x" (Lit (Num (Left 20))))], parseSource "int x = 20;")
+    asInt = (Program [TlStmt (Assign "int" "x" (Lit (Num (Left 20))))], parseSource "int x = 20;")
     -- |Check char literal assignment
-    asChr = (Program [TlStmt (Decl "char" "y" (Lit (Ch 'c')))], parseSource "char y = 'c';")
+    asChr = (Program [TlStmt (Assign "char" "y" (Lit (Ch 'c')))], parseSource "char y = 'c';")
     -- |Check bool literal assignment 
-    asBool = (Program [TlStmt (Decl "bool" "b" (Lit (Bl False)))], parseSource "bool b = false;")
+    asBool = (Program [TlStmt (Assign "bool" "b" (Lit (Bl False)))], parseSource "bool b = false;")
     -- |Check float literal assignment
-    asDouble = (Program [TlStmt (Decl "double" "d" (Lit (Num (Right 20.4))))], parseSource "double d = 20.4;")
+    asDouble = (Program [TlStmt (Assign "double" "d" (Lit (Num (Right 20.4))))], parseSource "double d = 20.4;")
     -- |Check string literal assignment
-    asStr = (Program [TlStmt (Decl "string" "s" (Lit (Str "hi")))], parseSource "string s = \"hi\";")
+    asStr = (Program [TlStmt (Assign "string" "s" (Lit (Str "hi")))], parseSource "string s = \"hi\";")
     -- |Check identifier assignment
-    asId = (Program [TlStmt (Decl "int" "i" (Ident "x"))], parseSource "int i =  x;")
+    asId = (Program [TlStmt (Assign "int" "i" (Ident "x"))], parseSource "int i =  x;")
 
 
 -- | List of Programs which should fail assignment by the parser
@@ -41,28 +41,28 @@ binOpCheck :: [(Program, Either String Program)]
 binOpCheck = [asMul, asEq, asShift, asPrece, asPrece2, parensCheck]
  where
     -- Check multiplication assignment of 2 identities
-    asMul = (Program [TlStmt (Decl "int" "i" 
+    asMul = (Program [TlStmt (Assign "int" "i" 
             (BinOp Mul (Ident "x") (Ident "y")))] 
             ,parseSource "int i = x * y;")
     -- Check equality assignment of a literal and identity
-    asEq = (Program [TlStmt (Decl "bool" "b"
+    asEq = (Program [TlStmt (Assign "bool" "b"
            (BinOp Equals (Lit (Bl True)) (Ident "b")))]
            ,parseSource "bool b = true == b;")
     -- Check shift assignment of 3 values 
-    asShift = (Program [TlStmt (Decl "int" "i"
+    asShift = (Program [TlStmt (Assign "int" "i"
             (BinOp ShiftL (BinOp ShiftL (Lit (Num (Left 4))) (Lit (Num (Left 3))))
                    (Lit (Num (Left 2)))))]
             ,parseSource "int i = 4 << 3 << 2;")
     -- Check operator precedence works
-    asPrece = (Program [TlStmt (Decl "int" "j"
+    asPrece = (Program [TlStmt (Assign "int" "j"
               (BinOp Add (Ident "a") (BinOp Mul (Ident "b") (Ident "c"))))]
               ,parseSource "int j = a + b * c;") 
 
-    asPrece2 = (Program [TlStmt (Decl "int" "k"
+    asPrece2 = (Program [TlStmt (Assign "int" "k"
                (BinOp Add (BinOp Mul (Ident "a") (Ident "b")) (Ident "c")))]
                ,parseSource "int k = a * b + c;")
     -- Check precedence with parens
-    parensCheck = (Program [TlStmt (Decl "int" "l"
+    parensCheck = (Program [TlStmt (Assign "int" "l"
                   (BinOp Mul (Ident "a") (BinOp Add (Ident "b") (Ident "c"))))]
                   ,parseSource "int l = a * (  b +  c);") 
     
@@ -72,19 +72,19 @@ unOpCheck :: [(Program, Either String Program)]
 unOpCheck = [asNot, asPrece, asPrece2, asParens]
  where
     -- Check assignment of not identity
-    asNot = (Program [TlStmt (Decl "bool" "i" 
+    asNot = (Program [TlStmt (Assign "bool" "i" 
             (UnaryOp Not (Ident "x")))] 
             ,parseSource "bool i = !x;")
     -- Check precedence with binary operators   
-    asPrece = (Program [TlStmt (Decl "int" "j"
+    asPrece = (Program [TlStmt (Assign "int" "j"
              (BinOp Add (Ident "a") (UnaryOp BNot (Ident "b"))))]
              ,parseSource "int j = a + ~b;")    
     -- Check precedence with binary operators   
-    asPrece2 = (Program [TlStmt (Decl "int" "j"
+    asPrece2 = (Program [TlStmt (Assign "int" "j"
              (BinOp Add (UnaryOp BNot (Ident "a")) (Ident "b")))]
              ,parseSource "int j = ~ a + b;")
     -- Check precedence with parenthesis
-    asParens = (Program [TlStmt (Decl "int" "k"
+    asParens = (Program [TlStmt (Assign "int" "k"
                (UnaryOp Neg (BinOp Sub (Ident "a") (Ident "b"))))]
                ,parseSource "int k = -(a - b);")
 
@@ -94,19 +94,19 @@ funCallCheck :: [(Program, Either String Program)]
 funCallCheck = [noArgs, singleArgs, multiArgs, multiComplexArgs]
  where
     -- Check function with no arguments
-    noArgs = (Program [TlStmt (Decl "int" "i"
+    noArgs = (Program [TlStmt (Assign "int" "i"
              (FunCall "test" []))]
              ,parseSource "int i = test();")
     -- Check function with one argument
-    singleArgs = (Program [TlStmt (Decl "test" "j"
+    singleArgs = (Program [TlStmt (Assign "test" "j"
                  (FunCall "func" [Ident "a"]))]
                  ,parseSource "test j = func(a);")
     -- Check function with multiple arguments
-    multiArgs = (Program [TlStmt (Decl "blarg" "m"
+    multiArgs = (Program [TlStmt (Assign "blarg" "m"
                 (FunCall "destroyAllHumans" [Ident "a", Ident "b"]))]
                 ,parseSource "blarg m = destroyAllHumans(a, b);")
     -- Check function with multiple arguments with expressions
-    multiComplexArgs = (Program [TlStmt (Decl "int" "a"
+    multiComplexArgs = (Program [TlStmt (Assign "int" "a"
                       (FunCall "call" [BinOp Mul (Ident "a") (Ident "b"),
                       UnaryOp Neg (Ident "c")]))]
                       ,parseSource "int a = call(a * b, -c);")
@@ -116,14 +116,14 @@ funCallCheck = [noArgs, singleArgs, multiArgs, multiComplexArgs]
 seqParBlockCheck :: [(Program, Either String Program)]
 seqParBlockCheck = [seqB, parB, seqMultiB]
  where
-    seqB = (Program [TlStmt (Seq [Decl "int" "i" (Ident "x")])],
+    seqB = (Program [TlStmt (Seq [Assign "int" "i" (Ident "x")])],
            parseSource "seq {int i = x;}")
     
-    parB = (Program [TlStmt (Par [Decl "int" "i" (Ident "x")])],
+    parB = (Program [TlStmt (Par [Assign "int" "i" (Ident "x")])],
            parseSource "par {int i = x;}")
 
-    seqMultiB = (Program [TlStmt (Seq [Decl "int" "i" (Ident "x"),
-                                       Decl "int" "j" (Ident "y")])],
+    seqMultiB = (Program [TlStmt (Seq [Assign "int" "i" (Ident "x"),
+                                       Assign "int" "j" (Ident "y")])],
            parseSource "seq {int i = x; int j = y;}")
 
 -- | Check If-Else statements are correctly parsed
