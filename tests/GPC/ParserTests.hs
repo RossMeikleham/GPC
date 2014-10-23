@@ -149,14 +149,14 @@ ifElseCheck = [ifCheck, elseCheck]
               (If (UnaryOp Not (ExpIdent (Ident "x"))) 
                 (BStmt $ BlockStmt [Return $ ExpIdent (Ident "y")])
               )]],
-              parseSource $ funStr ++ "if (!x) {y;}" ++ "}") 
+              parseSource $ funStr ++ "if (!x) {return y;}" ++ "}") 
     -- Check If with Else
     elseCheck = (Program [fun [
                 (IfElse (UnaryOp Not (ExpIdent (Ident "z")))
                     (Return $ ExpIdent (Ident "y"))
                     (Return $ ExpIdent (Ident "a"))
                 )]],
-                parseSource $ funStr ++ "if (!z) y; else a;" ++ "}")
+                parseSource $ funStr ++ "if (!z) return y; else return a;" ++ "}")
     fun xs = Func (Type "tes") (Ident "test") [] (BlockStmt xs)
     funStr = "tes test() {"
 

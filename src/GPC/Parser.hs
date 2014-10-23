@@ -89,15 +89,13 @@ stmts = many1 stmt
 
 -- | Parse individual statement
 stmt :: Parser Stmt
-stmt = try (Return <$> (reserved "return" *> expr))
+stmt = try (Return <$> (reserved "return" *> (expr <* semi)))
    <|> try (BStmt <$> block)
    <|> try ifStmt
    <|> try seqBlock
-   <|> try parBlock       
-   <|> (stmt' <* semi) <|> ((pure None) <* semi)
- where stmt' :: Parser Stmt
-       stmt' = try (AssignStmt <$> assign) 
-           <|> try (Exp <$> expr)
+   <|> try parBlock  
+   <|> try (AssignStmt <$> assign)     
+   <|> ((pure None) <* semi)
 
 
 -- | Parse if statement
@@ -129,7 +127,7 @@ expr = buildExpressionParser operators expr'
 
 -- | Parse variable assignment
 assign :: Parser Assign
-assign = Assign <$> parseType <*> parseIdent <* parseCh '=' <*> expr
+assign = Assign <$> parseType <*> parseIdent <* parseCh '=' <*> (expr <* semi)
 
 
 -- | Parse literal
