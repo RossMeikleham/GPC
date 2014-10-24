@@ -61,8 +61,8 @@ topLevels =      try ((:) <$> topLevel <*> topLevels)
 
 -- | Parse Top Level definitions
 topLevel :: Parser TopLevel
-topLevel = function
-        <|> try (TlAssign <$> constAssign)
+topLevel = try function
+        <|> TlAssign <$> constAssign
 
 
 
@@ -98,7 +98,8 @@ stmt = try (Return <$> (reserved "return" *> (expr <* semi)))
    <|> try (BStmt <$> block)
    <|> try ifStmt
    <|> try seqBlock
-   <|> try parBlock 
+   <|> try parBlock
+   <|> try forLoop 
    <|> try (FunCallStmt <$> (funCall <* semi)) 
    <|> try (AssignStmt <$> assign)     
    <|> ((pure None) <* semi)
@@ -157,6 +158,15 @@ literal = Ch  <$> ch
       <|> Bl  <$> bool 
       <|> Num <$> num 
 
+
+-- | Parse for loop
+forLoop :: Parser Stmt
+forLoop = 
+    ForLoop <$> (reserved "for" *> reservedOp "(" *>  constExpr) -- Start
+            <*> constExpr  -- Stop
+            <*> (constExpr <* reservedOp ")") -- Step
+            <*> stmt 
+   
 
 -- | Parse function call
 funCall :: Parser FunCall

@@ -42,7 +42,7 @@ data Stmt =
       | If Expr Stmt  
       | IfElse Expr Stmt Stmt
       | Return Expr
-      | For Int Int Int Stmt --Start, Stop, Step, statements
+      | ForLoop ConstExpr ConstExpr ConstExpr Stmt --Start, Stop, Step, statements
       | None -- Blank statement
        deriving Show
 

@@ -1,4 +1,8 @@
-{- Generate GPIR code from AST -}
+{- Generate GPIR code from AST 
+ - this module is temporary for playing around with the language
+ - and pretty printers. In the final version the AST will go
+ - through transformations and type/scope checking before
+ - reaching this stage-}
 
 module GPC.CodeGen (genCode) where
 
@@ -29,7 +33,7 @@ genTopLevel (Func _ (Ident n) args (BlockStmt rest)) = case args of
     _  -> letExp $ label (text n) $ lambda (map text vars) $ 
             begin $ concatMapDocs genStmt rest
  where vars = map (\(Type t, Ident i) -> i) args
-
+ 
 
 -- |Generate code for statements
 genStmt :: Stmt -> Doc

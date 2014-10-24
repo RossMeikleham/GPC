@@ -1,7 +1,5 @@
 // Hello World implementation in GPC
 
-int x = 5;
-
 // Must assign y before displaying it, so need sequential evaluation 
 int hello_world() { 
     seq {
