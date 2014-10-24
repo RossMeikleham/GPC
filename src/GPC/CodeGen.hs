@@ -48,10 +48,12 @@ genStmt (None) = text ""
         
 -- |Generate code for expressions
 genExpr :: Expr -> Doc
-genExpr (Lit l) = genLit l
+genExpr (ExpLit l) = genLit l
 genExpr (ExpFunCall (FunCall n args)) = 
     apply (text n) $ foldl (<+>) empty $ map genExpr args
 genExpr (ExpIdent (Ident s)) = text s 
+
+
 -- | Generate Literal 
 genLit :: Literal -> Doc
 genLit l =  (char '\'') <> text (genLit' l)

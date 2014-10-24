@@ -13,6 +13,8 @@ module GPC.AST(
     , BlockStmt(..)
     , Assign(..)
     , FunCall(..)
+    , ConstExpr(..)
+    , ConstAssign(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show
@@ -22,7 +24,7 @@ data Program = Program [TopLevel] deriving Show
 data TopLevel =
         Func Type Ident [(Type, Ident)] BlockStmt  -- |Return Type, Name, Arguments, Code
       | TLObjs Objects -- |External objects
-      | TlAssign Assign
+      | TlAssign ConstAssign
        deriving Show
 
 
@@ -44,19 +46,26 @@ data Stmt =
       | None -- Blank statement
        deriving Show
 
+data ConstAssign = ConstAssign Type Ident ConstExpr deriving Show
 data Assign = Assign Type Ident Expr deriving Show
 data FunCall = FunCall String [Expr] deriving Show
 
 -- |Expression
 data Expr =
-      BinOp BinOps Expr Expr
-    | UnaryOp UnaryOps Expr
+      ExpBinOp BinOps Expr Expr
+    | ExpUnaryOp UnaryOps Expr
     | ExpFunCall FunCall
     | ExpIdent Ident
-    | Lit Literal
+    | ExpLit Literal
      deriving Show
 
-
+-- |Constant Expression, cna be determined at compile time
+data ConstExpr =
+      ConstBinOp BinOps ConstExpr ConstExpr
+    | ConstUnaryOp UnaryOps ConstExpr
+    | ConstIdent Ident
+    | ConstLit Literal
+     deriving Show
 
 -- |Binary Operators
 data BinOps =

@@ -9,13 +9,21 @@ import GPC.AST
 import GPC.Lexer
 import Control.Arrow
 
--- |Entire operator table
+-- | Entire operator tables
+-- | Need operators to evaluate ordinary expressions and constant expressions
+exprOperators = operators (\n c -> (Prefix (reservedOp n >> return (ExpUnaryOp c))))
+                          (\n c -> (Infix  (reservedOp n >> return (ExpBinOp c)) AssocLeft))
+
+constExprOperators = operators (\n c -> (Prefix (reservedOp n >> return (ConstUnaryOp c))))
+                               (\n c -> (Infix (reservedOp n >> return (ConstBinOp c)) AssocLeft))
+
 -- |Unary ops have higher precedence than binary ones
 -- |so they are at the front of the list
-operators = unaryOps ++ binaryOps
+operators un bin = (unaryOps un) ++ (binaryOps bin)
 
 -- |Binary operators from highest to lowest precedence
-binaryOps = [[binary "*"  Mul ,binary "/"  Div] --
+binaryOps :: ([Char] -> BinOps -> Operator s u m a) -> [[Operator s u m a]]
+binaryOps binary = [[binary "*"  Mul ,binary "/"  Div] --
             ,[binary "+"  Add, binary "-"  Sub]
             ,[binary "<<" ShiftL ,binary ">>" ShiftR] 
             ,[binary "<"  Less ,binary "<=" LessEq 
@@ -28,13 +36,10 @@ binaryOps = [[binary "*"  Mul ,binary "/"  Div] --
             ,[binary "||" Or]
             ]
 
- -- |All binary operators are infixed and left to right associative
- where binary n c = Infix (reservedOp n >> return (BinOp c)) AssocLeft
 
 -- |Unary operators from highest to lowest precedence
-unaryOps = [[unary "-" Neg, unary "!" Not, unary "~" BNot]]
- -- | All Unary operators are prefixed
- where unary n c = Prefix (reservedOp n >> return (UnaryOp c))
+unaryOps :: ([Char] -> UnaryOps -> Operator s u m a) -> [[Operator s u m a]]
+unaryOps unary = [[unary "-" Neg, unary "!" Not, unary "~" BNot]]
 
 
 -- | Parse given source file, returns parse error string on
@@ -57,7 +62,7 @@ topLevels =      try ((:) <$> topLevel <*> topLevels)
 -- | Parse Top Level definitions
 topLevel :: Parser TopLevel
 topLevel = function
-        <|> try (TlAssign <$> assign)
+        <|> try (TlAssign <$> constAssign)
 
 
 
@@ -118,19 +123,32 @@ parBlock = BStmt <$> (reserved "par" *> block)
 
 -- | Parse Expression
 expr :: Parser Expr
-expr = buildExpressionParser operators expr'
+expr = buildExpressionParser exprOperators expr'
  where expr' :: Parser Expr
        expr' = try (ExpFunCall <$> funCall) 
            <|> try (ExpIdent <$> parseIdent)
-           <|> try (Lit   <$> literal)
+           <|> try (ExpLit   <$> literal)
            <|> parens expr
 
+-- | Parse Constant expression
+constExpr :: Parser ConstExpr
+constExpr = buildExpressionParser constExprOperators expr'
+ where expr' :: Parser ConstExpr
+       expr' = try (ConstIdent <$> parseIdent)
+           <|> try (ConstLit <$> literal)
+           <|> parens constExpr
 
 -- | Parse variable assignment
 assign :: Parser Assign
 assign = Assign <$> parseType <*> 
                     parseIdent <* parseCh '=' <*> 
                     (expr <* semi)
+
+-- | Parse constant assignment
+constAssign :: Parser ConstAssign 
+constAssign = ConstAssign <$> parseType <*>
+                              parseIdent <* parseCh '=' <*>
+                              (constExpr <* semi)
 
 -- | Parse literal
 literal :: Parser Literal
