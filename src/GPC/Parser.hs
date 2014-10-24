@@ -9,7 +9,8 @@ import GPC.AST
 import GPC.Lexer
 import Control.Arrow
 
--- | Entire operator tables
+{- Operator Tables -}
+
 -- | Need operators to evaluate ordinary expressions and constant expressions
 exprOperators = operators (\n c -> (Prefix (reservedOp n >> return (ExpUnaryOp c))))
                           (\n c -> (Infix  (reservedOp n >> return (ExpBinOp c)) AssocLeft))
@@ -17,8 +18,7 @@ exprOperators = operators (\n c -> (Prefix (reservedOp n >> return (ExpUnaryOp c
 constExprOperators = operators (\n c -> (Prefix (reservedOp n >> return (ConstUnaryOp c))))
                                (\n c -> (Infix (reservedOp n >> return (ConstBinOp c)) AssocLeft))
 
--- |Unary ops have higher precedence than binary ones
--- |so they are at the front of the list
+-- |Unary operators have higher precedence than binary ones
 operators un bin = (unaryOps un) ++ (binaryOps bin)
 
 -- |Binary operators from highest to lowest precedence
@@ -167,15 +167,16 @@ forLoop =
             <*> (constExpr <* reservedOp ")") -- Step
             <*> stmt 
    
-
 -- | Parse function call
 funCall :: Parser FunCall
 funCall = FunCall <$> ident <*> args'
     where args' = parens $ commaSep expr
 
+-- | Parse identifier
 parseIdent :: Parser Ident
 parseIdent = Ident <$> ident
 
+-- | Parse types
 parseType :: Parser Type
 parseType = Type <$> typeT
 
