@@ -12,6 +12,7 @@ module GPC.AST(
     , Type(..)
     , BlockStmt(..)
     , Assign(..)
+    , FunCall(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show
@@ -34,6 +35,7 @@ data Stmt =
         AssignStmt Assign -- |Type Name, assignment
       | Seq BlockStmt -- |Evaluate statements in sequential order
       | BStmt BlockStmt -- | Statements in enclosed block
+      | FunCallStmt FunCall
       | Exp Expr
       | If Expr Stmt  
       | IfElse Expr Stmt Stmt
@@ -43,12 +45,13 @@ data Stmt =
        deriving Show
 
 data Assign = Assign Type Ident Expr deriving Show
+data FunCall = FunCall String [Expr] deriving Show
 
 -- |Expression
 data Expr =
       BinOp BinOps Expr Expr
     | UnaryOp UnaryOps Expr
-    | FunCall String [Expr] --Name args
+    | ExpFunCall FunCall
     | ExpIdent Ident
     | Lit Literal
      deriving Show

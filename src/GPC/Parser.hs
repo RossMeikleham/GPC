@@ -56,8 +56,8 @@ topLevels =      try ((:) <$> topLevel <*> topLevels)
 
 -- | Parse Top Level definitions
 topLevel :: Parser TopLevel
-topLevel = try function
-        <|> (TlAssign <$> assign)
+topLevel = function
+        <|> try (TlAssign <$> assign)
 
 
 
@@ -93,7 +93,8 @@ stmt = try (Return <$> (reserved "return" *> (expr <* semi)))
    <|> try (BStmt <$> block)
    <|> try ifStmt
    <|> try seqBlock
-   <|> try parBlock  
+   <|> try parBlock 
+   <|> try (FunCallStmt <$> (funCall <* semi)) 
    <|> try (AssignStmt <$> assign)     
    <|> ((pure None) <* semi)
 
@@ -119,7 +120,7 @@ parBlock = BStmt <$> (reserved "par" *> block)
 expr :: Parser Expr
 expr = buildExpressionParser operators expr'
  where expr' :: Parser Expr
-       expr' = try (funCall) 
+       expr' = try (ExpFunCall <$> funCall) 
            <|> try (ExpIdent <$> parseIdent)
            <|> try (Lit   <$> literal)
            <|> parens expr
@@ -127,8 +128,9 @@ expr = buildExpressionParser operators expr'
 
 -- | Parse variable assignment
 assign :: Parser Assign
-assign = Assign <$> parseType <*> parseIdent <* parseCh '=' <*> (expr <* semi)
-
+assign = Assign <$> parseType <*> 
+                    parseIdent <* parseCh '=' <*> 
+                    (expr <* semi)
 
 -- | Parse literal
 literal :: Parser Literal
@@ -139,9 +141,9 @@ literal = Ch  <$> ch
 
 
 -- | Parse function call
-funCall :: Parser Expr
-funCall = FunCall <$> ident <*> args
-    where args = parens $ commaSep expr
+funCall :: Parser FunCall
+funCall = FunCall <$> ident <*> args'
+    where args' = parens $ commaSep expr
 
 parseIdent :: Parser Ident
 parseIdent = Ident <$> ident

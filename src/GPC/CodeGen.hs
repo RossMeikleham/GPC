@@ -33,7 +33,10 @@ genTopLevel (Func _ (Ident n) args (BlockStmt rest)) = case args of
 
 -- |Generate code for statements
 genStmt :: Stmt -> Doc
-genStmt (AssignStmt (Assign _ (Ident name) ex)) = assign (text name) $ genExpr ex
+genStmt (FunCallStmt (FunCall n args)) = 
+    apply (text n) $ foldl (<+>) empty $ map genExpr args
+genStmt (AssignStmt (Assign _ (Ident name) ex)) = 
+    assign (text name) $ genExpr ex
 genStmt (Seq (BlockStmt s)) = letExp $ concatMapDocs genStmt s
 --genStmt (Par ss) = parens' $ concatMapDocs genStmt ss
 genStmt (Exp e) = genExpr e
@@ -42,12 +45,12 @@ genStmt (IfElse e s1 s2) = ifElseStmt e s1 s2
 genStmt (Return e) = genReturn $ genExpr e 
 genStmt (BStmt (BlockStmt ss)) = concatMapDocs genStmt ss
 genStmt (None) = text ""
-
         
 -- |Generate code for expressions
 genExpr :: Expr -> Doc
 genExpr (Lit l) = genLit l
-genExpr (FunCall n args) = apply (text n) $ foldl (<+>) empty $ map genExpr args
+genExpr (ExpFunCall (FunCall n args)) = 
+    apply (text n) $ foldl (<+>) empty $ map genExpr args
 genExpr (ExpIdent (Ident s)) = text s 
 -- | Generate Literal 
 genLit :: Literal -> Doc

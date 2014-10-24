@@ -19,27 +19,10 @@ int hello_world_args(int a, double b) {
     return 0;
 }
 
-hello_world();
-hello_world_args(5, 5.4);
+void main() {
+    hello_world();
+    hello_world_args(5, 5.4);
+}
 
 /* Compiler should generate helloWorld.yml config
- * as well as helloWorld.td gannet source file
- *
- * Gannet Source td :
- *  ;helloWorld.yml
- *
- *(let 
- *    '(label hello_world ; Creates function
- *        (begin ;Returns value of last argument
- *            (let ; Sequential evalutation
- *                (assign 'y "Hello World")
- *                (display y)
- *            )
- *            '0 ; Return 0
- *        )
- *    )
- *    '(apply hello_world) ;Call function
- *)
- *
- *   
- */
+ * as well as helloWorld.td gannet source file */
