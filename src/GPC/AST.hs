@@ -107,5 +107,5 @@ data Literal =
 
 data ClassName = ClassName String deriving Show
 data Ident = Ident String deriving Show
-data Type = Type String deriving Show
+data Type = Type String deriving (Show, Eq)
 data BlockStmt = BlockStmt [Stmt] deriving Show
