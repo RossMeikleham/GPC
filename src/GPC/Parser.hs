@@ -15,9 +15,6 @@ import Control.Arrow
 exprOperators = operators (\n c -> (Prefix (reservedOp n >> return (ExpUnaryOp c))))
                           (\n c -> (Infix  (reservedOp n >> return (ExpBinOp c)) AssocLeft))
 
-constExprOperators = operators (\n c -> (Prefix (reservedOp n >> return (ConstUnaryOp c))))
-                               (\n c -> (Infix (reservedOp n >> return (ConstBinOp c)) AssocLeft))
-
 -- |Unary operators have higher precedence than binary ones
 operators un bin = (unaryOps un) ++ (binaryOps bin)
 
@@ -62,7 +59,7 @@ topLevels =      try ((:) <$> topLevel <*> topLevels)
 -- | Parse Top Level definitions
 topLevel :: Parser TopLevel
 topLevel = try function
-        <|> TlAssign <$> constAssign
+        <|> TLAssign <$> assign
 
 
 
@@ -131,25 +128,12 @@ expr = buildExpressionParser exprOperators expr'
            <|> try (ExpLit   <$> literal)
            <|> parens expr
 
--- | Parse Constant expression
-constExpr :: Parser ConstExpr
-constExpr = buildExpressionParser constExprOperators expr'
- where expr' :: Parser ConstExpr
-       expr' = try (ConstIdent <$> parseIdent)
-           <|> try (ConstLit <$> literal)
-           <|> parens constExpr
-
 -- | Parse variable assignment
 assign :: Parser Assign
 assign = Assign <$> parseType <*> 
                     parseIdent <* parseCh '=' <*> 
                     (expr <* semi)
 
--- | Parse constant assignment
-constAssign :: Parser ConstAssign 
-constAssign = ConstAssign <$> parseType <*>
-                              parseIdent <* parseCh '=' <*>
-                              (constExpr <* semi)
 
 -- | Parse literal
 literal :: Parser Literal
@@ -162,9 +146,9 @@ literal = Ch  <$> ch
 -- | Parse for loop
 forLoop :: Parser Stmt
 forLoop = 
-    ForLoop <$> (reserved "for" *> reservedOp "(" *>  constExpr) -- Start
-            <*> constExpr  -- Stop
-            <*> (constExpr <* reservedOp ")") -- Step
+    ForLoop <$> (reserved "for" *> reservedOp "(" *>  expr) -- Start
+            <*> expr  -- Stop
+            <*> (expr <* reservedOp ")") -- Step
             <*> stmt 
    
 -- | Parse function call

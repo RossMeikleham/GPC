@@ -14,22 +14,22 @@ assignCheck :: [(Program, Either String Program)]
 assignCheck = [asInt, asChr, asBool, asDouble, asStr, asId]
  where
     -- |Check integer literal assignment
-    asInt = (Program [TlAssign (ConstAssign (Type "int") (Ident "x") (ConstLit (Num (Left 20))))], 
+    asInt = (Program [TLAssign (Assign (Type "int") (Ident "x") (ExpLit (Num (Left 20))))], 
             parseSource "int x = 20;")
     -- |Check char literal assignment
-    asChr = (Program [TlAssign (ConstAssign (Type "char") (Ident "y") (ConstLit (Ch 'c')))], 
+    asChr = (Program [TLAssign (Assign (Type "char") (Ident "y") (ExpLit (Ch 'c')))], 
             parseSource "char y = 'c';")
     -- |Check bool literal assignment 
-    asBool = (Program [TlAssign (ConstAssign (Type "bool") (Ident "b") (ConstLit (Bl False)))], 
+    asBool = (Program [TLAssign (Assign (Type "bool") (Ident "b") (ExpLit (Bl False)))], 
             parseSource "bool b = false;")
     -- |Check float literal assignment
-    asDouble = (Program [TlAssign (ConstAssign (Type "double") (Ident "d") (ConstLit (Num (Right 20.4))))], 
+    asDouble = (Program [TLAssign (Assign (Type "double") (Ident "d") (ExpLit (Num (Right 20.4))))], 
             parseSource "double d = 20.4;")
     -- |Check string literal assignment
-    asStr = (Program [TlAssign (ConstAssign (Type "string") (Ident "s") (ConstLit (Str "hi")))], 
+    asStr = (Program [TLAssign (Assign (Type "string") (Ident "s") (ExpLit (Str "hi")))], 
             parseSource "string s = \"hi\";")
     -- |Check identifier assignment
-    asId = (Program [TlAssign (ConstAssign (Type "int") (Ident "i") (ConstIdent (Ident "x")))], 
+    asId = (Program [TLAssign (Assign (Type "int") (Ident "i") (ExpIdent (Ident "x")))], 
             parseSource "int i =  x;")
 
 
@@ -47,32 +47,32 @@ binOpCheck :: [(Program, Either String Program)]
 binOpCheck = [asMul, asEq, asShift, asPrece, asPrece2, parensCheck]
  where
     -- Check multiplication assignment of 2 identities
-    asMul = (Program [TlAssign (ConstAssign (Type "int") (Ident "i") 
-            (ConstBinOp Mul (ConstIdent (Ident "x")) (ConstIdent (Ident "y"))))] 
+    asMul = (Program [TLAssign (Assign (Type "int") (Ident "i") 
+            (ExpBinOp Mul (ExpIdent (Ident "x")) (ExpIdent (Ident "y"))))] 
             ,parseSource "int i = x * y;")
     -- Check equality assignment of a literal and identity
-    asEq = (Program [TlAssign (ConstAssign (Type "bool") (Ident "b")
-           (ConstBinOp Equals (ConstLit (Bl True)) (ConstIdent (Ident "b"))))]
+    asEq = (Program [TLAssign (Assign (Type "bool") (Ident "b")
+           (ExpBinOp Equals (ExpLit (Bl True)) (ExpIdent (Ident "b"))))]
            ,parseSource "bool b = true == b;")
     -- Check shift assignment of 3 values 
-    asShift = (Program [TlAssign (ConstAssign (Type "int") (Ident "i")
-            (ConstBinOp ShiftL (ConstBinOp ShiftL (ConstLit (Num (Left 4))) (ConstLit (Num (Left 3))))
-                   (ConstLit (Num (Left 2)))))]
+    asShift = (Program [TLAssign (Assign (Type "int") (Ident "i")
+            (ExpBinOp ShiftL ( ExpBinOp ShiftL (ExpLit (Num (Left 4))) (ExpLit (Num (Left 3))))
+                   (ExpLit (Num (Left 2)))))]
             ,parseSource "int i = 4 << 3 << 2;")
     -- Check operator precedence works
-    asPrece = (Program [TlAssign (ConstAssign (Type "int") (Ident "j")
-              (ConstBinOp Add (ConstIdent (Ident "a")) (ConstBinOp Mul (
-                ConstIdent (Ident "b")) (ConstIdent (Ident "c")))))]
+    asPrece = (Program [TLAssign (Assign (Type "int") (Ident "j")
+              (ExpBinOp Add (ExpIdent (Ident "a")) (ExpBinOp Mul (
+                ExpIdent (Ident "b")) (ExpIdent (Ident "c")))))]
               ,parseSource "int j = a + b * c;") 
 
-    asPrece2 = (Program [TlAssign (ConstAssign (Type "int") (Ident "k")
-               (ConstBinOp Add (ConstBinOp Mul 
-               (ConstIdent (Ident "a")) (ConstIdent (Ident "b"))) (ConstIdent (Ident "c"))))]
+    asPrece2 = (Program [TLAssign (Assign (Type "int") (Ident "k")
+               (ExpBinOp Add (ExpBinOp Mul 
+               (ExpIdent (Ident "a")) (ExpIdent (Ident "b"))) (ExpIdent (Ident "c"))))]
                ,parseSource "int k = a * b + c;")
     -- Check precedence with parens
-    parensCheck = (Program [TlAssign (ConstAssign (Type "int")  (Ident "l")
-                  (ConstBinOp Mul (ConstIdent (Ident "a")) (ConstBinOp Add 
-                    (ConstIdent (Ident "b")) (ConstIdent (Ident "c")))))]
+    parensCheck = (Program [TLAssign (Assign (Type "int")  (Ident "l")
+                  (ExpBinOp Mul (ExpIdent (Ident "a")) (ExpBinOp Add 
+                    (ExpIdent (Ident "b")) (ExpIdent (Ident "c")))))]
                   ,parseSource "int l = a * (  b +  c);") 
     
        
@@ -81,20 +81,20 @@ unOpCheck :: [(Program, Either String Program)]
 unOpCheck = [asNot, asPrece, asPrece2, asParens]
  where
     -- Check assignment of not identity
-    asNot = (Program [TlAssign (ConstAssign (Type "bool") (Ident "i") 
-            (ConstUnaryOp Not (ConstIdent (Ident "x"))))] 
+    asNot = (Program [TLAssign (Assign (Type "bool") (Ident "i") 
+            (ExpUnaryOp Not (ExpIdent (Ident "x"))))] 
             ,parseSource "bool i = !x;")
     -- Check precedence with binary operators   
-    asPrece = (Program [TlAssign (ConstAssign (Type "int") (Ident "j")
-             (ConstBinOp Add (ConstIdent (Ident "a")) (ConstUnaryOp BNot (ConstIdent (Ident "b")))))]
+    asPrece = (Program [TLAssign (Assign (Type "int") (Ident "j")
+             (ExpBinOp Add (ExpIdent (Ident "a")) (ExpUnaryOp BNot (ExpIdent (Ident "b")))))]
              ,parseSource "int j = a + ~b;")    
     -- Check precedence with binary operators   
-    asPrece2 = (Program [TlAssign (ConstAssign (Type "int") (Ident "j")
-             (ConstBinOp Add (ConstUnaryOp BNot (ConstIdent (Ident "a"))) (ConstIdent (Ident "b"))))]
+    asPrece2 = (Program [TLAssign (Assign (Type "int") (Ident "j")
+             (ExpBinOp Add (ExpUnaryOp BNot (ExpIdent (Ident "a"))) (ExpIdent (Ident "b"))))]
              ,parseSource "int j = ~ a + b;")
     -- Check precedence with parenthesis
-    asParens = (Program [TlAssign (ConstAssign (Type "int")  (Ident "k")
-               (ConstUnaryOp Neg (ConstBinOp Sub (ConstIdent (Ident "a")) (ConstIdent (Ident "b")))))]
+    asParens = (Program [TLAssign (Assign (Type "int")  (Ident "k")
+               (ExpUnaryOp Neg (ExpBinOp Sub (ExpIdent (Ident "a")) (ExpIdent (Ident "b")))))]
                ,parseSource "int k = -(a - b);")
 
 
