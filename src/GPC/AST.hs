@@ -65,6 +65,7 @@ data BinOps =
     | Div
     | And
     | Or
+    | Mod
     | Less
     | LessEq
     | Greater
@@ -90,12 +91,12 @@ data UnaryOps =
 data Literal =
       Str String
     | Ch Char
-    | Num (Either Integer Double)
+    | Number (Either Integer Double)
     | Bl Bool
      deriving Show
 
 
 data ClassName = ClassName String deriving Show
-data Ident = Ident String deriving Show
+data Ident = Ident String deriving (Show, Eq, Ord)
 data Type = Type String deriving (Show, Eq)
 data BlockStmt = BlockStmt [Stmt] deriving Show

@@ -20,7 +20,7 @@ operators un bin = (unaryOps un) ++ (binaryOps bin)
 
 -- |Binary operators from highest to lowest precedence
 binaryOps :: ([Char] -> BinOps -> Operator s u m a) -> [[Operator s u m a]]
-binaryOps binary = [[binary "*"  Mul ,binary "/"  Div] --
+binaryOps binary = [[binary "*"  Mul ,binary "/"  Div, binary "%" Mod] --
             ,[binary "+"  Add, binary "-"  Sub]
             ,[binary "<<" ShiftL ,binary ">>" ShiftR] 
             ,[binary "<"  Less ,binary "<=" LessEq 
