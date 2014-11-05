@@ -8,6 +8,7 @@ import GPC.AST
 
 type VarTable = M.Map Ident Type
 type ConstVarTable = M.Map Ident Literal
+type FunTable = M.Map Ident (Type, [Type])
 
 -- |Function to convert Maybe to Either
 maybeToEither :: a -> Maybe b -> Either a b
@@ -40,6 +41,11 @@ createBlocks (Program xs) = initialBlock
        funDefs = map (\(Func (Type t) (Ident name) xs _) ->
                     M.singleton name $ (t, map (fst) xs)) funs
 
+
+-- | Obtain Type of Expression, returns error message
+-- | if types arn't consistent, or identifiers arn't in scope
+--getTypeExpr :: VarTable -> FunTable -> Expr -> Either String Type
+--getTypeExpr vtable ftable expr
 
 -- Replace all constant identifiers with their
 -- constant value
@@ -139,14 +145,17 @@ performBinCompareOp op (Number (Left n1)) (Number (Left n2)) = Right $ ExpLit $ 
        n2' = fromIntegral n2
 
 performBinCompareOp op (Number (Right n1)) (Number (Right n2)) = Right $ ExpLit $ Bl $ n1 `op` n2 
+performBinCompareOp _ _ _ = Left "Error expected either 2 ints, or 2 doubles"
     
 performBinBoolOp :: (Bool -> Bool -> Bool) -> Literal -> Literal -> Either String Expr
 performBinBoolOp op (Bl b1) (Bl b2) = Right $ ExpLit $ Bl $ b1 `op` b2
+performBinBoolOp _ _ _ = Left "Error expected boolean values"
 
 -- |Attempts to evaluate a constant unary expression, check the types as
 -- |well
 evaluateUnExpr :: UnaryOps -> Expr -> Either String Expr
-evaluateUnExpr utable expr = Left "dummy" --case expr of
+evaluateUnExpr unOp (ExpLit l) = (unOpTable unOp) l
+evaluateUnExpr unOp expr = Right expr
 
 unOpTable u = case u of
     Not -> performUnNotOp
