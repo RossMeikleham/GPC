@@ -46,7 +46,7 @@ createBlocks (Program xs) = initialBlock
 -- | if types arn't consistent, or identifiers arn't in scope
 getTypeExpr :: VarTable -> FunTable -> Expr -> Either String Type
 getTypeExpr vtable ftable expr = case expr of
-    (ExpBinOp b e1 e2) -> Left "dummy"
+    (ExpBinOp b e1 e2) -> getTypeBinOp b e1 e2
     (ExpUnaryOp u e) -> Left "dummy"
     (ExpFunCall (FunCall s exps)) -> do
         argTypes <- mapM (getTypeExpr vtable ftable) exps
@@ -56,7 +56,7 @@ getTypeExpr vtable ftable expr = case expr of
             else Right retT
 
     (ExpIdent i) -> maybeToEither (notFound i) (M.lookup i vtable) 
-    (ExpLit l) -> Right $ Type $ case l of
+    (ExpLit l) -> return $ Type $ case l of
                 Str s -> "string"
                 Ch c -> "char"
                 Number (Left i) -> "int"
@@ -64,7 +64,46 @@ getTypeExpr vtable ftable expr = case expr of
                 Bl b -> "bool"
 
  where notFound (Ident i) = "Identifier " ++ i ++ "not declared in scope"
-       
+       getTypeBinOp :: BinOps -> Expr -> Expr -> Either String Type
+       getTypeBinOp bop e1 e2 
+           | bop `elem` numNumNumOp = do
+               leftType  <- getTypeExpr vtable ftable e1
+               rightType <- getTypeExpr vtable ftable e2
+               if leftType /= rightType 
+                   then Left "Both expressions expected to be the same type"
+                   else case leftType of
+                       (Type "int") -> return $ Type "int"
+                       (Type "double") -> return $ Type "double"
+                       otherwise -> Left $ "Expected integer or double type"
+
+           | bop `elem` intIntIntOp = do                
+               leftType  <- getTypeExpr vtable ftable e1
+               rightType <- getTypeExpr vtable ftable e2
+               case (leftType, rightType) of
+                   (Type "int", Type "int") -> return $ Type "int"
+                   otherwise -> Left $ "Expected integer values"      
+
+           | bop `elem` compareOp = do
+               leftType  <- getTypeExpr vtable ftable e1
+               rightType <- getTypeExpr vtable ftable e2
+               case (leftType, rightType) of
+                   (Type "int", Type "int") -> return $ Type "bool"
+                   (Type "double", Type "double") -> return $ Type "bool"
+                   otherwise -> Left $ "Expected numeric values of the same type"      
+
+           | bop `elem` boolOp = do
+               leftType  <- getTypeExpr vtable ftable e1
+               rightType <- getTypeExpr vtable ftable e2
+               case (leftType, rightType) of
+                   (Type "bool", Type "bool") -> return $ Type "bool"
+                   otherwise -> Left $ "Expected boolean values"      
+
+       numNumNumOp = [Add, Sub, Mul, Div]        
+       intIntIntOp = [Mod, BAnd, BOr, BXor, ShiftL, ShiftR]
+       compareOp = [LessEq, Less, Equals, Greater, GreaterEq]
+       boolOp = [And, Or]
+
+
 -- Replace all constant identifiers with their
 -- constant value
 injectConstants :: ConstVarTable -> Expr -> Expr

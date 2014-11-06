@@ -77,7 +77,7 @@ data BinOps =
     | BAnd
     | BXor
     | BOr
-     deriving Show
+     deriving (Show, Eq)
 
 
 -- |Unary Operators
@@ -93,7 +93,7 @@ data Literal =
     | Ch Char
     | Number (Either Integer Double)
     | Bl Bool
-     deriving Show
+     deriving (Show, Eq)
 
 
 data ClassName = ClassName String deriving Show
