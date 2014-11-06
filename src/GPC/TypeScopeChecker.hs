@@ -1,6 +1,7 @@
 {- Check types and scope of identifiers -}
+module GPC.TypeScopeChecker(getTypeExpr) where
 
-import Control.Monad.State.Lazy
+--import Control.Monad.State.Lazy
 import qualified Data.Map as M
 import Control.Applicative hiding ((<|>), many, optional, empty)
 import Data.Bits

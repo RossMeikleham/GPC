@@ -5,9 +5,10 @@ import Test.HUnit
 import qualified Distribution.TestSuite as TS
 import GPC.ParserTests
 import GPC.CodeGenTests
+import GPC.TypeTests
 
 allTests :: Test 
-allTests = TestList [parserTests, codeGenTests] 
+allTests = TestList [parserTests, codeGenTests, typeTests] 
 
 -- |Need to convert HUnit test results to Cabal test suite so
 -- |our tests can be run with cabal
