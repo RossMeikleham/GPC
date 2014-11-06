@@ -103,6 +103,19 @@ getTypeExpr vtable ftable expr = case expr of
        compareOp = [LessEq, Less, Equals, Greater, GreaterEq]
        boolOp = [And, Or]
 
+       getTypeUnOp :: UnaryOps -> Expr -> Either String Type
+       getTypeUnOp op e 
+        | op == Not || op == Neg = getTypeExpr vtable ftable e >>= 
+            \t -> case t of 
+                (Type "int") -> return $ Type "int"
+                otherwise -> Left "Expected integer expression"
+        | op == BNot = getTypeExpr vtable ftable e >>=
+            \t -> case t of 
+                (Type "bool") -> return $ Type "bool"
+                otherwise -> Left "Expected boolean expression"
+
+        
+
 
 -- Replace all constant identifiers with their
 -- constant value

@@ -85,7 +85,7 @@ data UnaryOps =
       Not
     | Neg
     | BNot 
-     deriving Show
+     deriving (Show, Eq)
 
 
 data Literal =
