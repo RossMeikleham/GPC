@@ -45,7 +45,7 @@ data Stmt =
        deriving Show
 
 data Assign = Assign Type Ident Expr deriving Show
-data FunCall = FunCall String [Expr] deriving Show
+data FunCall = FunCall Ident [Expr] deriving Show
 
 -- |Expression
 data Expr =

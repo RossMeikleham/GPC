@@ -18,7 +18,7 @@ builtInTypes = ["int", "float", "char", "string", "bool"]
 
 data CodeBlock = CodeBlock {
     types :: [String], -- ^ Current types defined
-    funcDefs :: M.Map String (Type, [Type]), -- ^ Function names and return/argument types
+    funcDefs :: M.Map Ident (Type, [Type]), -- ^ Function names and return/argument types
     prevIdentifiers :: M.Map String String, -- ^ Identifiers from previous scope above with types
     curIdentifiers :: M.Map String String, -- ^ Identifiers in the current scope
     subBlocks :: [CodeBlock],
@@ -44,9 +44,27 @@ createBlocks (Program xs) = initialBlock
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
---getTypeExpr :: VarTable -> FunTable -> Expr -> Either String Type
---getTypeExpr vtable ftable expr
+getTypeExpr :: VarTable -> FunTable -> Expr -> Either String Type
+getTypeExpr vtable ftable expr = case expr of
+    (ExpBinOp b e1 e2) -> Left "dummy"
+    (ExpUnaryOp u e) -> Left "dummy"
+    (ExpFunCall (FunCall s exps)) -> do
+        argTypes <- mapM (getTypeExpr vtable ftable) exps
+        (retT, ts) <- maybeToEither (notFound s) (M.lookup s ftable)
+        if argTypes /= ts 
+            then Left "Arguments don't evaluate to given types"
+            else Right retT
 
+    (ExpIdent i) -> maybeToEither (notFound i) (M.lookup i vtable) 
+    (ExpLit l) -> Right $ Type $ case l of
+                Str s -> "string"
+                Ch c -> "char"
+                Number (Left i) -> "int"
+                Number (Right d) -> "double"
+                Bl b -> "bool"
+
+ where notFound (Ident i) = "Identifier " ++ i ++ "not declared in scope"
+       
 -- Replace all constant identifiers with their
 -- constant value
 injectConstants :: ConstVarTable -> Expr -> Expr

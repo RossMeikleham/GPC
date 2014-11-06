@@ -14,7 +14,7 @@ assignCheck :: [(Program, Either String Program)]
 assignCheck = [asInt, asChr, asBool, asDouble, asStr, asId]
  where
     -- |Check integer literal assignment
-    asInt = (Program [TLAssign (Assign (Type "int") (Ident "x") (ExpLit (Num (Left 20))))], 
+    asInt = (Program [TLAssign (Assign (Type "int") (Ident "x") (ExpLit (Number (Left 20))))], 
             parseSource "int x = 20;")
     -- |Check char literal assignment
     asChr = (Program [TLAssign (Assign (Type "char") (Ident "y") (ExpLit (Ch 'c')))], 
@@ -23,7 +23,7 @@ assignCheck = [asInt, asChr, asBool, asDouble, asStr, asId]
     asBool = (Program [TLAssign (Assign (Type "bool") (Ident "b") (ExpLit (Bl False)))], 
             parseSource "bool b = false;")
     -- |Check float literal assignment
-    asDouble = (Program [TLAssign (Assign (Type "double") (Ident "d") (ExpLit (Num (Right 20.4))))], 
+    asDouble = (Program [TLAssign (Assign (Type "double") (Ident "d") (ExpLit (Number (Right 20.4))))], 
             parseSource "double d = 20.4;")
     -- |Check string literal assignment
     asStr = (Program [TLAssign (Assign (Type "string") (Ident "s") (ExpLit (Str "hi")))], 
@@ -56,8 +56,8 @@ binOpCheck = [asMul, asEq, asShift, asPrece, asPrece2, parensCheck]
            ,parseSource "bool b = true == b;")
     -- Check shift assignment of 3 values 
     asShift = (Program [TLAssign (Assign (Type "int") (Ident "i")
-            (ExpBinOp ShiftL ( ExpBinOp ShiftL (ExpLit (Num (Left 4))) (ExpLit (Num (Left 3))))
-                   (ExpLit (Num (Left 2)))))]
+            (ExpBinOp ShiftL ( ExpBinOp ShiftL (ExpLit (Number (Left 4))) (ExpLit (Number (Left 3))))
+                   (ExpLit (Number (Left 2)))))]
             ,parseSource "int i = 4 << 3 << 2;")
     -- Check operator precedence works
     asPrece = (Program [TLAssign (Assign (Type "int") (Ident "j")
@@ -104,19 +104,19 @@ funCallCheck = [noArgs, singleArgs, multiArgs, multiComplexArgs]
  where
     -- Check function with no arguments
     noArgs = (Program [fun $ [AssignStmt $ (Assign (Type "int") (Ident "i")
-             (ExpFunCall $ FunCall "test" []))]]
+             (ExpFunCall $ FunCall (Ident "test") []))]]
              ,parseSource $ funStr ++ "int i = test();" ++ "}")
     -- Check function with one argument
     singleArgs = (Program [fun $ [AssignStmt $ (Assign (Type "test") (Ident "j")
-                 (ExpFunCall $ FunCall "func" [ExpIdent (Ident "a")]))]]
+                 (ExpFunCall $ FunCall (Ident "func") [ExpIdent (Ident "a")]))]]
                  ,parseSource $ funStr ++ "test j = func(a);" ++ "}")
     -- Check function with multiple arguments
     multiArgs = (Program [fun $ [AssignStmt $ (Assign (Type "blarg") (Ident "m")
-                (ExpFunCall $ FunCall"destroyAllHumans" [ExpIdent (Ident "a"), ExpIdent (Ident "b")]))]]
+                (ExpFunCall $ FunCall (Ident "destroyAllHumans") [ExpIdent (Ident "a"), ExpIdent (Ident "b")]))]]
                 ,parseSource$ funStr ++ "blarg m = destroyAllHumans(a, b);" ++ "}")
     -- Check function with multiple arguments with expressions
     multiComplexArgs = (Program [ fun $ [AssignStmt $ (Assign (Type "int") (Ident "a")
-                      (ExpFunCall $ FunCall "call" [ExpBinOp Mul (ExpIdent (Ident "a")) (ExpIdent (Ident "b")),
+                      (ExpFunCall $ FunCall (Ident "call") [ExpBinOp Mul (ExpIdent (Ident "a")) (ExpIdent (Ident "b")),
                       ExpUnaryOp Neg (ExpIdent (Ident "c"))]))]]
                       ,parseSource $ funStr ++ "int a = call(a * b, -c);" ++ "}")
     fun xs = Func (Type "tes") (Ident "test") [] (BlockStmt xs)

@@ -140,7 +140,7 @@ literal :: Parser Literal
 literal = Ch  <$> ch 
       <|> Str <$> str 
       <|> Bl  <$> bool 
-      <|> Num <$> num 
+      <|> Number <$> num 
 
 
 -- | Parse for loop
@@ -153,7 +153,7 @@ forLoop =
    
 -- | Parse function call
 funCall :: Parser FunCall
-funCall = FunCall <$> ident <*> args'
+funCall = FunCall <$> parseIdent <*> args'
     where args' = parens $ commaSep expr
 
 -- | Parse identifier
