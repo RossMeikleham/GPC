@@ -42,6 +42,22 @@ createBlocks (Program xs) = initialBlock
        funDefs = map (\(Func (Type t) (Ident name) xs _) ->
                     M.singleton name $ (t, map (fst) xs)) funs
 
+-- Given the table of variables defined in the current scope,
+-- and a table of all variables in scope, as well as functions
+-- Check if a given assign statement is valid.
+checkAssign :: VarTable -> VarTable ->  FunTable -> Assign -> Either String (VarTable, VarTable)
+checkAssign cvtable vtable ftable (Assign typeG ident expr) = do
+    if M.member ident cvtable 
+        then Left $ "Error, cannot redefine " ++ (show ident) ++ " in current scope" 
+        else do 
+            exprType <- getTypeExpr vtable ftable expr 
+            if typeG /= exprType 
+                then Left $ (show ident) ++ " declared as type " ++ (show typeG) ++
+                            "but rhs evaluates to type " ++ (show exprType) 
+                else return (M.insert ident typeG cvtable, 
+                             M.insert ident typeG vtable)
+    
+    
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
