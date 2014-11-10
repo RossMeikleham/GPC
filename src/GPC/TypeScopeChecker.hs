@@ -4,6 +4,9 @@ module GPC.TypeScopeChecker(getTypeExpr) where
 --import Control.Monad.State.Lazy
 import qualified Data.Map as M
 import Control.Applicative hiding ((<|>), many, optional, empty)
+import Control.Monad.Error
+import Control.Monad.Identity
+import Control.Monad.State.Lazy
 import Data.Bits
 import GPC.AST
 
@@ -18,35 +21,75 @@ maybeToEither = flip maybe Right . Left
 builtInTypes = ["int", "float", "char", "string", "bool"]
 
 data CodeBlock = CodeBlock {
-    types :: [String], -- ^ Current types defined
     funcDefs :: M.Map Ident (Type, [Type]), -- ^ Function names and return/argument types
-    prevIdentifiers :: M.Map String String, -- ^ Identifiers from previous scope above with types
-    curIdentifiers :: M.Map String String, -- ^ Identifiers in the current scope
+    prevIdentifiers :: VarTable, -- ^ Identifiers visible in current scope with types
+    curIdentifiers :: VarTable , -- ^ Identifiers declared in current scope
+    constIdentifiers :: ConstVarTable , -- ^ Identifiers visible from current scope which
+                                        -- ^ evaluate to a constant value
     subBlocks :: [CodeBlock],
     statements :: [Stmt] -- ^ Current statements in the block
 }
 
+type CodeState = State CodeBlock
+
+--evalBlock :: CodeState String
+--evalBlock ::
+
+--runCodeState :: String
+--runCodeState = 
+
 
 initialBlock :: CodeBlock
-initialBlock = CodeBlock builtInTypes M.empty M.empty M.empty [] []
+initialBlock = CodeBlock M.empty M.empty M.empty M.empty [] []
     
 
 isFun s = case s of
     (Func _ _ _ _) -> True
     otherwise -> False
 
+isAssign s = case s of
+    (TLAssign _) -> True
+    otherwise -> False
+
+isConstExpr :: Expr -> Bool
+isConstExpr (ExpLit _) = True
+isConstExpr _ = False 
+
+
 createBlocks :: Program -> CodeBlock
 createBlocks (Program xs) = initialBlock
  where funs = filter isFun xs
         -- Generate Function Definition Map
-       funDefs = map (\(Func (Type t) (Ident name) xs _) ->
-                    M.singleton name $ (t, map (fst) xs)) funs
+       funDefs = M.unions $ map (\(Func t name args _) ->
+                    M.singleton name $ (t, map fst args)) funs
+       tlAssigns =  map (\(TLAssign a) -> a) $ filter isAssign xs
+       test = checkTlAssigns tlAssigns funDefs
+
+
+checkTlAssigns :: [Assign] -> FunTable ->  Either String (ConstVarTable, VarTable)
+checkTlAssigns xs ftable  = foldM (\(a,b) -> checkTlAssign' a b) (M.empty, M.empty) xs
+
+ where checkTlAssign' :: ConstVarTable -> VarTable ->  Assign -> 
+                         Either String (ConstVarTable, VarTable)
+       checkTlAssign' constTable vtable assign@(Assign typeG ident expr) = do
+            (o ,t, th) <- checkAssign ftable vtable vtable constTable assign
+            if (not $ M.null $ t M.\\ th) 
+                then Left "Top Level asssignments are expected to be constant"
+                else return (th, t)
+             
+        
+
+--step :: CodeBlock -> Either (String, CodeBlock)
+--step  
 
 -- Given the table of variables defined in the current scope,
 -- and a table of all variables in scope, as well as functions
 -- Check if a given assign statement is valid.
-checkAssign :: VarTable -> VarTable ->  FunTable -> Assign -> Either String (VarTable, VarTable)
-checkAssign cvtable vtable ftable (Assign typeG ident expr) = do
+checkAssign :: FunTable -> VarTable -> VarTable -> 
+               ConstVarTable -> Assign ->  
+               Either String (VarTable, VarTable, ConstVarTable)
+checkAssign ftable vtable cvtable constTable (Assign typeG ident expr')  = do
+    let expr = injectConstants constTable expr'
     if M.member ident cvtable 
         then Left $ "Error, cannot redefine " ++ (show ident) ++ " in current scope" 
         else do 
@@ -55,8 +98,14 @@ checkAssign cvtable vtable ftable (Assign typeG ident expr) = do
                 then Left $ (show ident) ++ " declared as type " ++ (show typeG) ++
                             "but rhs evaluates to type " ++ (show exprType) 
                 else return (M.insert ident typeG cvtable, 
-                             M.insert ident typeG vtable)
+                             M.insert ident typeG vtable,
+                             case expr of
+                                (ExpLit l) -> M.insert ident l constTable
+                                otherwise -> constTable
+                             )
     
+
+--checkIf :: VarTable -> VarTable -> FunTable -> 
     
 
 -- | Obtain Type of Expression, returns error message
