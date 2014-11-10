@@ -115,7 +115,7 @@ checkAssign ftable vtable cvtable constTable (Assign typeG ident expr')  = do
 getTypeExpr :: VarTable -> FunTable -> Expr -> Either String Type
 getTypeExpr vtable ftable expr = case expr of
     (ExpBinOp b e1 e2) -> getTypeBinOp b e1 e2
-    (ExpUnaryOp u e) -> Left "dummy"
+    (ExpUnaryOp u e) -> getTypeUnOp u e
     (ExpFunCall (FunCall s exps)) -> do
         argTypes <- mapM (getTypeExpr vtable ftable) exps
         (retT, ts) <- maybeToEither (notFound s) (M.lookup s ftable)
