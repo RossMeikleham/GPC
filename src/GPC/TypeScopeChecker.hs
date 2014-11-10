@@ -1,5 +1,5 @@
 {- Check types and scope of identifiers -}
-module GPC.TypeScopeChecker(getTypeExpr) where
+module GPC.TypeScopeChecker(getTypeExpr,injectConstants, reduceExpr) where
 
 --import Control.Monad.State.Lazy
 import qualified Data.Map as M
@@ -200,11 +200,6 @@ injectConstants ctable expr = case expr of
                                 Nothing ->  ExpIdent i
     (ExpLit l) -> (ExpLit l)
 
--- Quick test, move to own HUnit module later
-testInject :: Expr
-testInject = injectConstants ctable expr
- where expr = (ExpBinOp Mul (ExpIdent (Ident "a")) (ExpLit (Number (Left 4))))
-       ctable = M.singleton (Ident "a") (Number (Left 5))
 
 
 -- |Attempts to reduce an expression as much as possible

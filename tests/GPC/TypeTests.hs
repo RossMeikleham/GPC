@@ -19,7 +19,6 @@ expressions = [intConst 20 -- ^ Check constant integer
                 [intConst 10, ExpBinOp Add (intConst 20) (ExpIdent $ Ident "a")]) 
               ,strConst "hi" -- ^ Check string literal
               ,(ExpUnaryOp BNot (ExpIdent $ Ident "b")) -- ^ Check unary expression
-              ,(ExpFunCall $ (FunCall (Ident "fun1") [(intConst 1)]))
               ] 
 
 
@@ -39,6 +38,13 @@ failExpressions = [(ExpBinOp Less (intConst 10) (doubleConst 20.0))
                   ,(ExpFunCall $ (FunCall (Ident "fun1") [(intConst 1)]))
                   ]
 
+
+-- Quick test, move to own HUnit module later
+injectExpressions = [(ExpBinOp Mul (ExpIdent (Ident "a")) (ExpLit (Number (Left 4))))]
+
+expectedAfterInject = [intConst 24]
+
+
 vars = M.fromList $ map (\(a,b) -> (Ident a, Type b)) 
               [("a", "int")
               ,("b", "bool")
@@ -46,14 +52,20 @@ vars = M.fromList $ map (\(a,b) -> (Ident a, Type b))
               ]
 ftable = M.fromList [(Ident "fun1", (Type "int" , map Type ["int", "int"]))
                      ]
-ctable = M.fromList [("a", Number (Left 6))
-                    ,("b", Bl True)
-                    ,("c", Number (Right 7.0))
+ctable = M.fromList [(Ident "a", Number (Left 6))
+                    ,(Ident "b", Bl True)
+                    ,(Ident "c", Number (Right 7.0))
                     ]
 
  
 validTest :: Type -> Either String Type -> Test
 validTest e a = TestCase (
+ case a of
+    Left err -> assertFailure err
+    Right p -> assertEqual "" (show p) (show e))
+
+validInject :: Expr -> Either String Expr -> Test
+validInject e a = TestCase (
  case a of
     Left err -> assertFailure err
     Right p -> assertEqual "" (show p) (show e))
@@ -66,6 +78,10 @@ invalidTest a = TestCase (
 typeTests :: Test
 typeTests = test $ (map (\(expected,expr) -> 
     validTest expected (getTypeExpr vars ftable expr)) (zip expectedTypes expressions)) ++
-    (map (invalidTest . (getTypeExpr vars ftable) ) failExpressions)
+    (map (invalidTest . (getTypeExpr vars ftable) ) failExpressions) ++
+    (map (\(expected, expr) -> 
+        validInject expected (reduceExpr vars $ injectConstants ctable expr)) 
+        (zip expectedAfterInject injectExpressions)
+    )
 
 
