@@ -119,9 +119,12 @@ getTypeExpr vtable ftable expr = case expr of
     (ExpFunCall (FunCall s exps)) -> do
         argTypes <- mapM (getTypeExpr vtable ftable) exps
         (retT, ts) <- maybeToEither (notFound s) (M.lookup s ftable)
-        if argTypes /= ts 
-            then Left "Arguments don't evaluate to given types"
-            else Right retT
+        if (length argTypes) /= (length ts)
+            then Left $ "Function " ++ (show s) ++  " expects " ++ (show $ length ts) ++
+                      " arguments but was given " ++ (show $ length argTypes)
+            else if argTypes /= ts 
+                then Left "Arguments don't evaluate to given types"
+                else Right retT
 
     (ExpIdent i) -> maybeToEither (notFound i) (M.lookup i vtable) 
     (ExpLit l) -> return $ Type $ case l of

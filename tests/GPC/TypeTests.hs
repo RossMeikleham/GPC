@@ -19,6 +19,7 @@ expressions = [intConst 20 -- ^ Check constant integer
                 [intConst 10, ExpBinOp Add (intConst 20) (ExpIdent $ Ident "a")]) 
               ,strConst "hi" -- ^ Check string literal
               ,(ExpUnaryOp BNot (ExpIdent $ Ident "b")) -- ^ Check unary expression
+              ,(ExpFunCall $ (FunCall (Ident "fun1") [(intConst 1)]))
               ] 
 
 
@@ -27,6 +28,7 @@ expectedTypes = map (Type) ["int"
                            ,"int"
                            ,"string"
                            ,"bool"
+                           ,"int"
                            ]
 
 -- ^ Invalid expressions which are expected to give an error message
