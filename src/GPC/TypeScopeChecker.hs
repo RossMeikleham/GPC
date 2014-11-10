@@ -55,15 +55,17 @@ isConstExpr :: Expr -> Bool
 isConstExpr (ExpLit _) = True
 isConstExpr _ = False 
 
-
-createBlocks :: Program -> CodeBlock
-createBlocks (Program xs) = initialBlock
- where funs = filter isFun xs
-        -- Generate Function Definition Map
-       funDefs = M.unions $ map (\(Func t name args _) ->
+-- Create all top level blocks
+createBlocks :: Program -> Either String CodeBlock
+createBlocks (Program xs) = do
+    let funs = filter isFun xs
+    let funStmts = map (\(Func _ _ _ (BlockStmt stmts)) -> stmts) funs --Extract function block
+    let funDefs = M.unions $ map (\(Func t name args _) ->  -- Obtain function tables
                     M.singleton name $ (t, map fst args)) funs
-       tlAssigns =  map (\(TLAssign a) -> a) $ filter isAssign xs
-       test = checkTlAssigns tlAssigns funDefs
+    let tlAssigns = map (\(TLAssign a) -> a) $ filter isAssign xs
+    (constTable, vTable) <-  checkTlAssigns tlAssigns funDefs
+    return $ CodeBlock funDefs vTable M.empty constTable (map (\x ->
+                CodeBlock funDefs vTable M.empty constTable [] x) funStmts) [] 
 
 
 checkTlAssigns :: [Assign] -> FunTable ->  Either String (ConstVarTable, VarTable)
