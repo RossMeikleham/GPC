@@ -5,21 +5,22 @@ module GPC.TypeTests(typeTests) where
 import Test.HUnit
 import GPC.AST
 import GPC.TypeScopeChecker
+import Control.Monad
 import qualified Data.Map as M
+import Data.Either
 
 doubleConst a = ExpLit $ Number $ Right a
 intConst a = ExpLit $ Number $ Left a
 strConst = ExpLit . Str 
 
-expressions = [intConst 20
-              ,(ExpBinOp Less (intConst 10) (ExpIdent $ Ident "a"))
-              ,(ExpFunCall $ FunCall (Ident "fun1") 
-                [intConst 10, ExpBinOp Add (intConst 20) (ExpIdent $ Ident "a")])
-              ,strConst "hi"
-              ,(ExpUnaryOp BNot (ExpIdent $ Ident "b"))
+expressions = [intConst 20 -- ^ Check constant integer
+              ,(ExpBinOp Less (intConst 10) (ExpIdent $ Ident "a")) -- ^ Check binary expression
+              ,(ExpFunCall $ FunCall (Ident "fun1")  -- ^ Check Function call expression
+                [intConst 10, ExpBinOp Add (intConst 20) (ExpIdent $ Ident "a")]) 
+              ,strConst "hi" -- ^ Check string literal
+              ,(ExpUnaryOp BNot (ExpIdent $ Ident "b")) -- ^ Check unary expression
               ] 
 
-failExpressions = [(ExpBinOp Less (intConst 10) (doubleConst 20.0))]
 
 expectedTypes = map (Type) ["int"
                            ,"bool"
@@ -27,6 +28,14 @@ expectedTypes = map (Type) ["int"
                            ,"string"
                            ,"bool"
                            ]
+
+-- ^ Invalid expressions which are expected to give an error message
+failExpressions = [(ExpBinOp Less (intConst 10) (doubleConst 20.0))
+                  -- Check functions called with more args gives error
+                  ,(ExpFunCall $ (FunCall (Ident "fun1") 
+                    [(intConst 1), (intConst 1), (intConst 1)]))
+                  ,(ExpFunCall $ (FunCall (Ident "fun1") [(intConst 1)]))
+                  ]
 
 vars = M.fromList $ map (\(a,b) -> (Ident a, Type b)) 
               [("a", "int")
@@ -47,6 +56,14 @@ validTest e a = TestCase (
     Left err -> assertFailure err
     Right p -> assertEqual "" (show p) (show e))
 
+invalidTest :: Either String Type -> Test
+invalidTest a = TestCase (
+    unless (isLeft a) $ 
+    assertFailure "Expected test to fail")
+
 typeTests :: Test
-typeTests = test $ map (\(expected,expr) -> 
-    validTest expected (getTypeExpr vars ftable expr)) (zip expectedTypes expressions) 
+typeTests = test $ (map (\(expected,expr) -> 
+    validTest expected (getTypeExpr vars ftable expr)) (zip expectedTypes expressions)) ++
+    (map (invalidTest . (getTypeExpr vars ftable) ) failExpressions)
+
+
