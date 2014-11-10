@@ -74,6 +74,7 @@ invalidTest :: Either String Type -> Test
 invalidTest a = TestCase (
     unless (isLeft a) $ 
     assertFailure "Expected test to fail")
+ where isLeft = null . rights . return
 
 typeTests :: Test
 typeTests = test $ (map (\(expected,expr) -> 
