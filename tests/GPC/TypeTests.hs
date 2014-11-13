@@ -38,17 +38,24 @@ failExpressions = [(ExpBinOp Less (intConst 10) (doubleConst 20.0))
                   ,(ExpFunCall $ (FunCall (Ident "fun1") [(intConst 1)]))
                   ]
 
+                     -- Test full reduction to constant
+injectExpressions = [(ExpBinOp Mul (ExpIdent (Ident "a")) (ExpLit (Number (Left 4))))
+                     -- Test partial reduction
+                    ,(ExpBinOp Less (ExpBinOp Add (ExpIdent $ Ident "a") (ExpIdent $ Ident "test"))  (
+                                    (ExpBinOp Mul (intConst 5) (intConst 4))))
+                    ]
 
--- Quick test, move to own HUnit module later
-injectExpressions = [(ExpBinOp Mul (ExpIdent (Ident "a")) (ExpLit (Number (Left 4))))]
-
-expectedAfterInject = [intConst 24]
+expectedAfterInject = [intConst 24
+                      ,ExpBinOp Less (ExpBinOp Add (intConst 6) (ExpIdent $ Ident "test"))
+                                     (intConst 20) 
+                      ]
 
 
 vars = M.fromList $ map (\(a,b) -> (Ident a, Type b)) 
               [("a", "int")
               ,("b", "bool")
               ,("c", "double")
+              ,("test", "int")
               ]
 ftable = M.fromList [(Ident "fun1", (Type "int" , map Type ["int", "int"]))
                      ]
