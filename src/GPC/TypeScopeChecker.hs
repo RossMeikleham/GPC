@@ -1,5 +1,6 @@
 {- Check types and scope of identifiers -}
-module GPC.TypeScopeChecker(getTypeExpr,injectConstants, reduceExpr) where
+module GPC.TypeScopeChecker(
+    getTypeExpr,injectConstants, reduceExpr, runTypeChecker) where
 
 --import Control.Monad.State.Lazy
 import qualified Data.Map as M
@@ -24,7 +25,7 @@ data MainBlock = MainBlock {
     funcs :: M.Map Ident CodeBlock,
     constVars :: ConstVarTable,
     constVarTypes :: VarTable
-}
+} deriving (Show)
 
 data CodeBlock = CodeBlock {
     funcDefs :: M.Map Ident (Type, [Type]), -- ^ Function names and return/argument types
@@ -34,21 +35,31 @@ data CodeBlock = CodeBlock {
                                         -- ^ evaluate to a constant value
     subBlocks :: [CodeBlock],
     statements :: [Stmt] -- ^ Current statements in the block
-}
+} deriving (Show)
 
---type CodeState = State CodeBlock
 
---evalBlock :: CodeState String
---evalBlock ::
 
 -- Monad Transformer combining State with Either
 type CodeState a = StateT MainBlock (Either String) a
 
+runTypeChecker :: Program -> Either String MainBlock
+runTypeChecker = typeCheck
+
 -- Perform Type/Scope checking
-typeCheck :: Program -> MainBlock
-typeCheck (Program tls) = error "dummy" 
- where initialBlock = MainBlock M.empty M.empty 
- 
+typeCheck :: Program -> Either String MainBlock
+typeCheck (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
+ Left s -> Left s
+ (Right ((), codeSt)) -> Right codeSt
+ where initialBlock = MainBlock M.empty M.empty M.empty
+
+evalTLStmts :: [TopLevel] -> CodeState()
+evalTLStmts tls = mapM_ evalTLStmt tls
+
+evalTLStmt :: TopLevel -> CodeState ()
+evalTLStmt tl = case tl of
+    (TLAssign assign) -> evalTLAssign assign
+     
+
 addFunDefs :: M.Map Ident CodeBlock -> CodeState ()
 addFunDefs fs = do
     mBlock <- get
@@ -102,11 +113,6 @@ evalTLAssign (Assign typeG ident expr) = do
         otherwise -> lift $ Left $ "Top level assignment are expected" ++
                             "to be constant, " ++ (show ident) ++ "is not constant"
                    
-
-evalTLStmt :: TopLevel -> CodeState ()
-evalTLStmt tl = case tl of
-    (TLAssign assign) -> evalTLAssign assign
-     
 
 --typeCheckMain :: CodeState ()
 --typeCheckMain = do 

@@ -50,6 +50,11 @@ expectedAfterInject = [intConst 24
                                      (intConst 20) 
                       ]
 
+validPrograms = [Program [TLAssign (Assign (Type "int") (Ident "i") (intConst 5))
+                         ,TLAssign (Assign (Type "int") (Ident "j") (ExpIdent (Ident "i")))
+                         ]
+                ]
+
 
 vars = M.fromList $ map (\(a,b) -> (Ident a, Type b)) 
               [("a", "int")
@@ -71,6 +76,14 @@ validTest e a = TestCase (
     Left err -> assertFailure err
     Right p -> assertEqual "" (show p) (show e))
 
+validProgramTest :: Program -> Test
+validProgramTest p = TestCase (
+    case result  of
+        Left err -> assertFailure err
+        Right _ -> unless (isRight result) $ 
+            assertFailure "This should never happen")
+ where result = runTypeChecker p
+
 validInject :: Expr -> Either String Expr -> Test
 validInject e a = TestCase (
  case a of
@@ -90,6 +103,7 @@ typeTests = test $ (map (\(expected,expr) ->
     (map (\(expected, expr) -> 
         validInject expected (reduceExpr vars $ injectConstants ctable expr)) 
         (zip expectedAfterInject injectExpressions)
-    )
+    ) ++ 
+    (map validProgramTest validPrograms)
 
 
