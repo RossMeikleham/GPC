@@ -20,6 +20,12 @@ maybeToEither = flip maybe Right . Left
 
 builtInTypes = ["int", "float", "char", "string", "bool"]
 
+data MainBlock = MainBlock {
+    funcs :: M.Map Ident CodeBlock,
+    constVars :: ConstVarTable,
+    constVarTypes :: VarTable
+}
+
 data CodeBlock = CodeBlock {
     funcDefs :: M.Map Ident (Type, [Type]), -- ^ Function names and return/argument types
     prevIdentifiers :: VarTable, -- ^ Identifiers visible in current scope with types
@@ -30,17 +36,80 @@ data CodeBlock = CodeBlock {
     statements :: [Stmt] -- ^ Current statements in the block
 }
 
-type CodeState = State CodeBlock
+--type CodeState = State CodeBlock
 
 --evalBlock :: CodeState String
 --evalBlock ::
 
---runCodeState :: String
---runCodeState = 
+-- Monad Transformer combining State with Either
+type CodeState a = StateT MainBlock (Either String) a
 
+-- Perform Type/Scope checking
+typeCheck :: Program -> MainBlock
+typeCheck (Program tls) = error "dummy" 
+ where initialBlock = MainBlock M.empty M.empty 
+ 
+addFunDefs :: M.Map Ident CodeBlock -> CodeState ()
+addFunDefs fs = do
+    mBlock <- get
+    put $ mBlock {funcs = fs}
+ 
+addConstVars :: ConstVarTable -> CodeState()
+addConstVars vars = do
+    mBlock <- get
+    put $ mBlock {constVars = vars}
 
-initialBlock :: CodeBlock
-initialBlock = CodeBlock M.empty M.empty M.empty M.empty [] []
+addConstVarTypes :: VarTable -> CodeState()
+addConstVarTypes vars = do
+    mBlock <- get
+    put $ mBlock {constVarTypes = vars} 
+ 
+getFuns :: CodeState (M.Map Ident CodeBlock) 
+getFuns = get >>= return . funcs
+    
+getConstVars :: CodeState ConstVarTable
+getConstVars = get >>= return . constVars
+
+getConstVarTypes :: CodeState VarTable
+getConstVarTypes = get >>= return . constVarTypes
+
+evalTLAssign :: Assign -> CodeState ()
+evalTLAssign (Assign typeG ident expr) = do
+    cVars <- getConstVars
+    tVars <- getConstVarTypes
+    reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
+
+    case reducedExpr of
+        
+        -- Reduced Expression gives a Constant
+        (ExpLit l) -> do
+            -- Type Check 
+            exprType <- lift $ getTypeExpr tVars M.empty reducedExpr 
+            if exprType == typeG
+                -- Check variable is a single instance
+                then if ident `M.notMember` cVars 
+
+                    then addConstVars $ M.insert ident l cVars
+
+                    else lift $ Left $ (show ident) ++ 
+                         "has already been defined in scope, cannot redefine it" 
+
+                else lift $ Left $ show (ident) ++ "is defined as type" 
+                        ++ (show typeG) ++ "but assignment evaluates to type" ++ 
+                        (show exprType)
+
+        -- Reduced Expression doesn't give a Constant
+        otherwise -> lift $ Left $ "Top level assignment are expected" ++
+                            "to be constant, " ++ (show ident) ++ "is not constant"
+                   
+
+evalTLStmt :: TopLevel -> CodeState ()
+evalTLStmt tl = case tl of
+    (TLAssign assign) -> evalTLAssign assign
+     
+
+--typeCheckMain :: CodeState ()
+--typeCheckMain = do 
     
 
 isFun s = case s of
@@ -54,9 +123,9 @@ isAssign s = case s of
 isConstExpr :: Expr -> Bool
 isConstExpr (ExpLit _) = True
 isConstExpr _ = False 
-
+{-
 -- Create all top level blocks
-createBlocks :: Program -> Either String CodeBlock
+createBlocks :: Program -> Either String MainBlock
 createBlocks (Program xs) = do
     let funs = filter isFun xs
     let funStmts = map (\(Func _ _ _ (BlockStmt stmts)) -> stmts) funs --Extract function block
@@ -66,7 +135,7 @@ createBlocks (Program xs) = do
     (constTable, vTable) <-  checkTlAssigns tlAssigns funDefs
     return $ CodeBlock funDefs vTable M.empty constTable (map (\x ->
                 CodeBlock funDefs vTable M.empty constTable [] x) funStmts) [] 
-
+-}
 
 checkTlAssigns :: [Assign] -> FunTable ->  Either String (ConstVarTable, VarTable)
 checkTlAssigns xs ftable  = foldM (\(a,b) -> checkTlAssign' a b) (M.empty, M.empty) xs
