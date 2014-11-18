@@ -1,118 +1,111 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 {- Check types and scope of identifiers -}
 module GPC.TypeScopeChecker(
     getTypeExpr,injectConstants, reduceExpr, runTypeChecker) where
 
---import Control.Monad.State.Lazy
+
 import qualified Data.Map as M
+import Data.Bits
 import Control.Applicative hiding ((<|>), many, optional, empty)
 import Control.Monad.Error
 import Control.Monad.Identity
 import Control.Monad.State.Lazy
-import Data.Bits
+import Control.Error.Util
+import Control.Lens
 import GPC.AST
 
 type VarTable = M.Map Ident Type
 type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident (Type, [Type])
 
--- |Function to convert Maybe to Either
-maybeToEither :: a -> Maybe b -> Either a b
-maybeToEither = flip maybe Right . Left
-
-builtInTypes = ["int", "float", "char", "string", "bool"]
-
 data MainBlock = MainBlock {
-    funcs :: M.Map Ident CodeBlock,
-    constVars :: ConstVarTable,
-    constVarTypes :: VarTable
+    _funcs :: M.Map Ident CodeBlock, -- ^ Function Blocks
+    _tlFuncDefs :: FunTable, -- ^ Function Definitions
+    _tlConstVars :: ConstVarTable, -- ^ Top Level Constant Variable values
+    _tlConstVarTypes :: VarTable -- ^ Top Level Constant variable types
 } deriving (Show)
 
 data CodeBlock = CodeBlock {
-    funcDefs :: M.Map Ident (Type, [Type]), -- ^ Function names and return/argument types
-    prevIdentifiers :: VarTable, -- ^ Identifiers visible in current scope with types
-    curIdentifiers :: VarTable , -- ^ Identifiers declared in current scope
-    constIdentifiers :: ConstVarTable , -- ^ Identifiers visible from current scope which
+    _funcDefs :: FunTable, -- ^ Function names and return/argument types
+    _prevVars :: VarTable, -- ^ Identifiers visible in current scope with types
+    _curVars :: VarTable , -- ^ Identifiers declared in current scope
+    _constVars :: ConstVarTable , -- ^ Identifiers visible from current scope which
                                         -- ^ evaluate to a constant value
-    subBlocks :: [CodeBlock],
-    statements :: [Stmt] -- ^ Current statements in the block
+    _subBlocks :: [CodeBlock], -- ^ Sub Blocks
+    _statements :: [Stmt] -- ^ Current statements in the block
 } deriving (Show)
 
-
+-- Create lenses to access Block fields easier
+makeLenses ''MainBlock 
+makeLenses ''CodeBlock
 
 -- Monad Transformer combining State with Either
+-- when doing type checking if a failure occurs
+-- we can return an error String
 type CodeState a = StateT MainBlock (Either String) a
+type BlockState a = StateT CodeBlock (Either String) a
 
+-- | Perform Type/Scope checking
 runTypeChecker :: Program -> Either String MainBlock
-runTypeChecker = typeCheck
-
--- Perform Type/Scope checking
-typeCheck :: Program -> Either String MainBlock
-typeCheck (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
+runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
  Left s -> Left s
  (Right ((), codeSt)) -> Right codeSt
- where initialBlock = MainBlock M.empty M.empty M.empty
+ where initialBlock = MainBlock M.empty M.empty M.empty M.empty
 
+-- | Type Check all top level statements
 evalTLStmts :: [TopLevel] -> CodeState()
 evalTLStmts tls = mapM_ evalTLStmt tls
 
+-- | Type check a given top level statement
 evalTLStmt :: TopLevel -> CodeState ()
 evalTLStmt tl = case tl of
     (TLAssign assign) -> evalTLAssign assign
+   -- (Func gType ident args stmts) -> evalFuncDef gType ident args stmts
      
-
-addFunDefs :: M.Map Ident CodeBlock -> CodeState ()
-addFunDefs fs = do
-    mBlock <- get
-    put $ mBlock {funcs = fs}
- 
-addConstVars :: ConstVarTable -> CodeState()
-addConstVars vars = do
-    mBlock <- get
-    put $ mBlock {constVars = vars}
-
-addConstVarTypes :: VarTable -> CodeState()
-addConstVarTypes vars = do
-    mBlock <- get
-    put $ mBlock {constVarTypes = vars} 
- 
-getFuns :: CodeState (M.Map Ident CodeBlock) 
-getFuns = get >>= return . funcs
-    
-getConstVars :: CodeState ConstVarTable
-getConstVars = get >>= return . constVars
-
-getConstVarTypes :: CodeState VarTable
-getConstVarTypes = get >>= return . constVarTypes
-
+-- | Type Check top level assignment
 evalTLAssign :: Assign -> CodeState ()
 evalTLAssign (Assign typeG ident expr) = do
-    cVars <- getConstVars
-    tVars <- getConstVarTypes
+    cVars <- use tlConstVars
+    tVars <- use tlConstVarTypes
     reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
-
+ 
     case reducedExpr of
-        
-        -- Reduced Expression gives a Constant
         (ExpLit l) -> do
-            -- Type Check 
+
             exprType <- lift $ getTypeExpr tVars M.empty reducedExpr 
-            if exprType == typeG
-                -- Check variable is a single instance
-                then if ident `M.notMember` cVars 
+            -- Check Types match and Variable is Single instance
+            if exprType == typeG then 
+                if ident `M.notMember` tVars then do -- Update State
+                  assign tlConstVars $ M.insert ident l cVars
+                  assign tlConstVarTypes $ M.insert ident typeG tVars
+                else multipleInstance 
+            else conflictingTypes exprType
 
-                    then addConstVars $ M.insert ident l cVars
+        otherwise -> notConstant
+                           
+ where 
+    multipleInstance = lift $ Left $ (show ident) ++ " has already been defined " ++ 
+        "in scope, cannot redefine it" 
+    conflictingTypes exprType = lift $ Left $ show (ident) ++ "is defined as type" ++ 
+        (show typeG) ++ " but assignment evaluates to type " ++ (show exprType)
+    notConstant = lift $ Left $ "Top level assignment are expected to be constant, " ++ 
+        (show ident) ++ "is not constant"
+                          
+--evalFunc :: Type -> Ident -> [(Type, Ident)] -> BlockStmt -> CodeState()
+--evalFunc typeG ident args stmts = do
+--    funs <- getFuns
+--    funcDefs <- getFuncDefs
+ --   -- Check function isn't already defined
+ --   if ident `M.notMember` fDefs 
+ --       then do
+ --           addFuncDefs $ M.insert ident (typeG, 
+ --           addFunDefs $ M.insert ident newBlock
+ --       else lift $ Left $ "Function " ++ show (ident) ++ "occurs more than once"
+ --where newBlock = CodeBlock 
 
-                    else lift $ Left $ (show ident) ++ 
-                         "has already been defined in scope, cannot redefine it" 
+    
 
-                else lift $ Left $ show (ident) ++ "is defined as type" 
-                        ++ (show typeG) ++ "but assignment evaluates to type" ++ 
-                        (show exprType)
-
-        -- Reduced Expression doesn't give a Constant
-        otherwise -> lift $ Left $ "Top level assignment are expected" ++
-                            "to be constant, " ++ (show ident) ++ "is not constant"
-                   
 
 --typeCheckMain :: CodeState ()
 --typeCheckMain = do 
@@ -126,38 +119,6 @@ isAssign s = case s of
     (TLAssign _) -> True
     otherwise -> False
 
-isConstExpr :: Expr -> Bool
-isConstExpr (ExpLit _) = True
-isConstExpr _ = False 
-{-
--- Create all top level blocks
-createBlocks :: Program -> Either String MainBlock
-createBlocks (Program xs) = do
-    let funs = filter isFun xs
-    let funStmts = map (\(Func _ _ _ (BlockStmt stmts)) -> stmts) funs --Extract function block
-    let funDefs = M.unions $ map (\(Func t name args _) ->  -- Obtain function tables
-                    M.singleton name $ (t, map fst args)) funs
-    let tlAssigns = map (\(TLAssign a) -> a) $ filter isAssign xs
-    (constTable, vTable) <-  checkTlAssigns tlAssigns funDefs
-    return $ CodeBlock funDefs vTable M.empty constTable (map (\x ->
-                CodeBlock funDefs vTable M.empty constTable [] x) funStmts) [] 
--}
-
-checkTlAssigns :: [Assign] -> FunTable ->  Either String (ConstVarTable, VarTable)
-checkTlAssigns xs ftable  = foldM (\(a,b) -> checkTlAssign' a b) (M.empty, M.empty) xs
-
- where checkTlAssign' :: ConstVarTable -> VarTable ->  Assign -> 
-                         Either String (ConstVarTable, VarTable)
-       checkTlAssign' constTable vtable assign@(Assign typeG ident expr) = do
-            (o ,t, th) <- checkAssign ftable vtable vtable constTable assign
-            if (not $ M.null $ t M.\\ th) 
-                then Left "Top Level asssignments are expected to be constant"
-                else return (th, t)
-             
-        
-
---step :: CodeBlock -> Either (String, CodeBlock)
---step  
 
 -- Given the table of variables defined in the current scope,
 -- and a table of all variables in scope, as well as functions
@@ -193,7 +154,7 @@ getTypeExpr vtable ftable expr = case expr of
     (ExpUnaryOp u e) -> getTypeUnOp u e
     (ExpFunCall (FunCall s exps)) -> do
         argTypes <- mapM (getTypeExpr vtable ftable) exps
-        (retT, ts) <- maybeToEither (notFound s) (M.lookup s ftable)
+        (retT, ts) <- note (notFound s) (M.lookup s ftable)
         if (length argTypes) /= (length ts)
             then Left $ "Function " ++ (show s) ++  " expects " ++ (show $ length ts) ++
                       " arguments but was given " ++ (show $ length argTypes)
@@ -201,7 +162,7 @@ getTypeExpr vtable ftable expr = case expr of
                 then Left "Arguments don't evaluate to given types"
                 else Right retT
 
-    (ExpIdent i) -> maybeToEither (notFound i) (M.lookup i vtable) 
+    (ExpIdent i) -> note (notFound i) (M.lookup i vtable) 
     (ExpLit l) -> return $ Type $ case l of
                 Str s -> "string"
                 Ch c -> "char"
