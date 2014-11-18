@@ -12,7 +12,7 @@ import Data.Either
 doubleConst a = ExpLit $ Number $ Right a
 intConst a = ExpLit $ Number $ Left a
 strConst = ExpLit . Str 
-isRight = either (const False) (const True)
+isRight' = either (const False) (const True)
 
 expressions = [intConst 20 -- ^ Check constant integer
               ,(ExpBinOp Less (intConst 10) (ExpIdent $ Ident "a")) -- ^ Check binary expression
@@ -81,7 +81,7 @@ validProgramTest :: Program -> Test
 validProgramTest p = TestCase (
     case result  of
         Left err -> assertFailure err
-        Right _ -> unless (isRight result) $ 
+        Right _ -> unless (isRight' result) $ 
             assertFailure "This should never happen")
  where result = runTypeChecker p
 

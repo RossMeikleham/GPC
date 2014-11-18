@@ -9,7 +9,6 @@ import qualified Data.Map as M
 import Data.Bits
 import Control.Applicative hiding ((<|>), many, optional, empty)
 import Control.Monad.Error
-import Control.Monad.Identity
 import Control.Monad.State.Lazy
 import Control.Error.Util
 import Control.Lens
@@ -118,33 +117,33 @@ evalStmts tls = mapM_ evalStmt tls
 
 -- | Type check given statement    
 evalStmt :: Stmt -> BlockState ()
-evalStmt stmt = error "dummy"
+evalStmt stmt = case stmt of
+   (AssignStmt assign) -> checkAssign assign
     
 
-
-
--- Given the table of variables defined in the current scope,
--- and a table of all variables in scope, as well as functions
--- Check if a given assign statement is valid.
-checkAssign :: FunTable -> VarTable -> VarTable -> 
-               ConstVarTable -> Assign ->  
-               Either String (VarTable, VarTable, ConstVarTable)
-checkAssign ftable vtable cvtable constTable (Assign typeG ident expr')  = do
-    let expr = injectConstants constTable expr'
-    if M.member ident cvtable 
-        then Left $ "Error, cannot redefine " ++ (show ident) ++ " in current scope" 
-        else do 
-            exprType <- getTypeExpr vtable ftable expr 
-            if typeG /= exprType 
-                then Left $ (show ident) ++ " declared as type " ++ (show typeG) ++
-                            "but rhs evaluates to type " ++ (show exprType) 
-                else return (M.insert ident typeG cvtable, 
-                             M.insert ident typeG vtable,
-                             case expr of
-                                (ExpLit l) -> M.insert ident l constTable
-                                otherwise -> constTable
-                             )
-    
+-- |Type Check Assignment Statement
+checkAssign :: Assign -> BlockState()
+checkAssign (Assign gType ident expr) = do
+    ftable <- use funcDefs
+    oldVtable <- use prevVars
+    vTable <- use curVars
+    cTable <- use constVars
+    let scopeVars = vTable `M.union` oldVtable -- Gives all visible identifiers
+    expr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
+    if ident `M.member` vTable then do
+        exprType <- lift $ getTypeExpr scopeVars ftable expr 
+        if gType == exprType then do
+            assign curVars   $ M.insert ident gType vTable
+            -- Update Const Table
+            assign constVars $ case expr of 
+                            (ExpLit l) -> M.insert ident l cTable
+                            otherwise -> M.delete ident cTable
+        else typeMismatch gType exprType
+    else redefine
+ where
+    redefine = lift $ Left $ "Error, cannot redefine " ++ (show ident) ++ " in current scope" 
+    typeMismatch l r = lift $ Left $ (show ident) ++ " declared as type " ++ (show l) ++
+                            "but rhs evaluates to type " ++ (show r) 
 
 --checkIf :: VarTable -> VarTable -> FunTable -> 
     
@@ -264,7 +263,7 @@ reduceExpr vtable expr = case expr of
                                     then (Right i) 
                                     else (Left $ notFound i)
 
-    (ExpLit l) -> ExpLit <$> (pure l)
+    (ExpLit l) -> return (ExpLit l)
  where notFound (Ident i) = "Identifier " ++ i ++ "not declared in scope"
 
 
