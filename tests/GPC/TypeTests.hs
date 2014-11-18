@@ -12,6 +12,7 @@ import Data.Either
 doubleConst a = ExpLit $ Number $ Right a
 intConst a = ExpLit $ Number $ Left a
 strConst = ExpLit . Str 
+isRight = either (const False) (const True)
 
 expressions = [intConst 20 -- ^ Check constant integer
               ,(ExpBinOp Less (intConst 10) (ExpIdent $ Ident "a")) -- ^ Check binary expression

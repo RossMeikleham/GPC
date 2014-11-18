@@ -100,9 +100,10 @@ evalFunc typeG ident args (BlockStmt stmts) = do
     -- Check function isn't already defined
     if ident `M.notMember` funcDefs
         then do
-            let newBlock = CodeBlock funcDefs varTypes M.empty constVars []
+            let newBlock = CodeBlock funcDefs varTypes M.empty constVars []            
             assign tlFuncDefs $ M.insert ident (typeG, map fst args) funcDefs
-            assign funcs $ M.insert ident newBlock funs
+            funBlock <- lift $ runBlockCheck stmts newBlock
+            assign funcs $ M.insert ident funBlock funs
         else lift $ Left $ "Function " ++ show (ident) ++ "occurs more than once"
 
 -- | Run Type Checker on new code block
