@@ -32,8 +32,7 @@ data CodeBlock = CodeBlock {
     _curVars :: VarTable , -- ^ Identifiers declared in current scope
     _constVars :: ConstVarTable , -- ^ Identifiers visible from current scope which
                                         -- ^ evaluate to a constant value
-    _subBlocks :: [CodeBlock], -- ^ Sub Blocks
-    _statements :: [Stmt] -- ^ Current statements in the block
+    _subBlocks :: [CodeBlock] -- ^ Sub Blocks
 } deriving (Show)
 
 -- Create lenses to access Block fields easier
@@ -61,7 +60,7 @@ evalTLStmts tls = mapM_ evalTLStmt tls
 evalTLStmt :: TopLevel -> CodeState ()
 evalTLStmt tl = case tl of
     (TLAssign assign) -> evalTLAssign assign
-   -- (Func gType ident args stmts) -> evalFuncDef gType ident args stmts
+    (Func gType ident args stmts) -> evalFunc gType ident args stmts
      
 -- | Type Check top level assignment
 evalTLAssign :: Assign -> CodeState ()
@@ -92,32 +91,35 @@ evalTLAssign (Assign typeG ident expr) = do
     notConstant = lift $ Left $ "Top level assignment are expected to be constant, " ++ 
         (show ident) ++ "is not constant"
                           
---evalFunc :: Type -> Ident -> [(Type, Ident)] -> BlockStmt -> CodeState()
---evalFunc typeG ident args stmts = do
---    funs <- getFuns
---    funcDefs <- getFuncDefs
- --   -- Check function isn't already defined
- --   if ident `M.notMember` fDefs 
- --       then do
- --           addFuncDefs $ M.insert ident (typeG, 
- --           addFunDefs $ M.insert ident newBlock
- --       else lift $ Left $ "Function " ++ show (ident) ++ "occurs more than once"
- --where newBlock = CodeBlock 
+evalFunc :: Type -> Ident -> [(Type, Ident)] -> BlockStmt -> CodeState()
+evalFunc typeG ident args (BlockStmt stmts) = do
+    funs <- use funcs
+    funcDefs <- use tlFuncDefs
+    constVars <- use tlConstVars
+    varTypes <- use tlConstVarTypes
+    -- Check function isn't already defined
+    if ident `M.notMember` funcDefs
+        then do
+            let newBlock = CodeBlock funcDefs varTypes M.empty constVars []
+            assign tlFuncDefs $ M.insert ident (typeG, map fst args) funcDefs
+            assign funcs $ M.insert ident newBlock funs
+        else lift $ Left $ "Function " ++ show (ident) ++ "occurs more than once"
 
+-- | Run Type Checker on new code block
+runBlockCheck :: [Stmt] -> CodeBlock -> Either String CodeBlock
+runBlockCheck stmts cb =  case runStateT (evalStmts stmts) cb of
+    Left s -> Left s
+    (Right ((), codeSt)) -> Right codeSt
+
+-- | Type Check all statements in the current scope
+evalStmts :: [Stmt] -> BlockState()
+evalStmts tls = mapM_ evalStmt tls
+
+-- | Type check given statement    
+evalStmt :: Stmt -> BlockState ()
+evalStmt stmt = error "dummy"
     
 
-
---typeCheckMain :: CodeState ()
---typeCheckMain = do 
-    
-
-isFun s = case s of
-    (Func _ _ _ _) -> True
-    otherwise -> False
-
-isAssign s = case s of
-    (TLAssign _) -> True
-    otherwise -> False
 
 
 -- Given the table of variables defined in the current scope,
