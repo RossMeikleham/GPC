@@ -125,7 +125,10 @@ evalStmts tls = mapM_ evalStmt tls
 evalStmt :: Stmt -> BlockState ()
 evalStmt stmt = case stmt of
    (AssignStmt assign) -> checkAssign assign
-    
+   (If expr stmt) -> checkIf expr stmt
+   (IfElse expr stmt1 stmt2) -> checkIfElse expr stmt1 stmt2
+   (Seq blockStmt) -> checkBlock blockStmt
+   (BStmt blockStmt) -> checkBlock blockStmt
 
 -- |Type Check Assignment Statement
 checkAssign :: Assign -> BlockState()
@@ -161,6 +164,26 @@ checkIf expr stmt = do
         evalStmt stmt
     else lift $ Left $ "Expression within if is expected to be a bool " ++
         " but it evaluates to a " ++ (show exprType)
+
+-- |Type Check If - Else Statement
+checkIfElse :: Expr -> Stmt -> Stmt -> BlockState()
+checkIfElse expr thenStmt elseStmt = do
+    checkIf expr thenStmt
+    evalStmt elseStmt
+
+--checkForLoop :: Expr -> Expr -> Expr -> Stmt
+
+-- | Type check inner block
+checkBlock :: BlockStmt -> BlockState()
+checkBlock (BlockStmt stmts) = do
+    fTable <- use funcDefs
+    cTable <- use constVars
+    innerBlocks <- use subBlocks
+    scopeVars <- M.union <$> use curVars <*> use prevVars 
+
+    let newBlock = CodeBlock fTable scopeVars M.empty cTable []   
+    subBlock <- lift $ runBlockCheck stmts newBlock         
+    assign subBlocks $ innerBlocks ++ [subBlock]
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
