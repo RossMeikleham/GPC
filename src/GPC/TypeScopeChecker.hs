@@ -32,6 +32,7 @@ data MainBlock = MainBlock {
 } deriving (Show)
 
 data CodeBlock = CodeBlock {
+    _currentFun :: Ident, -- ^ Name of Function block is in
     _funcDefs :: FunTable, -- ^ Function names and return/argument types
     _prevVars :: VarTable, -- ^ Identifiers visible in current scope with types
     _curVars :: VarTable , -- ^ Identifiers declared in current scope
@@ -105,7 +106,7 @@ evalFunc typeG ident args (BlockStmt stmts) = do
     -- Check function isn't already defined
     if ident `M.notMember` funcDefs
         then do
-            let newBlock = CodeBlock funcDefs varTypes M.empty constVars []            
+            let newBlock = CodeBlock ident funcDefs varTypes M.empty constVars []            
             assign tlFuncDefs $ M.insert ident (typeG, map fst args) funcDefs
             funBlock <- lift $ runBlockCheck stmts newBlock
             assign funcs $ M.insert ident funBlock funs
@@ -129,6 +130,7 @@ evalStmt stmt = case stmt of
    (IfElse expr stmt1 stmt2) -> checkIfElse expr stmt1 stmt2
    (Seq blockStmt) -> checkBlock blockStmt
    (BStmt blockStmt) -> checkBlock blockStmt
+   (Return expr) -> checkReturn expr
 
 -- |Type Check Assignment Statement
 checkAssign :: Assign -> BlockState()
@@ -176,14 +178,36 @@ checkIfElse expr thenStmt elseStmt = do
 -- | Type check inner block
 checkBlock :: BlockStmt -> BlockState()
 checkBlock (BlockStmt stmts) = do
+    fName <- use currentFun
     fTable <- use funcDefs
     cTable <- use constVars
     innerBlocks <- use subBlocks
     scopeVars <- M.union <$> use curVars <*> use prevVars 
 
-    let newBlock = CodeBlock fTable scopeVars M.empty cTable []   
+    let newBlock = CodeBlock fName fTable scopeVars M.empty cTable []   
     subBlock <- lift $ runBlockCheck stmts newBlock         
     assign subBlocks $ innerBlocks ++ [subBlock]
+
+-- | Type check return stmt
+checkReturn :: Expr -> BlockState()
+checkReturn expr = do
+    fName <- use currentFun
+    fTable <- use funcDefs
+    scopeVars <- M.union <$> use curVars <*> use prevVars 
+
+    let notFound = "Error, function not found " ++ show (fName)
+
+    (retType, _) <- lift $ note notFound $ M.lookup fName fTable
+    exprType <- lift $ getTypeExpr scopeVars fTable expr
+
+    if retType == exprType then
+        modify id -- Type checking return doesn't modify state, return old state
+    else
+        lift $ Left $ "The return type of function " ++ (show fName) ++
+            "is " ++ (show retType) ++ "but return expression evaluates to" ++
+            "type " ++ (show exprType)
+
+
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
