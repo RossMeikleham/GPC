@@ -18,6 +18,12 @@ type VarTable = M.Map Ident Type
 type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident (Type, [Type])
 
+boolType = Type "bool"
+intType = Type "int"
+strType = Type "string"
+chType = Type "char"
+doubleType = Type "double"
+
 data MainBlock = MainBlock {
     _funcs :: M.Map Ident CodeBlock, -- ^ Function Blocks
     _tlFuncDefs :: FunTable, -- ^ Function Definitions
@@ -145,8 +151,16 @@ checkAssign (Assign gType ident expr) = do
     typeMismatch l r = lift $ Left $ (show ident) ++ " declared as type " ++ (show l) ++
                             "but rhs evaluates to type " ++ (show r) 
 
---checkIf :: VarTable -> VarTable -> FunTable -> 
-    
+-- |Type Check If Statement
+checkIf :: Expr -> Stmt -> BlockState()
+checkIf expr stmt = do
+    fTable <- use funcDefs
+    scopeVars <- M.union <$> use curVars <*> use prevVars 
+    exprType <- lift $ getTypeExpr scopeVars fTable expr
+    if exprType == boolType then
+        evalStmt stmt
+    else lift $ Left $ "Expression within if is expected to be a bool " ++
+        " but it evaluates to a " ++ (show exprType)
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
