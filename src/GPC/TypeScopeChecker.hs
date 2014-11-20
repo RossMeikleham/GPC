@@ -18,11 +18,13 @@ type VarTable = M.Map Ident Type
 type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident (Type, [Type])
 
+
 boolType = Type "bool"
 intType = Type "int"
 strType = Type "string"
 chType = Type "char"
 doubleType = Type "double"
+
 
 data MainBlock = MainBlock {
     _funcs :: M.Map Ident CodeBlock, -- ^ Function Blocks
@@ -30,6 +32,7 @@ data MainBlock = MainBlock {
     _tlConstVars :: ConstVarTable, -- ^ Top Level Constant Variable values
     _tlConstVarTypes :: VarTable -- ^ Top Level Constant variable types
 } deriving (Show)
+
 
 data CodeBlock = CodeBlock {
     _currentFun :: Ident, -- ^ Name of Function block is in
@@ -41,15 +44,18 @@ data CodeBlock = CodeBlock {
     _subBlocks :: [CodeBlock] -- ^ Sub Blocks
 } deriving (Show)
 
+
 -- Create lenses to access Block fields easier
 makeLenses ''MainBlock 
 makeLenses ''CodeBlock
+
 
 -- Monad Transformer combining State with Either
 -- when doing type checking if a failure occurs
 -- we can return an error String
 type CodeState a = StateT MainBlock (Either String) a
 type BlockState a = StateT CodeBlock (Either String) a
+
 
 -- | Perform Type/Scope checking
 runTypeChecker :: Program -> Either String MainBlock
@@ -58,15 +64,18 @@ runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
  (Right ((), codeSt)) -> Right codeSt
  where initialBlock = MainBlock M.empty M.empty M.empty M.empty
 
+
 -- | Type Check all top level statements
 evalTLStmts :: [TopLevel] -> CodeState()
 evalTLStmts tls = mapM_ evalTLStmt tls
+
 
 -- | Type check a given top level statement
 evalTLStmt :: TopLevel -> CodeState ()
 evalTLStmt tl = case tl of
     (TLAssign assign) -> evalTLAssign assign
     (Func gType ident args stmts) -> evalFunc gType ident args stmts
+    
      
 -- | Type Check top level assignment
 evalTLAssign :: Assign -> CodeState ()
@@ -96,7 +105,9 @@ evalTLAssign (Assign typeG ident expr) = do
         (show typeG) ++ " but assignment evaluates to type " ++ (show exprType)
     notConstant = lift $ Left $ "Top level assignment are expected to be constant, " ++ 
         (show ident) ++ "is not constant"
-                          
+
+
+-- | Type check Function                          
 evalFunc :: Type -> Ident -> [(Type, Ident)] -> BlockStmt -> CodeState()
 evalFunc typeG ident args (BlockStmt stmts) = do
     funs <- use funcs
@@ -112,15 +123,18 @@ evalFunc typeG ident args (BlockStmt stmts) = do
             assign funcs $ M.insert ident funBlock funs
         else lift $ Left $ "Function " ++ show (ident) ++ "occurs more than once"
 
+
 -- | Run Type Checker on new code block
 runBlockCheck :: [Stmt] -> CodeBlock -> Either String CodeBlock
 runBlockCheck stmts cb =  case runStateT (evalStmts stmts) cb of
     Left s -> Left s
     (Right ((), codeSt)) -> Right codeSt
 
+
 -- | Type Check all statements in the current scope
 evalStmts :: [Stmt] -> BlockState()
 evalStmts tls = mapM_ evalStmt tls
+
 
 -- | Type check given statement    
 evalStmt :: Stmt -> BlockState ()
@@ -131,6 +145,7 @@ evalStmt stmt = case stmt of
    (Seq blockStmt) -> checkBlock blockStmt
    (BStmt blockStmt) -> checkBlock blockStmt
    (Return expr) -> checkReturn expr
+
 
 -- |Type Check Assignment Statement
 checkAssign :: Assign -> BlockState()
@@ -156,6 +171,7 @@ checkAssign (Assign gType ident expr) = do
     typeMismatch l r = lift $ Left $ (show ident) ++ " declared as type " ++ (show l) ++
                             "but rhs evaluates to type " ++ (show r) 
 
+
 -- |Type Check If Statement
 checkIf :: Expr -> Stmt -> BlockState()
 checkIf expr stmt = do
@@ -175,7 +191,7 @@ checkIfElse expr thenStmt elseStmt = do
 
 --checkForLoop :: Expr -> Expr -> Expr -> Stmt
 
--- | Type check inner block
+-- | Type check inner block, add to current list of inner blocks
 checkBlock :: BlockStmt -> BlockState()
 checkBlock (BlockStmt stmts) = do
     fName <- use currentFun
@@ -183,10 +199,13 @@ checkBlock (BlockStmt stmts) = do
     cTable <- use constVars
     innerBlocks <- use subBlocks
     scopeVars <- M.union <$> use curVars <*> use prevVars 
-
+    
+    -- Create and type check new inner block, and add to current
+    -- list of inner blocks if successful
     let newBlock = CodeBlock fName fTable scopeVars M.empty cTable []   
     subBlock <- lift $ runBlockCheck stmts newBlock         
     assign subBlocks $ innerBlocks ++ [subBlock]
+
 
 -- | Type check return stmt
 checkReturn :: Expr -> BlockState()

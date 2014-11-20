@@ -99,7 +99,6 @@ stmt = try (Return <$> (reserved "return" *> (expr <* semi)))
    <|> try forLoop 
    <|> try (FunCallStmt <$> (funCall <* semi)) 
    <|> try (AssignStmt <$> assign)     
-   <|> ((pure None) <* semi)
 
 
 -- | Parse if statement

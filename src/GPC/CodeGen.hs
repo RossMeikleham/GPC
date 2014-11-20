@@ -42,13 +42,10 @@ genStmt (FunCallStmt (FunCall (Ident n) args)) =
 genStmt (AssignStmt (Assign _ (Ident name) ex)) = 
     assign (text name) $ genExpr ex
 genStmt (Seq (BlockStmt s)) = letExp $ concatMapDocs genStmt s
---genStmt (Par ss) = parens' $ concatMapDocs genStmt ss
-genStmt (Exp e) = genExpr e
 genStmt (If e s) =  ifStmt e s
 genStmt (IfElse e s1 s2) = ifElseStmt e s1 s2 
 genStmt (Return e) = genReturn $ genExpr e 
 genStmt (BStmt (BlockStmt ss)) = concatMapDocs genStmt ss
-genStmt (None) = text ""
         
 -- |Generate code for expressions
 genExpr :: Expr -> Doc
