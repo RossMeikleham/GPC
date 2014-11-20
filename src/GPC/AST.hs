@@ -41,7 +41,7 @@ data Stmt =
       | If Expr Stmt  -- ^ If statement
       | IfElse Expr Stmt Stmt -- ^ If Else statement
       | Return Expr -- ^ Return value from current function
-      | ForLoop Expr Expr Expr Stmt --Start, Stop, Step, statements, static for loops
+      | ForLoop Ident Expr Expr Expr BlockStmt --Start, Stop, Step, statements, static for loops
        deriving Show
 
 data Assign = Assign Type Ident Expr deriving Show -- ^ Variable assignment

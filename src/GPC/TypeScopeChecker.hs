@@ -8,7 +8,7 @@ module GPC.TypeScopeChecker(
 import qualified Data.Map as M
 import Data.Bits
 import Control.Applicative hiding ((<|>), many, optional, empty)
-import Control.Monad.Error
+import Control.Monad.Except
 import Control.Monad.State.Lazy
 import Control.Error.Util
 import Control.Lens
@@ -20,10 +20,10 @@ type FunTable = M.Map Ident (Type, [Type])
 
 
 boolType = Type "bool"
-intType = Type "int"
-strType = Type "string"
-chType = Type "char"
-doubleType = Type "double"
+--intType = Type "int"
+--strType = Type "string"
+--chType = Type "char"
+--doubleType = Type "double"
 
 
 data MainBlock = MainBlock {
@@ -73,9 +73,9 @@ evalTLStmts tls = mapM_ evalTLStmt tls
 -- | Type check a given top level statement
 evalTLStmt :: TopLevel -> CodeState ()
 evalTLStmt tl = case tl of
-    (TLAssign assign) -> evalTLAssign assign
+    (TLAssign a) -> evalTLAssign a
     (Func gType ident args stmts) -> evalFunc gType ident args stmts
-    
+    _ -> lift $ Left $ "Not implemented"    
      
 -- | Type Check top level assignment
 evalTLAssign :: Assign -> CodeState ()
@@ -96,7 +96,7 @@ evalTLAssign (Assign typeG ident expr) = do
                 else multipleInstance 
             else conflictingTypes exprType
 
-        otherwise -> notConstant
+        _ -> notConstant
                            
  where 
     multipleInstance = lift $ Left $ (show ident) ++ " has already been defined " ++ 
@@ -111,14 +111,14 @@ evalTLAssign (Assign typeG ident expr) = do
 evalFunc :: Type -> Ident -> [(Type, Ident)] -> BlockStmt -> CodeState()
 evalFunc typeG ident args (BlockStmt stmts) = do
     funs <- use funcs
-    funcDefs <- use tlFuncDefs
-    constVars <- use tlConstVars
+    fTable <- use tlFuncDefs
+    cVars <- use tlConstVars
     varTypes <- use tlConstVarTypes
     -- Check function isn't already defined
-    if ident `M.notMember` funcDefs
+    if ident `M.notMember` fTable
         then do
-            let newBlock = CodeBlock ident funcDefs varTypes M.empty constVars []            
-            assign tlFuncDefs $ M.insert ident (typeG, map fst args) funcDefs
+            let newBlock = CodeBlock ident fTable varTypes M.empty cVars []            
+            assign tlFuncDefs $ M.insert ident (typeG, map fst args) fTable
             funBlock <- lift $ runBlockCheck stmts newBlock
             assign funcs $ M.insert ident funBlock funs
         else lift $ Left $ "Function " ++ show (ident) ++ "occurs more than once"
@@ -139,13 +139,14 @@ evalStmts tls = mapM_ evalStmt tls
 -- | Type check given statement    
 evalStmt :: Stmt -> BlockState ()
 evalStmt stmt = case stmt of
-   (AssignStmt assign) -> checkAssign assign
-   (If expr stmt) -> checkIf expr stmt
+   (AssignStmt a) -> checkAssign a
+   (If expr stmt') -> checkIf expr stmt'
    (IfElse expr stmt1 stmt2) -> checkIfElse expr stmt1 stmt2
    (Seq blockStmt) -> checkBlock blockStmt
    (BStmt blockStmt) -> checkBlock blockStmt
    (Return expr) -> checkReturn expr
-
+   (ForLoop ident expr1 expr2 expr3 stmts) -> checkForLoop ident expr1 expr2 expr3 stmts
+   _ -> lift $ Left $ "Not implemented"
 
 -- |Type Check Assignment Statement
 checkAssign :: Assign -> BlockState()
@@ -155,15 +156,16 @@ checkAssign (Assign gType ident expr) = do
     vTable <- use curVars
     cTable <- use constVars
     let scopeVars = vTable `M.union` oldVtable -- Gives all visible identifiers
-    expr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
+    expr' <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
     if ident `M.member` vTable then do
-        exprType <- lift $ getTypeExpr scopeVars ftable expr 
+        exprType <- lift $ getTypeExpr scopeVars ftable expr'
         if gType == exprType then do
+            -- Update Var table with new variable
             assign curVars   $ M.insert ident gType vTable
             -- Update Const Table
             assign constVars $ case expr of 
                             (ExpLit l) -> M.insert ident l cTable
-                            otherwise -> M.delete ident cTable
+                            _ -> M.delete ident cTable
         else typeMismatch gType exprType
     else redefine
  where
@@ -189,7 +191,11 @@ checkIfElse expr thenStmt elseStmt = do
     checkIf expr thenStmt
     evalStmt elseStmt
 
---checkForLoop :: Expr -> Expr -> Expr -> Stmt
+-- | Type check for loop
+checkForLoop :: Ident -> Expr -> Expr -> Expr -> BlockStmt -> BlockState()
+checkForLoop ident startExpr stopExpr stepExpr = 
+    error $ "dummy"  ++ (show ident) ++ (show startExpr) ++ (show stopExpr) ++ (show stepExpr)
+     
 
 -- | Type check inner block, add to current list of inner blocks
 checkBlock :: BlockStmt -> BlockState()
@@ -246,11 +252,11 @@ getTypeExpr vtable ftable expr = case expr of
 
     (ExpIdent i) -> note (notFound i) (M.lookup i vtable) 
     (ExpLit l) -> return $ Type $ case l of
-                Str s -> "string"
-                Ch c -> "char"
-                Number (Left i) -> "int"
-                Number (Right d) -> "double"
-                Bl b -> "bool"
+                Str _ -> "string"
+                Ch _ -> "char"
+                Number (Left _) -> "int"
+                Number (Right _) -> "double"
+                Bl _ -> "bool"
 
  where notFound (Ident i) = "Identifier " ++ i ++ "not declared in scope"
        getTypeBinOp :: BinOps -> Expr -> Expr -> Either String Type
@@ -263,14 +269,14 @@ getTypeExpr vtable ftable expr = case expr of
                    else case leftType of
                        (Type "int") -> return $ Type "int"
                        (Type "double") -> return $ Type "double"
-                       otherwise -> Left $ "Expected integer or double type"
+                       _ -> Left $ "Expected integer or double type"
 
            | bop `elem` intIntIntOp = do                
                leftType  <- getTypeExpr vtable ftable e1
                rightType <- getTypeExpr vtable ftable e2
                case (leftType, rightType) of
                    (Type "int", Type "int") -> return $ Type "int"
-                   otherwise -> Left $ "Expected integer values"      
+                   _ -> Left $ "Expected integer values"      
 
            | bop `elem` compareOp = do
                leftType  <- getTypeExpr vtable ftable e1
@@ -278,32 +284,33 @@ getTypeExpr vtable ftable expr = case expr of
                case (leftType, rightType) of
                    (Type "int", Type "int") -> return $ Type "bool"
                    (Type "double", Type "double") -> return $ Type "bool"
-                   otherwise -> Left $ "Expected numeric values of the same type"      
+                   _ -> Left $ "Expected numeric values of the same type"      
 
            | bop `elem` boolOp = do
                leftType  <- getTypeExpr vtable ftable e1
                rightType <- getTypeExpr vtable ftable e2
                case (leftType, rightType) of
                    (Type "bool", Type "bool") -> return $ Type "bool"
-                   otherwise -> Left $ "Expected boolean values"      
-
+                   _ -> Left $ "Expected boolean values"    
+                     
+            | otherwise = Left $ "Compiler error during obtaining type of binary expression"
        numNumNumOp = [Add, Sub, Mul, Div]        
        intIntIntOp = [Mod, BAnd, BOr, BXor, ShiftL, ShiftR]
        compareOp = [LessEq, Less, Equals, Greater, GreaterEq]
        boolOp = [And, Or]
 
        getTypeUnOp :: UnaryOps -> Expr -> Either String Type
-       getTypeUnOp op e 
-        | op == Not || op == Neg = getTypeExpr vtable ftable e >>= 
+       getTypeUnOp operation e 
+        | operation == Not || operation == Neg = getTypeExpr vtable ftable e >>= 
             \t -> case t of 
                 (Type "int") -> return $ Type "int"
-                otherwise -> Left "Expected integer expression"
-        | op == BNot = getTypeExpr vtable ftable e >>=
+                _ -> Left "Expected integer expression"
+        | operation == BNot = getTypeExpr vtable ftable e >>=
             \t -> case t of 
                 (Type "bool") -> return $ Type "bool"
-                otherwise -> Left "Expected boolean expression"
-
+                _ -> Left "Expected boolean expression"
         
+        | otherwise = Left $ "Compiler error during obtaining type of unary expression"
 
 
 -- Replace all constant identifiers with their
@@ -332,8 +339,8 @@ reduceExpr vtable expr = case expr of
         evaluateBinExpr b re1 re2
 
     (ExpUnaryOp u e) -> do 
-        re <- reduceExpr vtable e
-        evaluateUnExpr u re
+        reducedExpr <- reduceExpr vtable e
+        evaluateUnExpr u reducedExpr
 
     (ExpFunCall (FunCall s exps)) -> do
          rexps <- mapM (reduceExpr vtable) exps
@@ -366,50 +373,55 @@ binOpTable b = case b of
     BAnd -> performBinIntOp (.&.) 
     BOr -> performBinIntOp (.|.)
     BXor -> performBinIntOp xor
-    ShiftL -> performBinIntOp (\a b ->  shift a $ fromIntegral b)
-    ShiftR -> performBinIntOp (\a b ->  shift a $ fromIntegral (-b))
+    ShiftL -> performBinIntOp (\x y ->  shift x $ fromIntegral y)
+    ShiftR -> performBinIntOp (\x y ->  shift x $ fromIntegral (-y))
 
     Less -> performBinCompareOp (<)
     LessEq -> performBinCompareOp (<=)
     Greater -> performBinCompareOp (>)
     GreaterEq -> performBinCompareOp (>=)
     Equals -> performBinCompareOp (==)
+    NEquals -> performBinCompareOp (/=)
 
     And -> performBinBoolOp (&&) 
     Or -> performBinBoolOp (||)
 
 
 performBinNumOp :: (Double  -> Double -> Double)  -> Literal -> Literal -> Either String Expr
-performBinNumOp op (Number (Left n1)) (Number (Left n2)) = Right litExp
- where litExp = ExpLit $ Number $ Left $ truncate $ n1' `op` n2'
+performBinNumOp operation (Number (Left n1)) (Number (Left n2)) = Right litExp
+ where litExp = ExpLit $ Number $ Left $ truncate $ n1' `operation` n2'
        n1' = fromIntegral n1
        n2' = fromIntegral n2
 
-performBinNumOp op (Number (Right n1))(Number (Right n2)) = Right $ ExpLit $ Number $ Right $ n1 `op` n2
-performBinNumOp b _ _ = Left "Error expected a numeric value" 
+performBinNumOp operation (Number (Right n1))(Number (Right n2)) = 
+    Right $ ExpLit $ Number $ Right $ n1 `operation` n2
+performBinNumOp _ _ _ = Left "Error expected a numeric value" 
 
 performBinIntOp :: (Integer -> Integer -> Integer)  -> Literal -> Literal -> Either String Expr
-performBinIntOp op (Number (Left n1)) (Number (Left n2)) = 
-    Right $ ExpLit $ Number $ Left $ n1 `op` n2 
-performBinIntOp op _ _ = Left "Error expected integer types"
+performBinIntOp operation (Number (Left n1)) (Number (Left n2)) = 
+    Right $ ExpLit $ Number $ Left $ n1 `operation` n2
+performBinIntOp _ _ _ = Left "Error expected integer types"
     
 performBinCompareOp :: (Double -> Double -> Bool) -> Literal -> Literal -> Either String Expr
-performBinCompareOp op (Number (Left n1)) (Number (Left n2)) = Right $ ExpLit $ Bl $ n1' `op` n2'
+performBinCompareOp operation (Number (Left n1)) (Number (Left n2)) = 
+    Right $ ExpLit $ Bl $ n1' `operation` n2'
  where n1' = fromIntegral n1
        n2' = fromIntegral n2
 
-performBinCompareOp op (Number (Right n1)) (Number (Right n2)) = Right $ ExpLit $ Bl $ n1 `op` n2 
+performBinCompareOp operation (Number (Right n1)) (Number (Right n2)) = 
+    Right $ ExpLit $ Bl $ n1 `operation` n2 
 performBinCompareOp _ _ _ = Left "Error expected either 2 ints, or 2 doubles"
     
 performBinBoolOp :: (Bool -> Bool -> Bool) -> Literal -> Literal -> Either String Expr
-performBinBoolOp op (Bl b1) (Bl b2) = Right $ ExpLit $ Bl $ b1 `op` b2
+performBinBoolOp operation (Bl b1) (Bl b2) = 
+    Right $ ExpLit $ Bl $ b1 `operation` b2
 performBinBoolOp _ _ _ = Left "Error expected boolean values"
 
 -- |Attempts to evaluate a constant unary expression, check the types as
 -- |well
 evaluateUnExpr :: UnaryOps -> Expr -> Either String Expr
 evaluateUnExpr unOp (ExpLit l) = (unOpTable unOp) l
-evaluateUnExpr unOp expr = Right expr
+evaluateUnExpr _ e = Right e
 
 unOpTable u = case u of
     Not -> performUnNotOp

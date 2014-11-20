@@ -145,10 +145,11 @@ literal = Ch  <$> ch
 -- | Parse for loop
 forLoop :: Parser Stmt
 forLoop = 
-    ForLoop <$> (reserved "for" *> reservedOp "(" *>  expr) -- Start
+    ForLoop <$> (reserved "for" *> reservedOp "(" *> parseIdent) -- Identifier to use
+            <*> (reservedOp "=" *> expr) -- Start
             <*> expr  -- Stop
             <*> (expr <* reservedOp ")") -- Step
-            <*> stmt 
+            <*> block
    
 -- | Parse function call
 funCall :: Parser FunCall
