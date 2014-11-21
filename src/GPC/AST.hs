@@ -15,6 +15,7 @@ module GPC.AST(
     , FunCall(..)
     , ClassName(..)
     , Objects(..)
+    , MethodCall(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show

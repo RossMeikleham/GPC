@@ -108,6 +108,7 @@ stmt = try (Return <$> (reserved "return" *> (expr <* semi)))
    <|> try parBlock
    <|> try forLoop 
    <|> try (FunCallStmt <$> (funCall <* semi)) 
+   <|> try (MethodStmt <$> (methodCall  <* semi))
    <|> try (AssignStmt <$> assign)     
 
 
@@ -133,6 +134,7 @@ expr :: Parser Expr
 expr = buildExpressionParser exprOperators expr'
  where expr' :: Parser Expr
        expr' = try (ExpFunCall <$> funCall) 
+           <|> try (ExpMethodCall <$> methodCall)
            <|> try (ExpIdent <$> parseIdent)
            <|> try (ExpLit   <$> literal)
            <|> parens expr
@@ -164,6 +166,11 @@ forLoop =
 -- | Parse function call
 funCall :: Parser FunCall
 funCall = FunCall <$> parseIdent <*> args'
+    where args' = parens $ commaSep expr
+
+-- | Parse method call
+methodCall :: Parser MethodCall
+methodCall = MethodCall <$> (parseIdent *> reservedOp "." *> parseIdent) <*> args'
     where args' = parens $ commaSep expr
 
 -- | Parse identifier
