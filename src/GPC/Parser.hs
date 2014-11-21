@@ -60,8 +60,18 @@ topLevels =      try ((:) <$> topLevel <*> topLevels)
 topLevel :: Parser TopLevel
 topLevel = try function
         <|> TLAssign <$> assign
+        <|> TLObjs <$> objs
 
 
+-- | Parse C++ Object definitions
+objs :: Parser Objects
+objs = Obj1 <$> className <*> parseIdent  
+
+
+-- | Parse Class Name 
+className :: Parser ClassName
+className = ClassName <$> idents
+    where idents = (:) <$> parseIdent <*> (many $ reservedOp "::" *> parseIdent)
 
 -- | Parse Function definition
 function :: Parser TopLevel

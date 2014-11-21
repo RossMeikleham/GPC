@@ -13,6 +13,8 @@ module GPC.AST(
     , BlockStmt(..)
     , Assign(..)
     , FunCall(..)
+    , ClassName(..)
+    , Objects(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show
@@ -26,8 +28,8 @@ data TopLevel =
        deriving Show
 
 
-data Objects = Obj1 ClassName -- |Single Object of Class
-             | ObjM ClassName Expr -- |Array of Objects
+data Objects = Obj1 ClassName Ident -- |Single Object of Class
+           --  | ObjM ClassName Expr -- |Array of Objects
               deriving Show               
 
 -- | Statement
@@ -38,6 +40,7 @@ data Stmt =
       | Seq BlockStmt -- ^ Evaluate statements in sequential order
       | BStmt BlockStmt -- ^ Statements in enclosed block
       | FunCallStmt FunCall -- ^ Call Funcion
+      | MethodStmt MethodCall -- ^ Call Object method
       | If Expr Stmt  -- ^ If statement
       | IfElse Expr Stmt Stmt -- ^ If Else statement
       | Return Expr -- ^ Return value from current function
@@ -46,12 +49,14 @@ data Stmt =
 
 data Assign = Assign Type Ident Expr deriving Show -- ^ Variable assignment
 data FunCall = FunCall Ident [Expr] deriving Show -- ^ Function call layout
+data MethodCall = MethodCall Ident [Expr] deriving Show -- ^ Method call layout
 
 -- | Expression
 data Expr =
       ExpBinOp BinOps Expr Expr
     | ExpUnaryOp UnaryOps Expr
     | ExpFunCall FunCall
+    | ExpMethodCall MethodCall
     | ExpIdent Ident
     | ExpLit Literal
      deriving Show
@@ -96,7 +101,7 @@ data Literal =
      deriving (Show, Eq)
 
 
-data ClassName = ClassName String deriving Show
+data ClassName = ClassName [Ident] deriving Show
 data Ident = Ident String deriving (Show, Eq, Ord)
 data Type = Type String deriving (Show, Eq)
 data BlockStmt = BlockStmt [Stmt] deriving Show
