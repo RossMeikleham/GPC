@@ -20,7 +20,7 @@ type FunTable = M.Map Ident (Type, [Type])
 
 
 boolType = Type "bool"
---intType = Type "int"
+intType = Type "int"
 --strType = Type "string"
 --chType = Type "char"
 --doubleType = Type "double"
@@ -142,8 +142,8 @@ evalStmt stmt = case stmt of
    (AssignStmt a) -> checkAssign a
    (If expr stmt') -> checkIf expr stmt'
    (IfElse expr stmt1 stmt2) -> checkIfElse expr stmt1 stmt2
-   (Seq blockStmt) -> checkBlock blockStmt
-   (BStmt blockStmt) -> checkBlock blockStmt
+   (Seq blockStmt) -> checkBlock blockStmt M.empty
+   (BStmt blockStmt) -> checkBlock blockStmt M.empty
    (Return expr) -> checkReturn expr
    (ForLoop ident expr1 expr2 expr3 stmts) -> checkForLoop ident expr1 expr2 expr3 stmts
    _ -> lift $ Left $ "Not implemented"
@@ -193,13 +193,29 @@ checkIfElse expr thenStmt elseStmt = do
 
 -- | Type check for loop
 checkForLoop :: Ident -> Expr -> Expr -> Expr -> BlockStmt -> BlockState()
-checkForLoop ident startExpr stopExpr stepExpr = 
-    error $ "dummy"  ++ (show ident) ++ (show startExpr) ++ (show stopExpr) ++ (show stepExpr)
+checkForLoop ident startExpr stopExpr stepExpr blockStmt = do
+    cTable <- use constVars
+    fTable <- use funcDefs
+    scopeVars <- M.union <$> use curVars <*> use prevVars 
+
+    startExpr' <- lift $ reduceExpr scopeVars $ injectConstants cTable startExpr
+    stopExpr' <- lift $ reduceExpr scopeVars $ injectConstants cTable stopExpr
+    stepExpr' <- lift $ reduceExpr scopeVars $ injectConstants cTable stepExpr
+
+    -- Check all expressions are constant (for loops are static)
+    -- Check types of each expression are all integers
+    -- Then type check the for block
+    let exprs = [startExpr', stopExpr', stepExpr']
+    mapM_ checkConstantExpr exprs
+    types <- lift $ mapM (getTypeExpr scopeVars fTable) exprs
+    mapM_ (checkType intType) types
+
+    checkBlock blockStmt (M.singleton ident intType)
      
 
 -- | Type check inner block, add to current list of inner blocks
-checkBlock :: BlockStmt -> BlockState()
-checkBlock (BlockStmt stmts) = do
+checkBlock :: BlockStmt -> VarTable -> BlockState()
+checkBlock (BlockStmt stmts) innerTable = do
     fName <- use currentFun
     fTable <- use funcDefs
     cTable <- use constVars
@@ -208,7 +224,7 @@ checkBlock (BlockStmt stmts) = do
     
     -- Create and type check new inner block, and add to current
     -- list of inner blocks if successful
-    let newBlock = CodeBlock fName fTable scopeVars M.empty cTable []   
+    let newBlock = CodeBlock fName fTable scopeVars innerTable cTable []   
     subBlock <- lift $ runBlockCheck stmts newBlock         
     assign subBlocks $ innerBlocks ++ [subBlock]
 
@@ -233,6 +249,15 @@ checkReturn expr = do
             "type " ++ (show exprType)
 
 
+checkConstantExpr :: Expr -> BlockState()
+checkConstantExpr expr = case expr of
+    (ExpLit _) -> modify id
+    _ -> lift $ Left $ "expected constant expression"
+
+checkType :: Type -> Type -> BlockState()
+checkType expected actual = 
+    if expected == actual then modify id else lift $ Left $ "Expected type " ++ 
+        (show expected) ++ " but expression evaluated to " ++ (show actual)
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
