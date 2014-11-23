@@ -146,6 +146,7 @@ evalStmt stmt = case stmt of
    (BStmt blockStmt) -> checkBlock blockStmt M.empty
    (Return expr) -> checkReturn expr
    (ForLoop ident expr1 expr2 expr3 stmts) -> checkForLoop ident expr1 expr2 expr3 stmts
+   (MethodStmt method) -> checkMethodCall method
    _ -> lift $ Left $ "Not implemented"
 
 -- |Type Check Assignment Statement
@@ -248,6 +249,9 @@ checkReturn expr = do
             "is " ++ (show retType) ++ "but return expression evaluates to" ++
             "type " ++ (show exprType)
 
+-- | Type check method call
+checkMethodCall :: MethodCall -> BlockState()
+checkMethodCall _ = modify id
 
 checkConstantExpr :: Expr -> BlockState()
 checkConstantExpr expr = case expr of
@@ -275,6 +279,7 @@ getTypeExpr vtable ftable expr = case expr of
                 then Left "Arguments don't evaluate to given types"
                 else Right retT
 
+    (ExpMethodCall _) -> return $ Type "Object"
     (ExpIdent i) -> note (notFound i) (M.lookup i vtable) 
     (ExpLit l) -> return $ Type $ case l of
                 Str _ -> "string"
@@ -345,6 +350,8 @@ injectConstants ctable expr = case expr of
     (ExpBinOp b e1 e2) -> ExpBinOp b (injectConstants ctable e1) (injectConstants ctable e2)
     (ExpUnaryOp u e) -> ExpUnaryOp u (injectConstants ctable e)
     (ExpFunCall (FunCall s exps)) -> ExpFunCall (FunCall s (map (injectConstants ctable) exps))
+    (ExpMethodCall (MethodCall obj method args)) -> 
+        ExpMethodCall (MethodCall obj method (map (injectConstants ctable) args))
     (ExpIdent i) -> case M.lookup i ctable of
                                 Just l ->   ExpLit l
                                 Nothing ->  ExpIdent i
@@ -370,6 +377,10 @@ reduceExpr vtable expr = case expr of
     (ExpFunCall (FunCall s exps)) -> do
          rexps <- mapM (reduceExpr vtable) exps
          return $ ExpFunCall (FunCall s rexps)
+
+    (ExpMethodCall (MethodCall obj method args)) -> do
+        rexps <- mapM (reduceExpr vtable) args
+        return $ ExpMethodCall (MethodCall obj method rexps)
 
     (ExpIdent i) -> ExpIdent <$> if M.member i vtable 
                                     then (Right i) 

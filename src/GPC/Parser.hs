@@ -170,7 +170,7 @@ funCall = FunCall <$> parseIdent <*> args'
 
 -- | Parse method call
 methodCall :: Parser MethodCall
-methodCall = MethodCall <$> (parseIdent *> reservedOp "." *> parseIdent) <*> args'
+methodCall = MethodCall <$> parseIdent <*> (reservedOp "." *> parseIdent) <*> args'
     where args' = parens $ commaSep expr
 
 -- | Parse identifier

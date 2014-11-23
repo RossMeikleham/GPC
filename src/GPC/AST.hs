@@ -34,8 +34,6 @@ data Objects = Obj1 ClassName Ident -- |Single Object of Class
               deriving Show               
 
 -- | Statement
--- TODO Add method calls from objects, are completely seperarate
--- from local function calls, as these call the Kernel C++ objects
 data Stmt = 
         AssignStmt Assign -- ^ Type Name, assignment
       | Seq BlockStmt -- ^ Evaluate statements in sequential order
@@ -50,7 +48,7 @@ data Stmt =
 
 data Assign = Assign Type Ident Expr deriving Show -- ^ Variable assignment
 data FunCall = FunCall Ident [Expr] deriving Show -- ^ Function call layout
-data MethodCall = MethodCall Ident [Expr] deriving Show -- ^ Method call layout
+data MethodCall = MethodCall Ident Ident [Expr] deriving Show -- ^ Method call layout
 
 -- | Expression
 data Expr =
