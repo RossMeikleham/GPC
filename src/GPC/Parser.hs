@@ -65,13 +65,13 @@ topLevel = try function
 
 -- | Parse C++ Object definitions
 objs :: Parser Objects
-objs = try (Obj1 <$> className <*> parseIdent)  
-   <|> ObjM <$> className <*> parseIdent <*> (brackets expr)
+objs = try (Obj1 <$> className <*> (parseIdent <* semi))  
+   <|> ObjM <$> className <*> parseIdent <*> ((brackets expr) <* semi)
 
 -- | Parse Class Name 
 className :: Parser ClassName
 className = ClassName <$> idents
-    where idents = (:) <$> parseIdent <*> (many $ reservedOp "::" *> parseIdent)
+    where idents = (:) <$> parseIdent <*> (many1 $ reservedOp "::" *> parseIdent)
 
 -- | Parse Function definition
 function :: Parser TopLevel

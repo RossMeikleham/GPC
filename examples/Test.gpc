@@ -1,0 +1,24 @@
+// Test Program
+
+int n = 5;
+
+int fun0() {
+ return n;
+}
+
+Kernel::Test test;
+Kernel::Multi multi[20];
+
+int fun1() {
+    for(int i = 0; n; 1) {
+        test.print(i);
+    }
+}
+
+int main() {
+    if (n < 3) {
+        return fun1();
+    } else {
+        return n;
+    }
+}

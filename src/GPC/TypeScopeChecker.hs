@@ -53,9 +53,9 @@ makeLenses ''CodeBlock
 -- Monad Transformer combining State with Either
 -- when doing type checking if a failure occurs
 -- we can return an error String
-type CodeState a = StateT MainBlock (Either String) a
-type BlockState a = StateT CodeBlock (Either String) a
-
+type GenericBlockState a b = StateT a (Either String) b
+type CodeState a = GenericBlockState MainBlock a
+type BlockState a = GenericBlockState CodeBlock a
 
 -- | Perform Type/Scope checking
 runTypeChecker :: Program -> Either String MainBlock
@@ -75,21 +75,36 @@ evalTLStmt :: TopLevel -> CodeState ()
 evalTLStmt tl = case tl of
     (TLAssign a) -> evalTLAssign a
     (Func gType ident args stmts) -> evalFunc gType ident args stmts
-   -- (TLObjs objects) -> 
-    _ -> lift $ Left $ "Not implemented"    
+    (TLObjs objects) -> evalObjs objects
+
 
 -- | Type check object declarations
---evalObjs :: Objects -> CodeState ()
---evalObjs obj = do 
---    cVars <- use tlConstVars
---    tVars <- use tlConstVarTypes
---    case obj of
---        (Obj1 gClass ident) -> do
---            if ident `M.notMember` tVars then do
---                assign tlConstVarTypes $ M.insert ident (Type $ show gClass) tVars 
---        (ObjM gClass ident exp) -> do
-         
+evalObjs :: Objects -> CodeState ()
+evalObjs obj = do 
+    cVars <- use tlConstVars
+    tVars <- use tlConstVarTypes
+    case obj of
+        -- Single Objects, check identifier isn't already in scope
+        (Obj1 _ ident) -> do
+            if ident `M.notMember` tVars then do
+                assign tlConstVarTypes $ M.insert ident (Type "object") tVars 
+            else multipleInstance ident
+
+        -- Static Array of Objects, check type of array size, check size
+        -- is a constant, and that that identifier for the array isn't already in scope
+        (ObjM _ ident expr) -> do
+            if ident `M.notMember` tVars then do
+                reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
+                exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
+                checkType intType exprType
+                checkConstantExpr reducedExpr
+                assign tlConstVarTypes $ M.insert ident (Type "objArray") tVars
+            else multipleInstance ident
+ where          
+    multipleInstance ident = lift $ Left $ (show ident) ++ " has already been defined " ++ 
+        "in scope, cannot redefine it" 
      
+
 -- | Type Check top level assignment
 evalTLAssign :: Assign -> CodeState ()
 evalTLAssign (Assign typeG ident expr) = do
@@ -267,15 +282,20 @@ checkReturn expr = do
 checkMethodCall :: MethodCall -> BlockState()
 checkMethodCall _ = modify id
 
-checkConstantExpr :: Expr -> BlockState()
+
+-- | Check that an expression is Constant
+checkConstantExpr :: Expr -> GenericBlockState a ()
 checkConstantExpr expr = case expr of
     (ExpLit _) -> modify id
     _ -> lift $ Left $ "expected constant expression"
 
-checkType :: Type -> Type -> BlockState()
+
+-- | Checks that 2 given types match
+checkType :: Type -> Type -> GenericBlockState a ()
 checkType expected actual = 
     if expected == actual then modify id else lift $ Left $ "Expected type " ++ 
         (show expected) ++ " but expression evaluated to " ++ (show actual)
+
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
