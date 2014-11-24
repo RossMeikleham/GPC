@@ -16,22 +16,29 @@ module GPC.AST(
     , ClassName(..)
     , Objects(..)
     , MethodCall(..)
+    , Var(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show
 
 
--- |Top Level Expressions
+-- | Top Level Expressions
 data TopLevel =
-        Func Type Ident [(Type, Ident)] BlockStmt  -- |Return Type, Name, Arguments, Code
-      | TLObjs Objects -- |External objects
+        Func Type Ident [(Type, Ident)] BlockStmt  -- ^ Return Type, Name, Arguments, Code
+      | TLObjs Objects -- ^ External objects
+      | TLConstructObjs Var ClassName [Expr] -- ^ External object constructor calls
       | TLAssign Assign
        deriving Show
 
+-- | Objects
+data Objects = Objects ClassName Var deriving Show
 
-data Objects = Obj1 ClassName Ident -- |Single Object of Class
-             | ObjM ClassName Ident Expr -- |Array of Objects
-              deriving Show               
+-- | Variable
+data Var = 
+          VarArrayElem Ident Expr -- ^ Element of Array
+        | VarIdent Ident -- ^ Ordinary identifier
+         deriving Show
+
 
 -- | Statement
 data Stmt = 
@@ -43,7 +50,7 @@ data Stmt =
       | If Expr Stmt  -- ^ If statement
       | IfElse Expr Stmt Stmt -- ^ If Else statement
       | Return Expr -- ^ Return value from current function
-      | ForLoop Ident Expr Expr Expr BlockStmt --Start, Stop, Step, statements, static for loops
+      | ForLoop Ident Expr Expr Expr BlockStmt -- ^ Start, Stop, Step, statements, static for loops
        deriving Show
 
 data Assign = Assign Type Ident Expr deriving Show -- ^ Variable assignment

@@ -80,19 +80,20 @@ evalTLStmt tl = case tl of
 
 -- | Type check object declarations
 evalObjs :: Objects -> CodeState ()
-evalObjs obj = do 
+evalObjs (Objects cname var) = do 
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
-    case obj of
+    
+    case var of
         -- Single Objects, check identifier isn't already in scope
-        (Obj1 _ ident) -> do
+        (VarIdent ident) -> do
             if ident `M.notMember` tVars then do
                 assign tlConstVarTypes $ M.insert ident (Type "object") tVars 
             else multipleInstance ident
 
         -- Static Array of Objects, check type of array size, check size
         -- is a constant, and that that identifier for the array isn't already in scope
-        (ObjM _ ident expr) -> do
+        (VarArrayElem ident expr) -> do
             if ident `M.notMember` tVars then do
                 reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
                 exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
@@ -102,8 +103,7 @@ evalObjs obj = do
             else multipleInstance ident
  where          
     multipleInstance ident = lift $ Left $ (show ident) ++ " has already been defined " ++ 
-        "in scope, cannot redefine it" 
-     
+        "in scope, cannot redefine it"      
 
 -- | Type Check top level assignment
 evalTLAssign :: Assign -> CodeState ()

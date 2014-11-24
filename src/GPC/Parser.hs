@@ -65,8 +65,7 @@ topLevel = try function
 
 -- | Parse C++ Object definitions
 objs :: Parser Objects
-objs = try (Obj1 <$> className <*> (parseIdent <* semi))  
-   <|> ObjM <$> className <*> parseIdent <*> ((brackets expr) <* semi)
+objs = Objects <$> className <*> (parseVar <* semi)
 
 -- | Parse Class Name 
 className :: Parser ClassName
@@ -172,6 +171,12 @@ funCall = FunCall <$> parseIdent <*> args'
 methodCall :: Parser MethodCall
 methodCall = MethodCall <$> parseIdent <*> (reservedOp "." *> parseIdent) <*> args'
     where args' = parens $ commaSep expr
+
+
+-- | Parse varaible
+parseVar :: Parser Var
+parseVar = try (VarArrayElem <$> parseIdent <*> expr) 
+       <|> VarIdent <$> parseIdent
 
 -- | Parse identifier
 parseIdent :: Parser Ident
