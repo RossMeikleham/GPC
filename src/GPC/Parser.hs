@@ -60,17 +60,21 @@ topLevels =      try ((:) <$> topLevel <*> topLevels)
 topLevel :: Parser TopLevel
 topLevel = try function
         <|> try (TLAssign <$> assign)
-        <|> TLObjs <$> objs
+        <|> try (TLObjs <$> objs)
+        <|> (TLConstructObjs <$> parseVar <*> (reservedOp "=" *> className) 
+            <*> ((parens $ commaSep expr) <* semi))
 
 
 -- | Parse C++ Object definitions
 objs :: Parser Objects
 objs = Objects <$> className <*> (parseVar <* semi)
 
+
 -- | Parse Class Name 
 className :: Parser ClassName
 className = ClassName <$> idents
     where idents = (:) <$> parseIdent <*> (many1 $ reservedOp "::" *> parseIdent)
+
 
 -- | Parse Function definition
 function :: Parser TopLevel
@@ -175,7 +179,7 @@ methodCall = MethodCall <$> parseIdent <*> (reservedOp "." *> parseIdent) <*> ar
 
 -- | Parse varaible
 parseVar :: Parser Var
-parseVar = try (VarArrayElem <$> parseIdent <*> expr) 
+parseVar = try (VarArrayElem <$> parseIdent <*> (brackets expr)) 
        <|> VarIdent <$> parseIdent
 
 -- | Parse identifier

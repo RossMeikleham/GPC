@@ -57,6 +57,7 @@ type GenericBlockState a b = StateT a (Either String) b
 type CodeState a = GenericBlockState MainBlock a
 type BlockState a = GenericBlockState CodeBlock a
 
+
 -- | Perform Type/Scope checking
 runTypeChecker :: Program -> Either String MainBlock
 runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
@@ -76,16 +77,39 @@ evalTLStmt tl = case tl of
     (TLAssign a) -> evalTLAssign a
     (Func gType ident args stmts) -> evalFunc gType ident args stmts
     (TLObjs objects) -> evalObjs objects
+    (TLConstructObjs var cName exprs) -> evalConstruct var cName exprs
+
+
+-- | Type check object initializations
+evalConstruct :: Var -> ClassName -> [Expr] -> CodeState()
+evalConstruct var _ exprs = do
+    cVars <- use tlConstVars
+    tVars <- use tlConstVarTypes
+
+    -- Check expressions for Constructor are constant 
+    reducedExprs <- lift $ mapM (\e ->reduceExpr tVars $ injectConstants cVars e) exprs
+    lift $ mapM (getTypeExpr tVars M.empty) reducedExprs
+    mapM_ checkConstantExpr reducedExprs
+
+    case var of 
+        (VarIdent _) -> modify id -- Don't modify the state for now
+
+        (VarArrayElem _ expr) -> do -- Check indexed expression           
+            reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
+            exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
+            checkType intType exprType
+            checkConstantExpr reducedExpr
+            modify id
 
 
 -- | Type check object declarations
 evalObjs :: Objects -> CodeState ()
-evalObjs (Objects cname var) = do 
+evalObjs (Objects _ var) = do 
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
     
     case var of
-        -- Single Objects, check identifier isn't already in scope
+        -- Single Object, check identifier isn't already in scope
         (VarIdent ident) -> do
             if ident `M.notMember` tVars then do
                 assign tlConstVarTypes $ M.insert ident (Type "object") tVars 
@@ -104,6 +128,7 @@ evalObjs (Objects cname var) = do
  where          
     multipleInstance ident = lift $ Left $ (show ident) ++ " has already been defined " ++ 
         "in scope, cannot redefine it"      
+
 
 -- | Type Check top level assignment
 evalTLAssign :: Assign -> CodeState ()
@@ -178,6 +203,7 @@ evalStmt stmt = case stmt of
    (MethodStmt method) -> checkMethodCall method
    _ -> lift $ Left $ "Not implemented"
 
+
 -- |Type Check Assignment Statement
 checkAssign :: Assign -> BlockState()
 checkAssign (Assign gType ident expr) = do
@@ -215,11 +241,13 @@ checkIf expr stmt = do
     else lift $ Left $ "Expression within if is expected to be a bool " ++
         " but it evaluates to a " ++ (show exprType)
 
+
 -- |Type Check If - Else Statement
 checkIfElse :: Expr -> Stmt -> Stmt -> BlockState()
 checkIfElse expr thenStmt elseStmt = do
     checkIf expr thenStmt
     evalStmt elseStmt
+
 
 -- | Type check for loop
 checkForLoop :: Ident -> Expr -> Expr -> Expr -> BlockStmt -> BlockState()
@@ -278,7 +306,8 @@ checkReturn expr = do
             "is " ++ (show retType) ++ "but return expression evaluates to" ++
             "type " ++ (show exprType)
 
--- | Type check method call
+
+-- | TODO Type check method call
 checkMethodCall :: MethodCall -> BlockState()
 checkMethodCall _ = modify id
 
@@ -393,10 +422,10 @@ injectConstants ctable expr = case expr of
 
 
 
--- |Attempts to reduce an expression as much as possible
--- |Returns an error string if evaluated expression 
--- |is invalid or an identifier is not present in the given table
--- |otherwise returns the reduced expression
+-- | Attempts to reduce an expression as much as possible
+-- | Returns an error string if evaluated expression 
+-- | is invalid or an identifier is not present in the given table
+-- | otherwise returns the reduced expression
 reduceExpr :: VarTable -> Expr -> Either String Expr
 reduceExpr vtable expr = case expr of
     (ExpBinOp b e1 e2) -> do 
@@ -424,13 +453,13 @@ reduceExpr vtable expr = case expr of
  where notFound (Ident i) = "Identifier " ++ i ++ "not declared in scope"
 
 
--- |Attempts to evaluate a constant binary expression, checks the types as well
+-- | Attempts to evaluate a constant binary expression, checks the types as well
 evaluateBinExpr :: BinOps -> Expr -> Expr -> Either String Expr
 evaluateBinExpr b (ExpLit l1) (ExpLit l2) = (binOpTable b) l1 l2
-     
 evaluateBinExpr  b e1 e2 = return $ ExpBinOp b e1 e2
 
--- |Obtain binary operation to use with literal values
+
+-- | Obtain binary operation to use with literal values
 binOpTable :: BinOps -> (Literal -> Literal -> Either String Expr)
 binOpTable b = case b of
     Add -> performBinNumOp (+)
@@ -463,14 +492,17 @@ performBinNumOp operation (Number (Left n1)) (Number (Left n2)) = Right litExp
        n1' = fromIntegral n1
        n2' = fromIntegral n2
 
+
 performBinNumOp operation (Number (Right n1))(Number (Right n2)) = 
     Right $ ExpLit $ Number $ Right $ n1 `operation` n2
 performBinNumOp _ _ _ = Left "Error expected a numeric value" 
+
 
 performBinIntOp :: (Integer -> Integer -> Integer)  -> Literal -> Literal -> Either String Expr
 performBinIntOp operation (Number (Left n1)) (Number (Left n2)) = 
     Right $ ExpLit $ Number $ Left $ n1 `operation` n2
 performBinIntOp _ _ _ = Left "Error expected integer types"
+
     
 performBinCompareOp :: (Double -> Double -> Bool) -> Literal -> Literal -> Either String Expr
 performBinCompareOp operation (Number (Left n1)) (Number (Left n2)) = 
@@ -478,14 +510,17 @@ performBinCompareOp operation (Number (Left n1)) (Number (Left n2)) =
  where n1' = fromIntegral n1
        n2' = fromIntegral n2
 
+
 performBinCompareOp operation (Number (Right n1)) (Number (Right n2)) = 
     Right $ ExpLit $ Bl $ n1 `operation` n2 
 performBinCompareOp _ _ _ = Left "Error expected either 2 ints, or 2 doubles"
+
     
 performBinBoolOp :: (Bool -> Bool -> Bool) -> Literal -> Literal -> Either String Expr
 performBinBoolOp operation (Bl b1) (Bl b2) = 
     Right $ ExpLit $ Bl $ b1 `operation` b2
 performBinBoolOp _ _ _ = Left "Error expected boolean values"
+
 
 -- |Attempts to evaluate a constant unary expression, check the types as
 -- |well
@@ -493,19 +528,23 @@ evaluateUnExpr :: UnaryOps -> Expr -> Either String Expr
 evaluateUnExpr unOp (ExpLit l) = (unOpTable unOp) l
 evaluateUnExpr _ e = Right e
 
+
 unOpTable u = case u of
     Not -> performUnNotOp
     Neg -> performUnNegOp
     BNot -> performUnBNotOp
 
+
 performUnNotOp ::  Literal -> Either String Expr
 performUnNotOp (Bl b1) = Right $ ExpLit $ Bl $ not b1
 performUnNotOp _ = Left "Error expected boolean value"
+
 
 performUnNegOp :: Literal -> Either String Expr
 performUnNegOp (Number (Left i)) =  Right $ ExpLit $ Number $ Left  $ negate i
 performUnNegOp (Number (Right i)) = Right  $ ExpLit $ Number $ Right $ negate i
 performUnNegOp _ = Left "Error expected numeric type"
+
 
 performUnBNotOp :: Literal -> Either String Expr
 performUnBNotOp (Number (Left i)) = Right $ ExpLit $ Number $ Left $ complement i

@@ -2,15 +2,19 @@
 
 int n = 5;
 
+// Static Objects used during Program
+Kernel::Test test; // Single
+Kernel::Multi multi[n]; //Array, static size
+
+multi[0] = Kernel::Multi(20,20); // Example of Object initialization
+
 int fun0() {
  return n;
 }
 
-Kernel::Test test;
-Kernel::Multi multi[20];
 
 int fun1() {
-    for(int i = 0; n; 1) {
+    for(int i = 0; n; 1) { // Static for loop
         test.print(i);
     }
 }
