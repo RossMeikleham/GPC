@@ -75,7 +75,20 @@ evalTLStmt :: TopLevel -> CodeState ()
 evalTLStmt tl = case tl of
     (TLAssign a) -> evalTLAssign a
     (Func gType ident args stmts) -> evalFunc gType ident args stmts
+   -- (TLObjs objects) -> 
     _ -> lift $ Left $ "Not implemented"    
+
+-- | Type check object declarations
+--evalObjs :: Objects -> CodeState ()
+--evalObjs obj = do 
+--    cVars <- use tlConstVars
+--    tVars <- use tlConstVarTypes
+--    case obj of
+--        (Obj1 gClass ident) -> do
+--            if ident `M.notMember` tVars then do
+--                assign tlConstVarTypes $ M.insert ident (Type $ show gClass) tVars 
+--        (ObjM gClass ident exp) -> do
+         
      
 -- | Type Check top level assignment
 evalTLAssign :: Assign -> CodeState ()
@@ -117,8 +130,9 @@ evalFunc typeG ident args (BlockStmt stmts) = do
     -- Check function isn't already defined
     if ident `M.notMember` fTable
         then do
-            let newBlock = CodeBlock ident fTable varTypes M.empty cVars []            
-            assign tlFuncDefs $ M.insert ident (typeG, map fst args) fTable
+            let newFTable = M.insert ident (typeG, map fst args) fTable
+            let newBlock = CodeBlock ident newFTable varTypes M.empty cVars []            
+            assign tlFuncDefs newFTable
             funBlock <- lift $ runBlockCheck stmts newBlock
             assign funcs $ M.insert ident funBlock funs
         else lift $ Left $ "Function " ++ show (ident) ++ "occurs more than once"

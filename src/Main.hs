@@ -4,13 +4,16 @@ import Data.List.Split
 import System.Environment
 import GPC.Parser
 import GPC.CodeGen
+import GPC.TypeScopeChecker
 
 outputCode :: FilePath -> String -> IO()
 outputCode f s = writeFile f s --mapM_ putStrLn (lines s)
 
 parseResult f p = case p of
     Left err -> print err
-    Right v -> outputCode f $ genCode v
+    Right v ->  case runTypeChecker v of
+        Left err -> print err
+        Right _ -> outputCode f $ genCode v
     
 
 main = do

@@ -30,7 +30,7 @@ data TopLevel =
 
 
 data Objects = Obj1 ClassName Ident -- |Single Object of Class
-           --  | ObjM ClassName Expr -- |Array of Objects
+             | ObjM ClassName Ident Expr -- |Array of Objects
               deriving Show               
 
 -- | Statement

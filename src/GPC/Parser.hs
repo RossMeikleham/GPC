@@ -59,14 +59,14 @@ topLevels =      try ((:) <$> topLevel <*> topLevels)
 -- | Parse Top Level definitions
 topLevel :: Parser TopLevel
 topLevel = try function
-        <|> TLAssign <$> assign
+        <|> try (TLAssign <$> assign)
         <|> TLObjs <$> objs
 
 
 -- | Parse C++ Object definitions
 objs :: Parser Objects
-objs = Obj1 <$> className <*> parseIdent  
-
+objs = try (Obj1 <$> className <*> parseIdent)  
+   <|> ObjM <$> className <*> parseIdent <*> (brackets expr)
 
 -- | Parse Class Name 
 className :: Parser ClassName
@@ -157,10 +157,10 @@ literal = Ch  <$> ch
 -- | Parse for loop
 forLoop :: Parser Stmt
 forLoop = 
-    ForLoop <$> (reserved "for" *> reservedOp "(" *> parseIdent) -- Identifier to use
+    ForLoop <$> (reserved "for" *> reservedOp "(" *> reserved "int" *>  parseIdent) -- Identifier to use
             <*> (reservedOp "=" *> expr) -- Start
-            <*> expr  -- Stop
-            <*> (expr <* reservedOp ")") -- Step
+            <*> (semi *> expr)  -- Stop
+            <*> (semi *> expr <* reservedOp ")") -- Step
             <*> block
    
 -- | Parse function call

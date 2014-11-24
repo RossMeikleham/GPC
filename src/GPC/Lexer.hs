@@ -20,6 +20,7 @@ module GPC.Lexer
     , commaSep
     , semiSep
     , parseCh
+    , brackets
     ) where
 
 import Text.ParserCombinators.Parsec
@@ -57,6 +58,7 @@ comma = Token.comma lexer
 braces = Token.braces lexer
 commaSep = Token.commaSep lexer
 semiSep = Token.semiSep lexer
+brackets = Token.brackets lexer
 
 -- Parse specific character
 parseCh c = reserved [c]
