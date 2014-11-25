@@ -31,7 +31,10 @@ data TopLevel =
        deriving Show
 
 -- | Objects
-data Objects = Objects ClassName Var deriving Show
+data Objects = Objects {
+   objCName :: ClassName,
+   objVar ::Var 
+} deriving Show
 
 -- | Variable
 data Var = 

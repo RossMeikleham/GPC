@@ -27,7 +27,6 @@ intType = Type "int"
 
 
 data MainBlock = MainBlock {
-    _funcs :: M.Map Ident CodeBlock, -- ^ Function Blocks
     _tlFuncDefs :: FunTable, -- ^ Function Definitions
     _tlConstVars :: ConstVarTable, -- ^ Top Level Constant Variable values
     _tlConstVarTypes :: VarTable -- ^ Top Level Constant variable types
@@ -39,9 +38,8 @@ data CodeBlock = CodeBlock {
     _funcDefs :: FunTable, -- ^ Function names and return/argument types
     _prevVars :: VarTable, -- ^ Identifiers visible in current scope with types
     _curVars :: VarTable , -- ^ Identifiers declared in current scope
-    _constVars :: ConstVarTable , -- ^ Identifiers visible from current scope which
+    _constVars :: ConstVarTable  -- ^ Identifiers visible from current scope which
                                         -- ^ evaluate to a constant value
-    _subBlocks :: [CodeBlock] -- ^ Sub Blocks
 } deriving (Show)
 
 
@@ -58,53 +56,55 @@ type CodeState a = GenericBlockState MainBlock a
 type BlockState a = GenericBlockState CodeBlock a
 
 
--- | Perform Type/Scope checking
-runTypeChecker :: Program -> Either String MainBlock
+-- | Perform Type/Scope checking, and simple expression reduction
+-- | Returns either an error message or the Reduced GPC AST
+runTypeChecker :: Program -> Either String Program
 runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
  Left s -> Left s
- (Right ((), codeSt)) -> Right codeSt
- where initialBlock = MainBlock M.empty M.empty M.empty M.empty
+ (Right (tl, _)) -> Right $ Program tl
+ where initialBlock = MainBlock M.empty M.empty M.empty
 
 
 -- | Type Check all top level statements
-evalTLStmts :: [TopLevel] -> CodeState()
-evalTLStmts tls = mapM_ evalTLStmt tls
+evalTLStmts :: [TopLevel] -> CodeState [TopLevel]
+evalTLStmts tls = mapM evalTLStmt tls
 
 
 -- | Type check a given top level statement
-evalTLStmt :: TopLevel -> CodeState ()
+evalTLStmt :: TopLevel -> CodeState TopLevel
 evalTLStmt tl = case tl of
-    (TLAssign a) -> evalTLAssign a
+    (TLAssign a) -> TLAssign <$> evalTLAssign a
     (Func gType ident args stmts) -> evalFunc gType ident args stmts
-    (TLObjs objects) -> evalObjs objects
+    (TLObjs objects) -> TLObjs <$> evalObjs objects
     (TLConstructObjs var cName exprs) -> evalConstruct var cName exprs
 
 
 -- | Type check object initializations
-evalConstruct :: Var -> ClassName -> [Expr] -> CodeState()
-evalConstruct var _ exprs = do
+evalConstruct :: Var -> ClassName -> [Expr] -> CodeState TopLevel
+evalConstruct var cName exprs = do
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
 
     -- Check expressions for Constructor are constant 
     reducedExprs <- lift $ mapM (\e ->reduceExpr tVars $ injectConstants cVars e) exprs
-    lift $ mapM (getTypeExpr tVars M.empty) reducedExprs
+    _ <- lift $ mapM (getTypeExpr tVars M.empty) reducedExprs
     mapM_ checkConstantExpr reducedExprs
 
     case var of 
-        (VarIdent _) -> modify id -- Don't modify the state for now
+        (VarIdent _) ->  
+            return $ TLConstructObjs var cName reducedExprs
 
-        (VarArrayElem _ expr) -> do -- Check indexed expression           
+        (VarArrayElem ident expr) -> do -- Check indexed expression           
             reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
             exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
             checkType intType exprType
             checkConstantExpr reducedExpr
-            modify id
+            return $ TLConstructObjs (VarArrayElem ident reducedExpr) cName reducedExprs
 
 
 -- | Type check object declarations
-evalObjs :: Objects -> CodeState ()
-evalObjs (Objects _ var) = do 
+evalObjs :: Objects -> CodeState Objects
+evalObjs objs@(Objects _ var) = do 
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
     
@@ -113,6 +113,7 @@ evalObjs (Objects _ var) = do
         (VarIdent ident) -> do
             if ident `M.notMember` tVars then do
                 assign tlConstVarTypes $ M.insert ident (Type "object") tVars 
+                return objs
             else multipleInstance ident
 
         -- Static Array of Objects, check type of array size, check size
@@ -124,6 +125,7 @@ evalObjs (Objects _ var) = do
                 checkType intType exprType
                 checkConstantExpr reducedExpr
                 assign tlConstVarTypes $ M.insert ident (Type "objArray") tVars
+                return $ objs {objVar = (VarArrayElem ident reducedExpr)}
             else multipleInstance ident
  where          
     multipleInstance ident = lift $ Left $ (show ident) ++ " has already been defined " ++ 
@@ -131,7 +133,7 @@ evalObjs (Objects _ var) = do
 
 
 -- | Type Check top level assignment
-evalTLAssign :: Assign -> CodeState ()
+evalTLAssign :: Assign -> CodeState Assign
 evalTLAssign (Assign typeG ident expr) = do
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
@@ -146,6 +148,7 @@ evalTLAssign (Assign typeG ident expr) = do
                 if ident `M.notMember` tVars then do -- Update State
                   assign tlConstVars $ M.insert ident l cVars
                   assign tlConstVarTypes $ M.insert ident typeG tVars
+                  return $ Assign typeG ident reducedExpr
                 else multipleInstance 
             else conflictingTypes exprType
 
@@ -161,9 +164,8 @@ evalTLAssign (Assign typeG ident expr) = do
 
 
 -- | Type check Function                          
-evalFunc :: Type -> Ident -> [(Type, Ident)] -> BlockStmt -> CodeState()
+evalFunc :: Type -> Ident -> [(Type, Ident)] -> BlockStmt -> CodeState TopLevel
 evalFunc typeG ident args (BlockStmt stmts) = do
-    funs <- use funcs
     fTable <- use tlFuncDefs
     cVars <- use tlConstVars
     varTypes <- use tlConstVarTypes
@@ -171,50 +173,51 @@ evalFunc typeG ident args (BlockStmt stmts) = do
     if ident `M.notMember` fTable
         then do
             let newFTable = M.insert ident (typeG, map fst args) fTable
-            let newBlock = CodeBlock ident newFTable varTypes M.empty cVars []            
+            let newBlock = CodeBlock ident newFTable varTypes M.empty cVars          
             assign tlFuncDefs newFTable
             funBlock <- lift $ runBlockCheck stmts newBlock
-            assign funcs $ M.insert ident funBlock funs
+           -- assign funcs $ M.insert ident funBlock funs
+            return $ Func typeG ident args funBlock
         else lift $ Left $ "Function " ++ show (ident) ++ "occurs more than once"
 
 
 -- | Run Type Checker on new code block
-runBlockCheck :: [Stmt] -> CodeBlock -> Either String CodeBlock
+runBlockCheck :: [Stmt] -> CodeBlock -> Either String BlockStmt
 runBlockCheck stmts cb =  case runStateT (evalStmts stmts) cb of
     Left s -> Left s
-    (Right ((), codeSt)) -> Right codeSt
+    (Right (stmts', _)) -> Right $ BlockStmt stmts'
 
 
 -- | Type Check all statements in the current scope
-evalStmts :: [Stmt] -> BlockState()
-evalStmts tls = mapM_ evalStmt tls
+evalStmts :: [Stmt] -> BlockState [Stmt]
+evalStmts tls = mapM evalStmt tls
 
 
 -- | Type check given statement    
-evalStmt :: Stmt -> BlockState ()
+evalStmt :: Stmt -> BlockState Stmt
 evalStmt stmt = case stmt of
-   (AssignStmt a) -> checkAssign a
+   (AssignStmt a) -> AssignStmt <$>  checkAssign a
    (If expr stmt') -> checkIf expr stmt'
    (IfElse expr stmt1 stmt2) -> checkIfElse expr stmt1 stmt2
-   (Seq blockStmt) -> checkBlock blockStmt M.empty
-   (BStmt blockStmt) -> checkBlock blockStmt M.empty
+   (Seq blockStmt) -> BStmt <$> checkBlock blockStmt M.empty
+   (BStmt blockStmt) -> BStmt <$> checkBlock blockStmt M.empty
    (Return expr) -> checkReturn expr
    (ForLoop ident expr1 expr2 expr3 stmts) -> checkForLoop ident expr1 expr2 expr3 stmts
-   (MethodStmt method) -> checkMethodCall method
+   (MethodStmt method) -> MethodStmt <$> checkMethodCall method
    _ -> lift $ Left $ "Not implemented"
 
 
 -- |Type Check Assignment Statement
-checkAssign :: Assign -> BlockState()
+checkAssign :: Assign -> BlockState Assign
 checkAssign (Assign gType ident expr) = do
     ftable <- use funcDefs
     oldVtable <- use prevVars
     vTable <- use curVars
     cTable <- use constVars
     let scopeVars = vTable `M.union` oldVtable -- Gives all visible identifiers
-    expr' <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
+    reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
     if ident `M.member` vTable then do
-        exprType <- lift $ getTypeExpr scopeVars ftable expr'
+        exprType <- lift $ getTypeExpr scopeVars ftable reducedExpr
         if gType == exprType then do
             -- Update Var table with new variable
             assign curVars   $ M.insert ident gType vTable
@@ -222,6 +225,7 @@ checkAssign (Assign gType ident expr) = do
             assign constVars $ case expr of 
                             (ExpLit l) -> M.insert ident l cTable
                             _ -> M.delete ident cTable
+            return $ Assign gType ident reducedExpr
         else typeMismatch gType exprType
     else redefine
  where
@@ -231,26 +235,33 @@ checkAssign (Assign gType ident expr) = do
 
 
 -- |Type Check If Statement
-checkIf :: Expr -> Stmt -> BlockState()
+checkIf :: Expr -> Stmt -> BlockState Stmt
 checkIf expr stmt = do
     fTable <- use funcDefs
+    cTable <- use constVars
     scopeVars <- M.union <$> use curVars <*> use prevVars 
     exprType <- lift $ getTypeExpr scopeVars fTable expr
-    if exprType == boolType then
-        evalStmt stmt
+    reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
+    if exprType == boolType then do
+        reducedStmt <- evalStmt stmt
+        return $ If reducedExpr reducedStmt
     else lift $ Left $ "Expression within if is expected to be a bool " ++
         " but it evaluates to a " ++ (show exprType)
 
 
 -- |Type Check If - Else Statement
-checkIfElse :: Expr -> Stmt -> Stmt -> BlockState()
+checkIfElse :: Expr -> Stmt -> Stmt -> BlockState Stmt
 checkIfElse expr thenStmt elseStmt = do
-    checkIf expr thenStmt
-    evalStmt elseStmt
+    reducedIf <- checkIf expr thenStmt
+    reducedElse <- evalStmt elseStmt
+    case reducedIf of
+        (If expr1 stmt) ->
+            return $ IfElse expr1 stmt reducedElse
+        _ -> lift $ Left $ "Compiler error in checkIfElse"
 
 
 -- | Type check for loop
-checkForLoop :: Ident -> Expr -> Expr -> Expr -> BlockStmt -> BlockState()
+checkForLoop :: Ident -> Expr -> Expr -> Expr -> BlockStmt -> BlockState Stmt
 checkForLoop ident startExpr stopExpr stepExpr blockStmt = do
     cTable <- use constVars
     fTable <- use funcDefs
@@ -268,31 +279,33 @@ checkForLoop ident startExpr stopExpr stepExpr blockStmt = do
     types <- lift $ mapM (getTypeExpr scopeVars fTable) exprs
     mapM_ (checkType intType) types
 
-    checkBlock blockStmt (M.singleton ident intType)
+    reducedBlock <- checkBlock blockStmt (M.singleton ident intType)
+    return $ ForLoop ident startExpr' stopExpr' stepExpr' reducedBlock
      
 
 -- | Type check inner block, add to current list of inner blocks
-checkBlock :: BlockStmt -> VarTable -> BlockState()
+checkBlock :: BlockStmt -> VarTable -> BlockState BlockStmt
 checkBlock (BlockStmt stmts) innerTable = do
     fName <- use currentFun
     fTable <- use funcDefs
     cTable <- use constVars
-    innerBlocks <- use subBlocks
     scopeVars <- M.union <$> use curVars <*> use prevVars 
     
     -- Create and type check new inner block, and add to current
     -- list of inner blocks if successful
-    let newBlock = CodeBlock fName fTable scopeVars innerTable cTable []   
+    let newBlock = CodeBlock fName fTable scopeVars innerTable cTable   
     subBlock <- lift $ runBlockCheck stmts newBlock         
-    assign subBlocks $ innerBlocks ++ [subBlock]
+    return subBlock
 
 
 -- | Type check return stmt
-checkReturn :: Expr -> BlockState()
+checkReturn :: Expr -> BlockState Stmt
 checkReturn expr = do
     fName <- use currentFun
     fTable <- use funcDefs
+    cTable <- use constVars
     scopeVars <- M.union <$> use curVars <*> use prevVars 
+    reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
 
     let notFound = "Error, function not found " ++ show (fName)
 
@@ -300,7 +313,7 @@ checkReturn expr = do
     exprType <- lift $ getTypeExpr scopeVars fTable expr
 
     if retType == exprType then
-        modify id -- Type checking return doesn't modify state, return old state
+        return $ Return reducedExpr
     else
         lift $ Left $ "The return type of function " ++ (show fName) ++
             "is " ++ (show retType) ++ "but return expression evaluates to" ++
@@ -308,8 +321,8 @@ checkReturn expr = do
 
 
 -- | TODO Type check method call
-checkMethodCall :: MethodCall -> BlockState()
-checkMethodCall _ = modify id
+checkMethodCall :: MethodCall -> BlockState MethodCall
+checkMethodCall a = return a
 
 
 -- | Check that an expression is Constant

@@ -4,11 +4,36 @@
  - through transformations and type/scope checking before
  - reaching this stage-}
 
+{-# LANGUAGE TemplateHaskell #-}
+
 module GPC.CodeGen (genCode) where
 
 import Data.Char
-import Text.PrettyPrint.Leijen hiding (Str)
+import Text.PrettyPrint.Leijen
+import Control.Monad.State.Lazy
+import qualified Data.Map as M
 import GPC.AST
+import GPC.GPIRAST
+{-
+type VarTable = M.Map Ident Type
+type ConstVarTable = M.Map Ident Literal
+type FunTable = M.Map Ident SymbolTree
+
+data CodeGen = {
+   _funTable :: FunTable  -- ^ Store symbol tree for functions
+}
+
+-- Create lenses to access Block fields easier
+makeLenses ''CodeGen
+
+type GenState a = StateT CodeGen (Either String) a 
+
+
+genGPIR :: Program -> SymbolTree
+genGPIR (Program xs) = genTopLevel xs
+
+genTopLevel :: [TopLevel] -> SymbolTree
+-}
 
 nestLevel = 4 -- |Number of spaces to nest
 
