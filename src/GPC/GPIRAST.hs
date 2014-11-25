@@ -8,14 +8,14 @@ module GPC.GPIRAST (
  )
 where
 
-data SymbolTree = Symbol GannetSymbol | SymbolList (Quoted,[SymbolTree])
+data SymbolTree = Symbol GannetSymbol | SymbolList Quoted [SymbolTree]
 
 -- (label LABEL ( ... ))    
 data GannetSymbol = 
-      ConstSymbol (Quoted, String) 
+      ConstSymbol Quoted String
     | GOpSymbol OpSymbol 
-    | LabelKeywordSymbol (Quoted, String)
-    | LabelSymbol (Quoted, String)
+    | LabelKeywordSymbol Quoted String
+    | LabelSymbol Quoted String
 
 
 data OpSymbol = MkOpSymbol {

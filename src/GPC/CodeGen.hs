@@ -1,25 +1,28 @@
+{-# LANGUAGE TemplateHaskell #-}
 {- Generate GPIR code from AST 
  - this module is temporary for playing around with the language
  - and pretty printers. In the final version the AST will go
  - through transformations and type/scope checking before
  - reaching this stage-}
 
-{-# LANGUAGE TemplateHaskell #-}
 
 module GPC.CodeGen (genCode) where
 
+import Control.Lens
+import Control.Applicative hiding ((<|>), many, optional, empty)
 import Data.Char
-import Text.PrettyPrint.Leijen
+--import Text.PrettyPrint.Leijen
 import Control.Monad.State.Lazy
 import qualified Data.Map as M
 import GPC.AST
 import GPC.GPIRAST
-{-
+
+
 type VarTable = M.Map Ident Type
 type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident SymbolTree
 
-data CodeGen = {
+data CodeGen = CodeGen {
    _funTable :: FunTable  -- ^ Store symbol tree for functions
 }
 
@@ -29,11 +32,26 @@ makeLenses ''CodeGen
 type GenState a = StateT CodeGen (Either String) a 
 
 
-genGPIR :: Program -> SymbolTree
-genGPIR (Program xs) = genTopLevel xs
+genGPIR :: Program -> Either String SymbolTree
+genGPIR (Program tls) = case runStateT (genTopLevel tls) initial of 
+    Left s -> Left s
+    (Right (tl, _)) -> Right $ tl
+ where initial = CodeGen M.empty
 
-genTopLevel :: [TopLevel] -> SymbolTree
--}
+
+genTopLevel :: [TopLevel] -> GenState SymbolTree
+genTopLevel tls = do
+    symbolTrees <- mapM genTopLevelStmt tls
+    return $ SymbolList False symbolTrees
+
+
+genTopLevelStmt :: TopLevel -> GenState SymbolTree
+genTopLevelStmt _ = error "dummy"
+
+genCode = error "dummy"
+
+{-
+
 
 nestLevel = 4 -- |Number of spaces to nest
 
@@ -141,3 +159,4 @@ parens' x = nest' 4 $ parens x
 
 nest' :: Int -> Doc -> Doc
 nest' n d = text "" <$> nest n d
+-}
