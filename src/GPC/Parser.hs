@@ -61,14 +61,17 @@ topLevel :: Parser TopLevel
 topLevel = try function
         <|> try (TLAssign <$> assign)
         <|> try (TLObjs <$> objs)
-        <|> (TLConstructObjs <$> parseVar <*> (reservedOp "=" *> className) 
-            <*> ((parens $ commaSep expr) <* semi))
+        <|> (TLConstructObjs <$> constructObjs)
 
 
 -- | Parse C++ Object definitions
 objs :: Parser Objects
 objs = Objects <$> className <*> (parseVar <* semi)
 
+
+constructObjs :: Parser ConstructObjs
+constructObjs = ConstructObjs <$> parseVar <*> (reservedOp "=" *> className) 
+            <*> ((parens $ commaSep expr) <* semi)
 
 -- | Parse Class Name 
 className :: Parser ClassName

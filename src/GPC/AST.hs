@@ -17,6 +17,7 @@ module GPC.AST(
     , Objects(..)
     , MethodCall(..)
     , Var(..)
+    , ConstructObjs(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show
@@ -26,7 +27,7 @@ data Program = Program [TopLevel] deriving Show
 data TopLevel =
         Func Type Ident [(Type, Ident)] BlockStmt  -- ^ Return Type, Name, Arguments, Code
       | TLObjs Objects -- ^ External objects
-      | TLConstructObjs Var ClassName [Expr] -- ^ External object constructor calls
+      | TLConstructObjs ConstructObjs -- ^ External object constructor calls
       | TLAssign Assign
        deriving Show
 
@@ -42,6 +43,8 @@ data Var =
         | VarIdent Ident -- ^ Ordinary identifier
          deriving Show
 
+
+data ConstructObjs = ConstructObjs Var ClassName [Expr] deriving Show
 
 -- | Statement
 data Stmt = 

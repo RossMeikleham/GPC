@@ -23,7 +23,8 @@ type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident SymbolTree
 
 data CodeGen = CodeGen {
-   _funTable :: FunTable  -- ^ Store symbol tree for functions
+   _funTable :: FunTable,  -- ^ Store symbol tree for functions
+   _constTable :: ConstVarTable
 }
 
 -- Create lenses to access Block fields easier
@@ -36,7 +37,7 @@ genGPIR :: Program -> Either String SymbolTree
 genGPIR (Program tls) = case runStateT (genTopLevel tls) initial of 
     Left s -> Left s
     (Right (tl, _)) -> Right $ tl
- where initial = CodeGen M.empty
+ where initial = CodeGen M.empty M.empty
 
 
 genTopLevel :: [TopLevel] -> GenState SymbolTree
@@ -45,9 +46,50 @@ genTopLevel tls = do
     return $ SymbolList False symbolTrees
 
 
-genTopLevelStmt :: TopLevel -> GenState SymbolTree
-genTopLevelStmt _ = error "dummy"
+--genTopLevelStmt :: TopLevel -> GenState SymbolTree
+--genTopLevelStmt _ = error "dummy"
 
+-- | Generate GPIR from Top Level statements
+genTopLevelStmt :: TopLevel -> GenState SymbolTree
+genTopLevelStmt tl = case tl of
+    (TLAssign a) -> genTLAssign a
+--    (Func gType ident args stmts) -> evalFunc gType ident args stmts
+--    (TLObjs objects) -> TLObjs <$> evalObjs objects
+--    (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
+
+
+genTLAssign :: Assign -> GenState SymbolTree
+genTLAssign (Assign _ ident expr) = case expr of 
+    (ExpLit l) -> do 
+        cTable <- use constTable
+        assign constTable $ M.insert ident l cTable 
+        return None
+    _ -> lift $ Left $ "Compiler error, in top level assignment code generation"  
+
+
+{-
+genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
+genTLConstructObjs (ConstructObjs var cName exprs) = do 
+    case var of 
+        (VarIdent ident) -> do
+            
+        (VarArrayElem ident expr) -> do
+            if ident `M.notMember` tVars then do
+                reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
+                exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
+                checkType intType exprType
+                checkConstantExpr reducedExpr
+                assign tlConstVarTypes $ M.insert ident (Type "objArray") tVars
+                return $ objs {objVar = (VarArrayElem ident reducedExpr)}
+            else multipleInstance ident
+ where          
+    multipleInstance ident = lift $ Left $ (show ident) ++ " has already been defined " ++ 
+        "in scope, cannot redefine it"      
+-}
+
+
+
+-- TODO remove
 genCode = error "dummy"
 
 {-

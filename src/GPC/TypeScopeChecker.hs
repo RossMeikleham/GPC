@@ -76,12 +76,12 @@ evalTLStmt tl = case tl of
     (TLAssign a) -> TLAssign <$> evalTLAssign a
     (Func gType ident args stmts) -> evalFunc gType ident args stmts
     (TLObjs objects) -> TLObjs <$> evalObjs objects
-    (TLConstructObjs var cName exprs) -> evalConstruct var cName exprs
+    (TLConstructObjs cObjs) -> TLConstructObjs <$> evalConstruct cObjs
 
 
 -- | Type check object initializations
-evalConstruct :: Var -> ClassName -> [Expr] -> CodeState TopLevel
-evalConstruct var cName exprs = do
+evalConstruct :: ConstructObjs -> CodeState ConstructObjs
+evalConstruct (ConstructObjs var cName exprs) = do
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
 
@@ -92,14 +92,14 @@ evalConstruct var cName exprs = do
 
     case var of 
         (VarIdent _) ->  
-            return $ TLConstructObjs var cName reducedExprs
+            return $ ConstructObjs var cName reducedExprs
 
         (VarArrayElem ident expr) -> do -- Check indexed expression           
             reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
             exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
             checkType intType exprType
             checkConstantExpr reducedExpr
-            return $ TLConstructObjs (VarArrayElem ident reducedExpr) cName reducedExprs
+            return $ ConstructObjs (VarArrayElem ident reducedExpr) cName reducedExprs
 
 
 -- | Type check object declarations
