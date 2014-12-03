@@ -1,9 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-{- Generate GPIR code from AST 
- - this module is temporary for playing around with the language
- - and pretty printers. In the final version the AST will go
- - through transformations and type/scope checking before
- - reaching this stage-}
+{- Generate GPIR code from Type/Scope checked AST -}
 
 
 module GPC.CodeGen (genCode) where
@@ -20,7 +16,7 @@ import GPC.GPIRAST
 
 type VarTable = M.Map Ident Type
 type ConstVarTable = M.Map Ident Literal
-type FunTable = M.Map Ident SymbolTree
+type FunTable = M.Map Ident ([Ident], BlockStmt)
 
 data CodeGen = CodeGen {
    _funTable :: FunTable,  -- ^ Store symbol tree for functions
@@ -42,6 +38,11 @@ isObject tl = case tl of
     TLObjs _ -> True
     _ -> False
 
+isFunc :: TopLevel -> Bool
+isFunc tl = case tl of
+    Func _ _ _ _ -> True
+    _ -> False
+
 genGPIR :: Program -> Either String SymbolTree
 genGPIR (Program tls) = case runStateT (genTopLevel tls) initial of 
     Left s -> Left s
@@ -52,22 +53,15 @@ genGPIR (Program tls) = case runStateT (genTopLevel tls) initial of
 genTopLevel :: [TopLevel] -> GenState SymbolTree
 genTopLevel tls = do
     genTLAssigns tls 
+    genFuncs tls
     let tls' = filter (\x -> not (isAssign x || isObject x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
     return $ SymbolList False symbolTrees
 
-
--- | Generate GPIR from Top Level statements
-genTopLevelStmt :: TopLevel -> GenState SymbolTree
-genTopLevelStmt tl = case tl of
-      (Func _ ident args (BlockStmt stmts)) -> genFunc ident (map snd args) stmts
-      (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
-      _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level Assignments or Object Decls"
-
 -- | Generate all Top Level Assignments
 genTLAssigns :: [TopLevel] -> GenState ()
 genTLAssigns tls = mapM_ genTLAssign $ filter isAssign tls
-         
+
 
 genTLAssign :: TopLevel -> GenState ()
 genTLAssign (TLAssign (Assign _ ident expr)) = case expr of
@@ -76,6 +70,25 @@ genTLAssign (TLAssign (Assign _ ident expr)) = case expr of
         assign constTable $ M.insert ident l cTable 
     _ -> lift $ Left $ "Compiler error, in top level assignment code generation"  
 genTLAssign _ = lift $ Left $ "Not top level Assignment statement"
+
+
+genFuncs :: [TopLevel] -> GenState ()
+genFuncs tls = mapM_ genFunc $ filter isFunc tls  
+
+genFunc :: TopLevel -> GenState ()
+genFunc (Func _ name args stmts) = do
+    fTable <- use funTable
+    assign funTable $ M.insert name (map snd args, stmts) fTable 
+         
+genFunc _ = lift $ Left $ "Not Function definition"
+
+-- | Generate GPIR from Top Level statements
+genTopLevelStmt :: TopLevel -> GenState SymbolTree
+genTopLevelStmt tl = case tl of
+      (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
+      _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level Assignments or Object Decls"
+
+         
 
 
 
@@ -103,8 +116,21 @@ genTLConstructObjs (ConstructObjs var libName cName exprs) =
 
 
 
-genFunc :: Ident -> [Ident] -> [Stmt] -> GenState SymbolTree 
-genFunc name args stmts = error "dummy" 
+{-genFunc :: Ident -> [Ident] -> [Stmt] -> GenState ()
+genFunc name args stmts = case runStateT (genTopLevel tls) initial of 
+    Left s -> Left s
+    (Right (tl, _)) -> Right $ tl
+ where initial = CodeGen M.empty M.empty-}
+
+-- | Generate Inline Function by replacing all identifieres
+-- | in scope with supplied argument expressions
+genInlineFunc :: Ident -> [Expr] -> GenState SymbolTree
+genInlineFunc name args = do 
+    case M.lookup name of 
+        Just (idents, stmts) = do
+        fTable <- use funTable
+
+        Nothing -> lift $ Left $ "Compiler error genInlineFunc"
 
 checkConst :: Expr -> GenState Literal
 checkConst exp = case exp of 
