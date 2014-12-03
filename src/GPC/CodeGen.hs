@@ -32,6 +32,15 @@ makeLenses ''CodeGen
 
 type GenState a = StateT CodeGen (Either String) a 
 
+isAssign :: TopLevel -> Bool
+isAssign tl = case tl of 
+    TLAssign _ -> True
+    _ -> False
+
+isObject :: TopLevel -> Bool
+isObject tl = case tl of
+    TLObjs _ -> True
+    _ -> False
 
 genGPIR :: Program -> Either String SymbolTree
 genGPIR (Program tls) = case runStateT (genTopLevel tls) initial of 
@@ -42,51 +51,65 @@ genGPIR (Program tls) = case runStateT (genTopLevel tls) initial of
 
 genTopLevel :: [TopLevel] -> GenState SymbolTree
 genTopLevel tls = do
-    symbolTrees <- mapM genTopLevelStmt tls
+    genTLAssigns tls 
+    let tls' = filter (\x -> not (isAssign x || isObject x)) tls
+    symbolTrees <- mapM genTopLevelStmt tls'
     return $ SymbolList False symbolTrees
 
-
---genTopLevelStmt :: TopLevel -> GenState SymbolTree
---genTopLevelStmt _ = error "dummy"
 
 -- | Generate GPIR from Top Level statements
 genTopLevelStmt :: TopLevel -> GenState SymbolTree
 genTopLevelStmt tl = case tl of
-    (TLAssign a) -> genTLAssign a
---    (Func gType ident args stmts) -> evalFunc gType ident args stmts
---    (TLObjs objects) -> TLObjs <$> evalObjs objects
---    (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
+      (Func _ ident args (BlockStmt stmts)) -> genFunc ident (map snd args) stmts
+      (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
+      _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level Assignments or Object Decls"
 
+-- | Generate all Top Level Assignments
+genTLAssigns :: [TopLevel] -> GenState ()
+genTLAssigns tls = mapM_ genTLAssign $ filter isAssign tls
+         
 
-genTLAssign :: Assign -> GenState SymbolTree
-genTLAssign (Assign _ ident expr) = case expr of 
-    (ExpLit l) -> do 
+genTLAssign :: TopLevel -> GenState ()
+genTLAssign (TLAssign (Assign _ ident expr)) = case expr of
+    (ExpLit l) -> do         
         cTable <- use constTable
         assign constTable $ M.insert ident l cTable 
-        return None
     _ -> lift $ Left $ "Compiler error, in top level assignment code generation"  
+genTLAssign _ = lift $ Left $ "Not top level Assignment statement"
 
 
-{-
+
 genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
-genTLConstructObjs (ConstructObjs var cName exprs) = do 
-    case var of 
+genTLConstructObjs (ConstructObjs var libName cName exprs) =  
+    case var of  
         (VarIdent ident) -> do
-            
-        (VarArrayElem ident expr) -> do
-            if ident `M.notMember` tVars then do
-                reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
-                exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
-                checkType intType exprType
-                checkConstantExpr reducedExpr
-                assign tlConstVarTypes $ M.insert ident (Type "objArray") tVars
-                return $ objs {objVar = (VarArrayElem ident reducedExpr)}
-            else multipleInstance ident
- where          
-    multipleInstance ident = lift $ Left $ (show ident) ++ " has already been defined " ++ 
-        "in scope, cannot redefine it"      
--}
+            cTable <- use constTable
+            args <- mapM checkConst exprs 
+            let constructor = Symbol $ GOpSymbol $ 
+                            MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
+            args <- mapM checkConst exprs
+            let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
+            return $ SymbolList False (constructor : args')
 
+        -- TODO work out how to map
+        (VarArrayElem ident _) -> do
+            cTable <- use constTable
+            args <- mapM checkConst exprs 
+            let constructor = Symbol $ GOpSymbol $ 
+                            MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
+            args <- mapM checkConst exprs
+            let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
+            return $ SymbolList False (constructor : args')
+
+
+
+genFunc :: Ident -> [Ident] -> [Stmt] -> GenState SymbolTree 
+genFunc name args stmts = error "dummy" 
+
+checkConst :: Expr -> GenState Literal
+checkConst exp = case exp of 
+    (ExpLit l) -> return l
+    _ -> lift $ Left $ "Expected constant expression"
 
 
 -- TODO remove

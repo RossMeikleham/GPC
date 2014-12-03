@@ -18,6 +18,8 @@ module GPC.AST(
     , MethodCall(..)
     , Var(..)
     , ConstructObjs(..)
+    , LibName(..)
+    , ClassName(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show
@@ -33,6 +35,7 @@ data TopLevel =
 
 -- | Objects
 data Objects = Objects {
+   objLName :: LibName,
    objCName :: ClassName,
    objVar ::Var 
 } deriving Show
@@ -44,7 +47,7 @@ data Var =
          deriving Show
 
 
-data ConstructObjs = ConstructObjs Var ClassName [Expr] deriving Show
+data ConstructObjs = ConstructObjs Var LibName ClassName [Expr] deriving Show
 
 -- | Statement
 data Stmt = 
@@ -110,10 +113,22 @@ data Literal =
     | Ch Char
     | Number (Either Integer Double)
     | Bl Bool
-     deriving (Show, Eq)
+     deriving (Eq)
+
+instance Show Literal where
+    show (Str s) = s
+    show (Ch c) = show c
+    show (Number (Left i)) = show i
+    show (Number (Right d)) = show d
+    show (Bl b) = show b
 
 
-data ClassName = ClassName [Ident] deriving Show
-data Ident = Ident String deriving (Show, Eq, Ord)
+type LibName = Ident 
+type ClassName = Ident 
+
+data Ident = Ident String deriving (Eq, Ord)
+instance Show Ident where
+    show (Ident s) = s
+
 data Type = Type String deriving (Show, Eq)
 data BlockStmt = BlockStmt [Stmt] deriving Show

@@ -66,17 +66,29 @@ topLevel = try function
 
 -- | Parse C++ Object definitions
 objs :: Parser Objects
-objs = Objects <$> className <*> (parseVar <* semi)
+objs = do 
+    (libName, className) <- parseClass
+    var <- parseVar
+    _ <- semi
+    return $ Objects libName className var
 
 
 constructObjs :: Parser ConstructObjs
-constructObjs = ConstructObjs <$> parseVar <*> (reservedOp "=" *> className) 
-            <*> ((parens $ commaSep expr) <* semi)
+constructObjs = do 
+    var <- parseVar
+    reservedOp "="
+    (libName, className) <- parseClass
+    exprs <- parens $ commaSep expr
+    _ <- semi 
+    return $ ConstructObjs var libName className exprs 
 
--- | Parse Class Name 
-className :: Parser ClassName
-className = ClassName <$> idents
-    where idents = (:) <$> parseIdent <*> (many1 $ reservedOp "::" *> parseIdent)
+-- | Parse Class 
+parseClass :: Parser (LibName, ClassName)
+parseClass = do 
+    libName <- parseIdent
+    reservedOp "::"
+    className <- parseIdent
+    return (libName, className)
 
 
 -- | Parse Function definition
