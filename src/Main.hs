@@ -4,6 +4,7 @@ import Data.List.Split
 import System.Environment
 import GPC.Parser
 import GPC.CodeGen
+import GPC.GenGPIR
 import GPC.TypeScopeChecker
 
 outputCode :: FilePath -> String -> IO()
