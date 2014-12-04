@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/RossMeikleham/Gannet-Parallel-C.svg?branch=master)](https://travis-ci.org/RossMeikleham/Gannet-Parallel-C)
+[![Build Status](https://travis-ci.org/RossMeikleham/GPC.svg?branch=master)](https://travis-ci.org/RossMeikleham/Gannet-Parallel-C)
 
 About
 ===
