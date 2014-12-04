@@ -2,7 +2,7 @@
 {- Generate GPIR code from Type/Scope checked AST -}
 
 
-module GPC.CodeGen (genCode) where
+module GPC.CodeGen (genGPIR) where
 
 import Control.Lens
 import Control.Applicative hiding ((<|>), many, optional, empty)
@@ -38,9 +38,9 @@ isObject tl = case tl of
     TLObjs _ -> True
     _ -> False
 
-isFunc :: TopLevel -> Bool
-isFunc tl = case tl of
-    Func _ _ _ _ -> True
+isNonMainFunc :: TopLevel -> Bool
+isNonMainFunc tl = case tl of
+    Func _ _ name _ -> (show name) /= "main" 
     _ -> False
 
 genGPIR :: Program -> Either String SymbolTree
@@ -54,7 +54,7 @@ genTopLevel :: [TopLevel] -> GenState SymbolTree
 genTopLevel tls = do
     genTLAssigns tls 
     genFuncs tls
-    let tls' = filter (\x -> not (isAssign x || isObject x)) tls
+    let tls' = filter (\x -> not (isAssign x || isObject x || isNonMainFunc x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
     return $ SymbolList False symbolTrees
 
@@ -73,7 +73,7 @@ genTLAssign _ = lift $ Left $ "Not top level Assignment statement"
 
 
 genFuncs :: [TopLevel] -> GenState ()
-genFuncs tls = mapM_ genFunc $ filter isFunc tls  
+genFuncs tls = mapM_ genFunc $ filter isNonMainFunc tls  
 
 genFunc :: TopLevel -> GenState ()
 genFunc (Func _ name args stmts) = do
@@ -82,16 +82,17 @@ genFunc (Func _ name args stmts) = do
          
 genFunc _ = lift $ Left $ "Not Function definition"
 
+
 -- | Generate GPIR from Top Level statements
 genTopLevelStmt :: TopLevel -> GenState SymbolTree
 genTopLevelStmt tl = case tl of
       (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
-      _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level Assignments or Object Decls"
+      (Func _ (Ident "main")  _ bStmt) -> genMain bStmt
+      _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level Assignments, Object Decls or non Main functions"
+
 
          
-
-
-
+-- | Generate Object Constructors
 genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
 genTLConstructObjs (ConstructObjs var libName cName exprs) =  
     case var of  
@@ -116,15 +117,20 @@ genTLConstructObjs (ConstructObjs var libName cName exprs) =
 
 
 
+-- | Generate Program
+genMain :: BlockStmt -> GenState SymbolTree
+genMain = error "dummy"
+
+
 -- | Generate Inline Function by replacing all identifieres
 -- | in scope with supplied argument expressions
-genInlineFunc :: Ident -> [Expr] -> GenState ()
+genInlineFunc :: Ident -> [Expr] -> GenState BlockStmt
 genInlineFunc name args = do
     fTable <- use funTable 
     case M.lookup name fTable of 
         Just (idents, stmts) -> do
             let (BStmt stmts') = genInlineStmt (zip idents args) (BStmt stmts)
-            assign funTable $ M.insert name (idents, stmts') fTable
+            return stmts'
             
         Nothing -> lift $ Left $ "Compiler error genInlineFunc"
 
@@ -215,9 +221,6 @@ checkConst exp = case exp of
     (ExpLit l) -> return l
     _ -> lift $ Left $ "Expected constant expression"
 
-
--- TODO remove
-genCode = error "dummy"
 
 {-
 

@@ -8,7 +8,7 @@ module GPC.GPIRAST (
  )
 where
 
-data SymbolTree = Symbol GannetSymbol | SymbolList Quoted [SymbolTree] | None
+data SymbolTree = Symbol GannetSymbol | SymbolList Quoted [SymbolTree] deriving Show
 
 -- (label LABEL ( ... ))    
 data GannetSymbol = 
@@ -16,7 +16,7 @@ data GannetSymbol =
     | GOpSymbol OpSymbol 
     | LabelKeywordSymbol Quoted String
     | LabelSymbol Quoted String
-
+    deriving Show
 
 data OpSymbol = MkOpSymbol {
                         quoted  :: Quoted, -- ^ Whether symbol is quoted or not
@@ -24,6 +24,6 @@ data OpSymbol = MkOpSymbol {
                         lib     :: String, -- ^ C++ library
                         gClass   :: String, -- ^ C++ class name
                         method  :: String  -- ^ C++ method call name
-                    } deriving (Eq,Ord)
+                    } deriving (Eq,Ord, Show)
 
 type Quoted = Bool
