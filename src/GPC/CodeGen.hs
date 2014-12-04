@@ -116,26 +116,67 @@ genTLConstructObjs (ConstructObjs var libName cName exprs) =
 
 
 
-{-genFunc :: Ident -> [Ident] -> [Stmt] -> GenState ()
-genFunc name args stmts = case runStateT (genTopLevel tls) initial of 
-    Left s -> Left s
-    (Right (tl, _)) -> Right $ tl
- where initial = CodeGen M.empty M.empty-}
-
 -- | Generate Inline Function by replacing all identifieres
 -- | in scope with supplied argument expressions
-{-genInlineFunc :: Ident -> [Expr] -> GenState [Stmt]
+genInlineFunc :: Ident -> [Expr] -> GenState ()
 genInlineFunc name args = do
     fTable <- use funTable 
-    case M.lookup name of 
-        Just (idents, stmts) = do
-            
+    case M.lookup name fTable of 
+        Just (idents, stmts) -> do
+            let (BStmt stmts') = genInlineStmt (zip idents args) (BStmt stmts)
+            assign funTable $ M.insert name (idents, stmts') fTable
             
         Nothing -> lift $ Left $ "Compiler error genInlineFunc"
 
-genInlineStmt :: Stmt -> [Ident] -> [Expr] -> GenState Stmt
-genInlineStmt AssignStmt (Assign Type Ident -}
 
+genInlineStmt :: [(Ident, Expr)] -> Stmt -> Stmt
+genInlineStmt exprs stmt = case stmt of
+
+    AssignStmt (Assign gType name expr) -> 
+        AssignStmt (Assign gType name $ replaceExprIdents exprs expr)
+
+    FunCallStmt (FunCall name args) ->
+        FunCallStmt (FunCall name $ map (replaceExprIdents exprs) args)
+
+    MethodStmt (MethodCall cName mName args) ->
+        MethodStmt (MethodCall cName mName $ map (replaceExprIdents exprs) args)
+
+    If expr stmt' ->
+        If (replaceExprIdents exprs expr) (genInlineStmt exprs stmt')
+        
+    IfElse expr stmt1 stmt2 -> 
+        IfElse (replaceExprIdents exprs expr) (genInlineStmt exprs stmt1) 
+                                              (genInlineStmt exprs stmt2)
+
+    Return expr -> Return $ replaceExprIdents exprs expr
+
+    ForLoop name start stop step (BlockStmt stmts) -> 
+        ForLoop name (replaceExprIdents exprs start)
+                     (replaceExprIdents exprs stop)
+                     (replaceExprIdents exprs step)
+                     (BlockStmt $ genBlock stmts) 
+
+
+    Seq (BlockStmt stmts) -> Seq $ BlockStmt $ genBlock stmts
+
+    BStmt (BlockStmt stmts) -> BStmt $ BlockStmt $ genBlock stmts
+
+  where 
+    -- Once the identifier goes out of scope we don't replace it
+    -- map up until the identifier is out of scope, and then add on the rest of
+    -- the unmapped statements to the block as they won't need any substitution 
+    genBlock :: [Stmt] -> [Stmt]
+    genBlock stmts = mapped ++ (drop (length stmts - length mapped) mapped)
+      where mapped = incMapWhile inScope (genInlineStmt exprs) stmts
+    inScope (AssignStmt (Assign _ name _)) = 
+        if name `elem` idents then False else True
+    inScope _ = True 
+    idents = map fst exprs
+
+
+replaceExprIdents :: [(Ident, Expr)] -> Expr -> Expr
+replaceExprIdents replaceExprs givenExpr = 
+    foldl (\gExpr (id, rExpr) -> replaceExprIdent id rExpr gExpr) givenExpr replaceExprs
 
 -- | Replace all instances of an identity in an expression
 -- | with a given sub-expression TODO place into expression module
@@ -159,6 +200,14 @@ replaceExprIdent id replaceExpr givenExpr = case givenExpr of
     ExpIdent expId -> if expId == id then replaceExpr else (ExpIdent expId)
 
     ExpLit lit -> ExpLit lit
+
+
+-- | inclusive MapWhile function, returns results which satisfy a condition
+-- | TODO stick in utilities module
+incMapWhile :: (b -> Bool) -> (a -> b) -> [a] -> [b]
+incMapWhile cond f (x:xs) = if cond res then res : (incMapWhile cond f xs) else [res]
+ where res = f x
+incMapWhile _ _ [] = []
 
 
 checkConst :: Expr -> GenState Literal
