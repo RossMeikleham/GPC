@@ -97,8 +97,6 @@ genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
 genTLConstructObjs (ConstructObjs var libName cName exprs) =  
     case var of  
         (VarIdent ident) -> do
-            cTable <- use constTable
-            args <- mapM checkConst exprs 
             let constructor = Symbol $ GOpSymbol $ 
                             MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
             args <- mapM checkConst exprs
@@ -106,9 +104,7 @@ genTLConstructObjs (ConstructObjs var libName cName exprs) =
             return $ SymbolList False (constructor : args')
 
         -- TODO work out how to map
-        (VarArrayElem ident _) -> do
-            cTable <- use constTable
-            args <- mapM checkConst exprs 
+        (VarArrayElem _ _) -> do
             let constructor = Symbol $ GOpSymbol $ 
                             MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
             args <- mapM checkConst exprs
@@ -119,8 +115,83 @@ genTLConstructObjs (ConstructObjs var libName cName exprs) =
 
 -- | Generate Program
 genMain :: BlockStmt -> GenState SymbolTree
-genMain = error "dummy"
+genMain (BlockStmt stmts) = (SymbolList False) <$> (mapM genStmt stmts)
 
+genStmt :: Stmt -> GenState SymbolTree
+genStmt stmt = case stmt of
+
+    AssignStmt (Assign _ name expr) -> do
+        let assignSymbol = Symbol $ GOpSymbol $ 
+                            MkOpSymbol False ("Dummy", 0) "CoreServices" "Assign" "assign"
+        let var = Symbol $ ConstSymbol True (show name)
+        expr' <- genExpr expr
+        return $ SymbolList False [assignSymbol, var, expr']
+
+    Seq (BlockStmt stmts) -> do
+        let seqSymbol = Symbol $ GOpSymbol $
+                        MkOpSymbol False ("Dummy", 0) "CoreServices" "Seq" "seq"
+        stmts' <- mapM genStmt stmts
+        return $ SymbolList False (seqSymbol : stmts')
+
+    BStmt (BlockStmt stmts) -> do
+        stmts' <- mapM genStmt stmts
+        return $ SymbolList False stmts'
+
+    FunCallStmt (FunCall name exprs) -> do
+        (BlockStmt stmts) <- genInlineFunc name exprs
+        stmts' <- mapM genStmt stmts
+        return $ SymbolList False stmts'
+
+    MethodStmt (MethodCall cName mName exprs) -> do
+        let call = Symbol $ GOpSymbol $ 
+                    MkOpSymbol False ("Dummy", 0) "temp" (show cName) (show mName)
+        exprs' <- mapM genExpr exprs
+        return $ SymbolList False (call : exprs')
+
+    If expr stmt' -> do
+        let ifSymbol = Symbol $ GOpSymbol $
+                        MkOpSymbol False ("Dummy", 0) "CoreServices" "IF" "if"
+        cond <- genExpr expr
+        stmt'' <- genStmt stmt'
+        let dummyStmt = Symbol $ ConstSymbol True "0"
+        return $ SymbolList False [ifSymbol, cond, stmt'', dummyStmt]
+        
+    IfElse expr stmt1 stmt2 -> do                
+        let ifSymbol = Symbol $ GOpSymbol $
+                        MkOpSymbol False ("Dummy", 0) "CoreServices" "IF" "if"
+        cond <- genExpr expr
+        stmt1' <- genStmt stmt1
+        stmt2' <- genStmt stmt2
+        return $ SymbolList False [ifSymbol, cond, stmt1', stmt2']
+       
+    Return expr -> do
+        let returnSymbol = Symbol $ GOpSymbol $
+                            MkOpSymbol False ("Dummy", 0) "CoreServices" "RETURN" "return"
+        expr' <- genExpr expr
+        return $ SymbolList False [returnSymbol, expr']
+        
+    -- For now fully loop unroll 
+    ForLoop ident start stop step stmt' -> do
+       start' <- getInt start
+       stop'  <- getInt stop
+       step'  <- getInt step
+       if (start' > stop') then lift $ Left $ "For loop error, start can't be greater than stop"
+       else if (step' == 0 || step' < 0) then lift $ Left $ "For loop error, infinite loop generated"
+       else do
+           let unrolledStmts = map (\i -> 
+                                genInlineStmt [(ident, ExpLit (Number (Left i)))] (BStmt stmt'))  
+                                    [start', start' + step' .. stop' - 1]
+           unrolledStmts' <- mapM genStmt unrolledStmts
+           return $ SymbolList False unrolledStmts'
+
+         
+ where 
+    getInt :: Expr -> GenState Integer
+    getInt (ExpLit (Number (Left i))) = return i
+    getInt _ = lift $ Left $ "Compiler error, expected integer value from expression"
+
+genExpr :: Expr -> GenState SymbolTree
+genExpr expr = error $ show expr
 
 -- | Generate Inline Function by replacing all identifieres
 -- | in scope with supplied argument expressions
