@@ -191,8 +191,62 @@ genStmt stmt = case stmt of
     getInt _ = lift $ Left $ "Compiler error, expected integer value from expression"
 
 genExpr :: Expr -> GenState SymbolTree
-genExpr expr = error $ show expr
+genExpr expr = case expr of
+    
+    ExpBinOp bOp lExpr rExpr -> do
+        let method = case bOp of
+                    Add -> "plus"
+                    Sub -> "minus"
+                    Mul -> "times"
+                    Div -> "over"
+                    And -> "and"
+                    Or -> "or"
+                    Mod -> "mod"
+                    Less -> "lt"
+                    LessEq -> "lteq"
+                    Greater -> "gt"
+                    GreaterEq -> "gteq"
+                    Equals -> "eq"
+                    NEquals -> "neq"
+                    ShiftL -> "shl"
+                    ShiftR -> "shr"
+                    BAnd -> "band"
+                    BXor -> "bxor"
+                    BOr -> "bor"
 
+        let binSymbol = Symbol $ GOpSymbol $
+                        MkOpSymbol False ("Dummy", 0) "CoreServices" "ALU" method 
+
+        lExpr' <- genExpr lExpr
+        rExpr' <- genExpr rExpr
+        return $ SymbolList False [binSymbol, lExpr', rExpr']
+
+    ExpUnaryOp unOp expr -> do
+        let method = case unOp of
+                    Not -> "not"
+                    Neg -> "neg"
+                    BNot -> "bnot"
+
+        let unSymbol = Symbol $ GOpSymbol $
+                    MkOpSymbol False ("Dummy", 0) "CoreSevices" "ALU" method
+        expr' <- genExpr expr
+        return $ SymbolList False [unSymbol, expr']
+
+    ExpFunCall (FunCall name exprs) -> do
+        (BlockStmt stmts) <- genInlineFunc name exprs
+        stmts' <- mapM genStmt stmts
+        return $ SymbolList False stmts'
+
+    ExpMethodCall (MethodCall cName mName exprs) -> do
+        let call = Symbol $ GOpSymbol $ 
+                    MkOpSymbol False ("Dummy", 0) "temp" (show cName) (show mName)
+        exprs' <- mapM genExpr exprs
+        return $ SymbolList False (call : exprs')
+
+    ExpIdent ident -> return $ Symbol $ ConstSymbol False (show ident) 
+
+    ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
+    
 -- | Generate Inline Function by replacing all identifieres
 -- | in scope with supplied argument expressions
 genInlineFunc :: Ident -> [Expr] -> GenState BlockStmt
