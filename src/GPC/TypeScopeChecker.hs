@@ -8,7 +8,7 @@ module GPC.TypeScopeChecker(
 import qualified Data.Map as M
 import Data.Bits
 import Control.Applicative hiding ((<|>), many, optional, empty)
-import Control.Monad.Except
+--import Control.Monad.Except
 import Control.Monad.State.Lazy
 import Control.Error.Util
 import Control.Lens

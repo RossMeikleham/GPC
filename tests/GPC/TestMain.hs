@@ -1,4 +1,4 @@
-module TestMain where 
+module TestMain (tests) where 
 
 -- Main Test Suite, calls others --
 import Test.HUnit

@@ -124,13 +124,42 @@ genFunc name args stmts = case runStateT (genTopLevel tls) initial of
 
 -- | Generate Inline Function by replacing all identifieres
 -- | in scope with supplied argument expressions
-genInlineFunc :: Ident -> [Expr] -> GenState SymbolTree
-genInlineFunc name args = do 
+{-genInlineFunc :: Ident -> [Expr] -> GenState [Stmt]
+genInlineFunc name args = do
+    fTable <- use funTable 
     case M.lookup name of 
         Just (idents, stmts) = do
-        fTable <- use funTable
-
+            
+            
         Nothing -> lift $ Left $ "Compiler error genInlineFunc"
+
+genInlineStmt :: Stmt -> [Ident] -> [Expr] -> GenState Stmt
+genInlineStmt AssignStmt (Assign Type Ident -}
+
+
+-- | Replace all instances of an identity in an expression
+-- | with a given sub-expression TODO place into expression module
+replaceExprIdent :: Ident -> Expr -> Expr -> Expr
+replaceExprIdent id replaceExpr givenExpr = case givenExpr of
+
+    ExpBinOp binOp lExpr rExpr -> 
+        ExpBinOp binOp (replaceExprIdent id replaceExpr lExpr)
+                       (replaceExprIdent id replaceExpr rExpr)
+
+    ExpUnaryOp unOp expr -> replaceExprIdent id replaceExpr expr
+
+    ExpFunCall (FunCall name exprs) ->
+        ExpFunCall (FunCall name $ 
+            map (replaceExprIdent id replaceExpr) exprs)
+
+    ExpMethodCall (MethodCall cName mName exprs) ->
+        ExpMethodCall (MethodCall cName mName $ 
+            map (replaceExprIdent id replaceExpr) exprs)
+
+    ExpIdent expId -> if expId == id then replaceExpr else (ExpIdent expId)
+
+    ExpLit lit -> ExpLit lit
+
 
 checkConst :: Expr -> GenState Literal
 checkConst exp = case exp of 
