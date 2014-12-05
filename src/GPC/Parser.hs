@@ -188,7 +188,14 @@ funCall = FunCall <$> parseIdent <*> args'
 
 -- | Parse method call
 methodCall :: Parser MethodCall
-methodCall = MethodCall <$> parseIdent <*> (reservedOp "." *> parseIdent) <*> args'
+methodCall = try (MethodCall <$> parseIdent <*> (reservedOp "." *> parseIdent) <*> args')
+         <|> do 
+            (VarArrayElem name _) <- parseVar
+            reservedOp "."
+            method <- parseIdent
+            args <- args'
+            return $ MethodCall name method args
+            
     where args' = parens $ commaSep expr
 
 

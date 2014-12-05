@@ -1,0 +1,21 @@
+// Another test program
+
+int n = 2; // Constant
+
+Kernel::Stuff arrayOfStuff[n];
+
+/* Construct Objects */
+arrayOfStuff[0] = Kernel::Stuff(1); /* Need to fix constructor syntax*/
+arrayOfStuff[1] = Kernel::Stuff(2); /* Should be Kernel::Stuff::Stuff(x) */
+arrayOfStuff[2] = Kernel::Stuff(3);
+
+int main() {
+    seq {
+        par { 
+            for (int i = 0; n; 1) {
+                arrayOfStuff[n].doStuff(i);
+            }     
+        }  
+        return 0;
+    }
+}
