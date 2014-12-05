@@ -6,7 +6,7 @@ int n = 6;
 Kernel::Test test; // Single
 Kernel::Multi multi[n]; //Array, static size
 
-//multi[0] = Kernel::Multi(20,20); // Example of Object initialization
+multi[0] = Kernel::Multi(20,20); // Example of Object initialization
 
 int fun0() {
  return n;
@@ -20,11 +20,14 @@ int fun1() {
 }
 
 int main() {
-    if (n < 3) {
-        return fun1();
-    } else {
-        return n;
+    seq {
+        int k = fun0();
+        if (k < 3) {
+            return fun1() + (10 * 5 -2);
+        }
+        else {
+            return n;
+        }
     }
 }
 
-multi[1] = Kernel::Multi(20,20); // Example of Object initialization

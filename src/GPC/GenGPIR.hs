@@ -52,7 +52,12 @@ genTopLevel tls = do
     genFuncs tls
     let tls' = filter (\x -> not (isAssign x || isObject x || isNonMainFunc x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
-    return $ SymbolList False symbolTrees
+    if length symbolTrees > 1 
+        then return $ SymbolList False (seqSymbol : symbolTrees)
+        else return $ SymbolList False symbolTrees
+ where 
+    seqSymbol = Symbol $ GOpSymbol $
+                MkOpSymbol False ("Dummy", 0) "CoreServices" "Seq" "seq"
 
 -- | Generate all Top Level Assignments
 genTLAssigns :: [TopLevel] -> GenState ()

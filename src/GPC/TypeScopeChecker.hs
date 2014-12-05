@@ -199,7 +199,7 @@ evalStmt stmt = case stmt of
    (AssignStmt a) -> AssignStmt <$>  checkAssign a
    (If expr stmt') -> checkIf expr stmt'
    (IfElse expr stmt1 stmt2) -> checkIfElse expr stmt1 stmt2
-   (Seq blockStmt) -> BStmt <$> checkBlock blockStmt M.empty
+   (Seq blockStmt) -> Seq <$> checkBlock blockStmt M.empty
    (BStmt blockStmt) -> BStmt <$> checkBlock blockStmt M.empty
    (Return expr) -> checkReturn expr
    (ForLoop ident expr1 expr2 expr3 stmts) -> checkForLoop ident expr1 expr2 expr3 stmts
