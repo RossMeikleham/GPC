@@ -3,7 +3,7 @@
 module GPC.GPIRAST (
     SymbolTree(..),
     GannetSymbol(..),
-    OpSymbol(..),
+    OpSymbol(MkOpSymbol),
     Quoted
  )
 where

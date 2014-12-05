@@ -6,14 +6,11 @@ module GPC.GenGPIR (genGPIR) where
 
 import Control.Lens
 import Control.Applicative hiding ((<|>), many, optional, empty)
-import Data.Char
 import Control.Monad.State.Lazy
 import qualified Data.Map as M
 import GPC.AST
 import GPC.GPIRAST
-import System.IO.Unsafe
 
-type VarTable = M.Map Ident Type
 type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident ([Ident], BlockStmt)
 
@@ -96,7 +93,7 @@ genTopLevelStmt tl = case tl of
 genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
 genTLConstructObjs (ConstructObjs var libName cName exprs) =  
     case var of  
-        (VarIdent ident) -> do
+        (VarIdent _) -> do
             let constructor = Symbol $ GOpSymbol $ 
                             MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
             args <- mapM checkConst exprs
@@ -221,7 +218,7 @@ genExpr expr = case expr of
         rExpr' <- genExpr rExpr
         return $ SymbolList False [binSymbol, lExpr', rExpr']
 
-    ExpUnaryOp unOp expr -> do
+    ExpUnaryOp unOp expr' -> do
         let method = case unOp of
                     Not -> "not"
                     Neg -> "neg"
@@ -229,8 +226,8 @@ genExpr expr = case expr of
 
         let unSymbol = Symbol $ GOpSymbol $
                     MkOpSymbol False ("Dummy", 0) "CoreSevices" "ALU" method
-        expr' <- genExpr expr
-        return $ SymbolList False [unSymbol, expr']
+        expr'' <- genExpr expr'
+        return $ SymbolList False [unSymbol, expr'']
 
     ExpFunCall (FunCall name exprs) -> do
         (BlockStmt stmts) <- genInlineFunc name exprs
@@ -297,8 +294,8 @@ genInlineStmt exprs stmt = case stmt of
     -- map up until the identifier is out of scope, and then add on the rest of
     -- the unmapped statements to the block as they won't need any substitution 
     genBlock :: [Stmt] -> [Stmt]
-    genBlock stmts = mapped ++ (drop (length mapped) stmts)
-      where mapped = incMapWhile inScope (genInlineStmt exprs) stmts
+    genBlock stmts = mappedVals ++ (drop (length mappedVals) stmts)
+      where mappedVals = incMapWhile inScope (genInlineStmt exprs) stmts
     inScope (AssignStmt (Assign _ name _)) = 
         if name `elem` idents then False else True
     inScope _ = True 
@@ -307,28 +304,28 @@ genInlineStmt exprs stmt = case stmt of
 
 replaceExprIdents :: [(Ident, Expr)] -> Expr -> Expr
 replaceExprIdents replaceExprs givenExpr = 
-    foldl (\gExpr (id, rExpr) -> replaceExprIdent id rExpr gExpr) givenExpr replaceExprs
+    foldl (\gExpr (ident, rExpr) -> replaceExprIdent ident rExpr gExpr) givenExpr replaceExprs
 
 -- | Replace all instances of an identity in an expression
 -- | with a given sub-expression TODO place into expression module
 replaceExprIdent :: Ident -> Expr -> Expr -> Expr
-replaceExprIdent id replaceExpr givenExpr = case givenExpr of
+replaceExprIdent ident replaceExpr givenExpr = case givenExpr of
 
     ExpBinOp binOp lExpr rExpr -> 
-        ExpBinOp binOp (replaceExprIdent id replaceExpr lExpr)
-                       (replaceExprIdent id replaceExpr rExpr)
+        ExpBinOp binOp (replaceExprIdent ident replaceExpr lExpr)
+                       (replaceExprIdent ident replaceExpr rExpr)
 
-    ExpUnaryOp unOp expr -> replaceExprIdent id replaceExpr expr
+    ExpUnaryOp unOp expr -> ExpUnaryOp unOp (replaceExprIdent ident replaceExpr expr)
 
     ExpFunCall (FunCall name exprs) ->
         ExpFunCall (FunCall name $ 
-            map (replaceExprIdent id replaceExpr) exprs)
+            map (replaceExprIdent ident replaceExpr) exprs)
 
     ExpMethodCall (MethodCall cName mName exprs) ->
         ExpMethodCall (MethodCall cName mName $ 
-            map (replaceExprIdent id replaceExpr) exprs)
+            map (replaceExprIdent ident replaceExpr) exprs)
 
-    ExpIdent expId -> if expId == id then replaceExpr else (ExpIdent expId)
+    ExpIdent expId -> if expId == ident then replaceExpr else (ExpIdent expId)
 
     ExpLit lit -> ExpLit lit
 
@@ -342,6 +339,6 @@ incMapWhile _ _ [] = []
 
 
 checkConst :: Expr -> GenState Literal
-checkConst exp = case exp of 
+checkConst expr = case expr of 
     (ExpLit l) -> return l
     _ -> lift $ Left $ "Expected constant expression"
