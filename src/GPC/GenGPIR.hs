@@ -55,9 +55,7 @@ genTopLevel tls = do
     genFuncs tls
     let tls' = filter (\x -> not (isAssign x || isObject x || isNonMainFunc x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
-    let t = SymbolList False symbolTrees
-    let temp = unsafePerformIO (print tls >> return t)
-    return temp
+    return $ SymbolList False symbolTrees
 
 -- | Generate all Top Level Assignments
 genTLAssigns :: [TopLevel] -> GenState ()
@@ -89,7 +87,8 @@ genTopLevelStmt :: TopLevel -> GenState SymbolTree
 genTopLevelStmt tl = case tl of
       (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
       (Func _ (Ident "main")  _ bStmt) -> genMain bStmt
-      _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level Assignments, Object Decls or non Main functions"
+      _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level " ++ 
+                "Assignments, Object Decls or non Main functions"
 
 
          
@@ -102,7 +101,7 @@ genTLConstructObjs (ConstructObjs var libName cName exprs) =
                             MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
             args <- mapM checkConst exprs
             let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
-            return $ SymbolList False (constructor : args')
+            return $ SymbolList True (constructor : args')
 
         -- TODO work out how to map
         (VarArrayElem _ _) -> do
@@ -110,13 +109,13 @@ genTLConstructObjs (ConstructObjs var libName cName exprs) =
                             MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
             args <- mapM checkConst exprs
             let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
-            return $ SymbolList False (constructor : args')
+            return $ SymbolList True (constructor : args')
 
 
 
 -- | Generate Program
 genMain :: BlockStmt -> GenState SymbolTree
-genMain (BlockStmt stmts) = (SymbolList False) <$> (mapM genStmt stmts)
+genMain (BlockStmt stmts) = (SymbolList True) <$> (mapM genStmt stmts)
 
 genStmt :: Stmt -> GenState SymbolTree
 genStmt stmt = case stmt of
@@ -298,7 +297,7 @@ genInlineStmt exprs stmt = case stmt of
     -- map up until the identifier is out of scope, and then add on the rest of
     -- the unmapped statements to the block as they won't need any substitution 
     genBlock :: [Stmt] -> [Stmt]
-    genBlock stmts = mapped ++ (drop (length stmts - length mapped) mapped)
+    genBlock stmts = mapped ++ (drop (length mapped) stmts)
       where mapped = incMapWhile inScope (genInlineStmt exprs) stmts
     inScope (AssignStmt (Assign _ name _)) = 
         if name `elem` idents then False else True

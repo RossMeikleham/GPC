@@ -8,7 +8,7 @@ module GPC.TypeScopeChecker(
 import qualified Data.Map as M
 import Data.Bits
 import Control.Applicative hiding ((<|>), many, optional, empty)
---import Control.Monad.Except
+import Control.Monad.Except
 import Control.Monad.State.Lazy
 import Control.Error.Util
 import Control.Lens
@@ -216,7 +216,7 @@ checkAssign (Assign gType ident expr) = do
     cTable <- use constVars
     let scopeVars = vTable `M.union` oldVtable -- Gives all visible identifiers
     reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
-    if ident `M.member` vTable then do
+    if ident `M.notMember` vTable then do
         exprType <- lift $ getTypeExpr scopeVars ftable reducedExpr
         if gType == exprType then do
             -- Update Var table with new variable

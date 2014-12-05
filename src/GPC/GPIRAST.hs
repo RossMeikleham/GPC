@@ -14,8 +14,8 @@ data SymbolTree = Symbol GannetSymbol | SymbolList Quoted [SymbolTree] deriving 
 data GannetSymbol = 
       ConstSymbol Quoted String
     | GOpSymbol OpSymbol 
-    | LabelKeywordSymbol Quoted String
-    | LabelSymbol Quoted String
+--    | LabelKeywordSymbol Quoted String
+--    | LabelSymbol Quoted String
     deriving Show
 
 data OpSymbol = MkOpSymbol {

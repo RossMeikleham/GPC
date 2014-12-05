@@ -16,7 +16,8 @@ parseResult f p = case p of
         Left err -> print err
         Right reduced -> case genGPIR reduced of
             Left err -> print err
-            Right gpir -> print $ show gpir
+            Right gpir -> do 
+                outputCode f $ genCode gpir
     
 
 main = do
