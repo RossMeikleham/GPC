@@ -7,16 +7,20 @@ module GPC.GenGPIR (genGPIR) where
 import Control.Lens
 import Control.Applicative hiding ((<|>), many, optional, empty)
 import Control.Monad.State.Lazy
+import Control.Error.Util
 import qualified Data.Map as M
 import GPC.AST
 import GPC.GPIRAST
 
 type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident ([Ident], BlockStmt)
+type VarRegTable = M.Map Ident Integer
 
 data CodeGen = CodeGen {
    _funTable :: FunTable,  -- ^ Store symbol tree for functions
-   _constTable :: ConstVarTable
+   _constTable :: ConstVarTable,
+   _varId :: Integer, -- ^ Current variable id for mapping to registers 
+   _varRegTable :: VarRegTable -- ^ maps variable identifier
 }
 
 -- Create lenses to access Block fields easier
@@ -39,11 +43,21 @@ isNonMainFunc tl = case tl of
     Func _ name _ _ -> name /= Ident "main" 
     _ -> False
 
+-- | Update the register table and counter
+updateRegs :: Ident -> GenState ()
+updateRegs ident = do  
+    vId <- use varId
+    vRegTable <- use varRegTable
+    let newVarId = vId + 1
+    assign varId newVarId
+    assign varRegTable $ M.insert ident newVarId vRegTable
+    
+
 genGPIR :: Program -> Either String SymbolTree
 genGPIR (Program tls) = case runStateT (genTopLevel tls) initial of 
     Left s -> Left s
     (Right (tl, _)) -> Right $ tl
- where initial = CodeGen M.empty M.empty
+ where initial = CodeGen M.empty M.empty 0 M.empty
 
 
 genTopLevel :: [TopLevel] -> GenState SymbolTree
@@ -127,6 +141,7 @@ genStmt stmt = case stmt of
                             MkOpSymbol False ("Dummy", 0) "CoreServices" "Assign" "assign"
         let var = Symbol $ ConstSymbol True (show name)
         expr' <- genExpr expr
+        updateRegs name
         return $ SymbolList False [assignSymbol, var, expr']
 
     Seq (BlockStmt stmts) -> do
@@ -245,8 +260,11 @@ genExpr expr = case expr of
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
-    ExpIdent ident -> return $ Symbol $ ConstSymbol False (show ident) 
-
+    ExpIdent ident -> do 
+        regTable <- use varRegTable
+        reg <- lift $ note regNotFound $ (M.lookup ident regTable) 
+        return $ Symbol $ ConstSymbol False (show reg) 
+     where regNotFound = "Compiler error, register for ident " ++ (show ident) ++ "not found"
     ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
     
 -- | Generate Inline Function by replacing all identifieres
