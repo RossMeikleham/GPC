@@ -44,14 +44,15 @@ isNonMainFunc tl = case tl of
     _ -> False
 
 -- | Update the register table and counter
-updateRegs :: Ident -> GenState ()
+-- | return the next available register
+updateRegs :: Ident -> GenState Ident
 updateRegs ident = do  
     vId <- use varId
     vRegTable <- use varRegTable
     let newVarId = vId + 1
     assign varId newVarId
     assign varRegTable $ M.insert ident newVarId vRegTable
-    
+    return $ Ident (show newVarId)
 
 genGPIR :: Program -> Either String SymbolTree
 genGPIR (Program tls) = case runStateT (genTopLevel tls) initial of 
@@ -136,13 +137,14 @@ genMain (BlockStmt stmts) = (SymbolList True) <$> (mapM genStmt stmts)
 genStmt :: Stmt -> GenState SymbolTree
 genStmt stmt = case stmt of
 
+    -- When assigning a variable need to write it to a register
     AssignStmt (Assign _ name expr) -> do
         let assignSymbol = Symbol $ GOpSymbol $ 
-                            MkOpSymbol False ("Dummy", 0) "CoreServices" "Assign" "assign"
-        let var = Symbol $ ConstSymbol True (show name)
+                            MkOpSymbol False ("", 0) "CoreServices" "reg" "write"
         expr' <- genExpr expr
-        updateRegs name
-        return $ SymbolList False [assignSymbol, var, expr']
+        reg <- updateRegs name
+        let regSymbol = Symbol $ ConstSymbol True (show reg)
+        return $ SymbolList False [assignSymbol, regSymbol,  expr']
 
     Seq (BlockStmt stmts) -> do
         let seqSymbol = Symbol $ GOpSymbol $
@@ -260,11 +262,15 @@ genExpr expr = case expr of
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
+    -- Encounterd a variable, need to read it from its register
     ExpIdent ident -> do 
         regTable <- use varRegTable
         reg <- lift $ note regNotFound $ (M.lookup ident regTable) 
-        return $ Symbol $ ConstSymbol False (show reg) 
+        let regSymbol = Symbol $ GOpSymbol $ 
+                        MkOpSymbol False ("", 0) "CoreServices" "Reg" "read"
+        return $ SymbolList False  [regSymbol, Symbol $ ConstSymbol True (show reg)]
      where regNotFound = "Compiler error, register for ident " ++ (show ident) ++ "not found"
+
     ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
     
 -- | Generate Inline Function by replacing all identifieres
