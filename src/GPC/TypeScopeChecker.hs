@@ -415,6 +415,11 @@ getTypeExpr vtable ftable expr = case expr of
             \t -> case t of 
                 (NormalType "bool") -> return $ NormalType "bool"
                 _ -> Left "Expected boolean expression"
+
+        | operation == Deref = getTypeExpr vtable ftable e >>=
+             \t -> case t of
+                (NormalType gType) -> return $ PointerType gType
+                _ -> Left "Cannot have a pointer to a pointer"
         
         | otherwise = Left $ "Compiler error during obtaining type of unary expression"
 
