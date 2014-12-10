@@ -25,6 +25,9 @@ intType = NormalType "int"
 --chType = Type "char"
 --doubleType = Type "double"
 
+isPointer :: Type -> Bool
+isPointer (PointerType _) = True
+isPointer _ = False
 
 data MainBlock = MainBlock {
     _tlFuncDefs :: FunTable, -- ^ Function Definitions
@@ -365,11 +368,19 @@ getTypeExpr vtable ftable expr = case expr of
                 Bl _ -> "bool"
 
  where notFound (Ident i) = "Identifier " ++ i ++ "not declared in scope"
+
        getTypeBinOp :: BinOps -> Expr -> Expr -> Either String Type
-       getTypeBinOp bop e1 e2 
+       getTypeBinOp bop e1 e2  = do
+            leftType <- getTypeExpr vtable ftable e1
+            rightType <- getTypeExpr vtable ftable e2
+            if isPointer leftType || isPointer rightType then
+                getPointerTypeBin bop leftType rightType
+            else getNormalTypeBin bop leftType rightType
+                
+
+       getNormalTypeBin :: BinOps -> Type -> Type -> Either String Type
+       getNormalTypeBin bop leftType rightType          
            | bop `elem` numNumNumOp = do
-               leftType  <- getTypeExpr vtable ftable e1
-               rightType <- getTypeExpr vtable ftable e2
                if leftType /= rightType 
                    then Left "Both expressions expected to be the same type"
                    else case leftType of
@@ -378,32 +389,48 @@ getTypeExpr vtable ftable expr = case expr of
                        _ -> Left $ "Expected integer or double type"
 
            | bop `elem` intIntIntOp = do                
-               leftType  <- getTypeExpr vtable ftable e1
-               rightType <- getTypeExpr vtable ftable e2
                case (leftType, rightType) of
                    (NormalType "int", NormalType "int") -> return $ NormalType "int"
                    _ -> Left $ "Expected integer values"      
 
            | bop `elem` compareOp = do
-               leftType  <- getTypeExpr vtable ftable e1
-               rightType <- getTypeExpr vtable ftable e2
                case (leftType, rightType) of
                    (NormalType "int", NormalType "int") -> return $ NormalType "bool"
                    (NormalType "double", NormalType "double") -> return $ NormalType "bool"
                    _ -> Left $ "Expected numeric values of the same type"      
 
            | bop `elem` boolOp = do
-               leftType  <- getTypeExpr vtable ftable e1
-               rightType <- getTypeExpr vtable ftable e2
                case (leftType, rightType) of
                    (NormalType "bool", NormalType "bool") -> return $ NormalType "bool"
                    _ -> Left $ "Expected boolean values"    
                      
             | otherwise = Left $ "Compiler error during obtaining type of binary expression"
-       numNumNumOp = [Add, Sub, Mul, Div]        
-       intIntIntOp = [Mod, BAnd, BOr, BXor, ShiftL, ShiftR]
-       compareOp = [LessEq, Less, Equals, Greater, GreaterEq]
-       boolOp = [And, Or]
+         where numNumNumOp = [Add, Sub, Mul, Div]        
+               intIntIntOp = [Mod, BAnd, BOr, BXor, ShiftL, ShiftR]
+               compareOp = [LessEq, Less, Equals, Greater, GreaterEq]
+               boolOp = [And, Or]
+
+       getPointerTypeBin :: BinOps -> Type -> Type -> Either String Type
+       getPointerTypeBin bop leftType rightType
+        | bop == Add = 
+            if (isPointer leftType  && rightType == intType) then
+                return leftType    
+            else if (isPointer rightType && leftType  == intType) then
+                return rightType
+            else Left "Can only add Pointers to Integers"
+        | bop == Sub =
+            if (isPointer leftType && rightType == intType) then
+                return leftType
+            else Left "expected pointer type on lhs and integer type on rhs for pointer subtraction"                
+        | bop `elem` [Equals, NEquals] = case (leftType, rightType) of
+            ((PointerType a, PointerType b)) -> 
+                if a == b then 
+                    return boolType
+                else Left $ "Expected pointer types to be equal, left points to " ++ (show a) ++
+                          ". Right points to " ++ (show b) ++ "."
+            _ -> Left "Cannot perform an equality comparison of pointer and non pointer types"
+
+        | otherwise =  Left $ "operation " ++ (show bop) ++ " not defined for pointer types"
 
        getTypeUnOp :: UnaryOps -> Expr -> Either String Type
        getTypeUnOp operation e 
@@ -418,8 +445,8 @@ getTypeExpr vtable ftable expr = case expr of
 
         | operation == Deref = getTypeExpr vtable ftable e >>=
              \t -> case t of
-                (NormalType gType) -> return $ PointerType gType
-                _ -> Left "Cannot have a pointer to a pointer"
+                (PointerType gType) -> return $ NormalType gType
+                _ -> Left "Expected pointer type to dereference"
         
         | otherwise = Left $ "Compiler error during obtaining type of unary expression"
 
