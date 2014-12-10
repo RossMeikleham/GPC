@@ -23,7 +23,7 @@ expressions = [intConst 20 -- ^ Check constant integer
               ] 
 
 
-expectedTypes = map (Type) ["int"
+expectedTypes = map (NormalType) ["int"
                            ,"bool"
                            ,"int"
                            ,"string"
@@ -51,19 +51,19 @@ expectedAfterInject = [intConst 24
                                      (intConst 20) 
                       ]
 
-validPrograms = [Program [TLAssign (Assign (Type "int") (Ident "i") (intConst 5))
-                         ,TLAssign (Assign (Type "int") (Ident "j") (ExpIdent (Ident "i")))
+validPrograms = [Program [TLAssign (Assign (NormalType "int") (Ident "i") (intConst 5))
+                         ,TLAssign (Assign (NormalType "int") (Ident "j") (ExpIdent (Ident "i")))
                          ]
                 ]
 
 
-vars = M.fromList $ map (\(a,b) -> (Ident a, Type b)) 
+vars = M.fromList $ map (\(a,b) -> (Ident a, NormalType b)) 
               [("a", "int")
               ,("b", "bool")
               ,("c", "double")
               ,("test", "int")
               ]
-ftable = M.fromList [(Ident "fun1", (Type "int" , map Type ["int", "int"]))
+ftable = M.fromList [(Ident "fun1", (NormalType "int" , map NormalType ["int", "int"]))
                      ]
 ctable = M.fromList [(Ident "a", Number (Left 6))
                     ,(Ident "b", Bl True)

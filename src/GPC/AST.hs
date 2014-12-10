@@ -13,13 +13,12 @@ module GPC.AST(
     , BlockStmt(..)
     , Assign(..)
     , FunCall(..)
-    , ClassName(..)
+    , ClassName
     , Objects(..)
     , MethodCall(..)
     , Var(..)
     , ConstructObjs(..)
-    , LibName(..)
-    , ClassName(..)
+    , LibName
     ) where
 
 data Program = Program [TopLevel] deriving Show
@@ -30,7 +29,7 @@ data TopLevel =
         Func Type Ident [(Type, Ident)] BlockStmt  -- ^ Return Type, Name, Arguments, Code
       | TLObjs Objects -- ^ External objects
       | TLConstructObjs ConstructObjs -- ^ External object constructor calls
-      | TLAssign Assign
+      | TLAssign Assign -- ^ Top level assignment
        deriving Show
 
 -- | Objects
@@ -46,7 +45,7 @@ data Var =
         | VarIdent Ident -- ^ Ordinary identifier
          deriving Show
 
-
+-- | Constructing Objects
 data ConstructObjs = ConstructObjs Var LibName ClassName [Expr] deriving Show
 
 -- | Statement
@@ -68,51 +67,52 @@ data MethodCall = MethodCall Ident Ident [Expr] deriving Show -- ^ Method call l
 
 -- | Expression
 data Expr =
-      ExpBinOp BinOps Expr Expr
-    | ExpUnaryOp UnaryOps Expr
-    | ExpFunCall FunCall
-    | ExpMethodCall MethodCall
-    | ExpIdent Ident
-    | ExpLit Literal
+      ExpBinOp BinOps Expr Expr -- ^ Binary operation with 2 sub-expressions
+    | ExpUnaryOp UnaryOps Expr -- ^ Unary operation with sub-expression
+    | ExpFunCall FunCall -- ^ Function Call
+    | ExpMethodCall MethodCall -- ^ C++ Object method call
+    | ExpIdent Ident -- ^ Identifier  
+    | ExpLit Literal -- ^ Constant/Literal value
      deriving Show
 
 
 -- | Binary Operators
 data BinOps =
-      Add 
-    | Sub
-    | Mul
-    | Div
-    | And
-    | Or
-    | Mod
-    | Less
-    | LessEq
-    | Greater
-    | GreaterEq
-    | Equals
-    | NEquals
-    | ShiftL
-    | ShiftR
-    | BAnd
-    | BXor
-    | BOr
+      Add -- ^ Addition
+    | Sub -- ^ Subtraction
+    | Mul -- ^ Multiplication
+    | Div -- ^ Division
+    | And -- ^ Boolean AND
+    | Or  -- ^ Boolean OR
+    | Mod -- ^ Modulo
+    | Less -- ^ Less than 
+    | LessEq -- ^ Less than or equal to
+    | Greater -- ^ Greater than
+    | GreaterEq -- ^ Greather than or equal to
+    | Equals -- ^ Equals
+    | NEquals -- ^ Not Equal
+    | ShiftL -- ^ Logical Shift Left
+    | ShiftR -- ^ Logical Shift Right
+    | BAnd -- ^ Bitwise AND
+    | BXor -- ^ Bitwise XOR
+    | BOr -- ^ Bitwise OR
      deriving (Show, Eq)
 
 
 -- | Unary Operators
 data UnaryOps =
-      Not
-    | Neg
-    | BNot 
+      Not -- ^ Boolean NOT
+    | Neg -- ^ Number negation
+    | BNot -- ^ Bitwise NOT
+    | Deref -- ^ Dereference pointer
      deriving (Show, Eq)
 
 -- | Literal/Constants
 data Literal =
-      Str String
-    | Ch Char
-    | Number (Either Integer Double)
-    | Bl Bool
+      Str String -- ^ String
+    | Ch Char -- ^ Char
+    | Number (Either Integer Double) -- ^ Numbers, either Int/Double
+    | Bl Bool -- Boolean
      deriving (Eq)
 
 instance Show Literal where
@@ -123,12 +123,19 @@ instance Show Literal where
     show (Bl b) = show b
 
 
-type LibName = Ident 
+-- | C++ Library
+type LibName = Ident
+
+-- | C++ Class Name  
 type ClassName = Ident 
 
+-- | Identifier
 data Ident = Ident String deriving (Eq, Ord)
 instance Show Ident where
     show (Ident s) = s
 
-data Type = Type String deriving (Show, Eq)
+-- | Types
+data Type = PointerType String | NormalType String  deriving (Show, Eq)
+
+-- | Block of Statements
 data BlockStmt = BlockStmt [Stmt] deriving Show

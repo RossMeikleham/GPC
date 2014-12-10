@@ -19,8 +19,8 @@ type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident (Type, [Type])
 
 
-boolType = Type "bool"
-intType = Type "int"
+boolType = NormalType "bool"
+intType = NormalType "int"
 --strType = Type "string"
 --chType = Type "char"
 --doubleType = Type "double"
@@ -112,7 +112,7 @@ evalObjs objs@(Objects _ _ var) = do
         -- Single Object, check identifier isn't already in scope
         (VarIdent ident) -> do
             if ident `M.notMember` tVars then do
-                assign tlConstVarTypes $ M.insert ident (Type "object") tVars 
+                assign tlConstVarTypes $ M.insert ident (NormalType "object") tVars 
                 return objs
             else multipleInstance ident
 
@@ -124,7 +124,7 @@ evalObjs objs@(Objects _ _ var) = do
                 exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
                 checkType intType exprType
                 checkConstantExpr reducedExpr
-                assign tlConstVarTypes $ M.insert ident (Type "objArray") tVars
+                assign tlConstVarTypes $ M.insert ident (NormalType "objArray") tVars
                 return $ objs {objVar = (VarArrayElem ident reducedExpr)}
             else multipleInstance ident
  where          
@@ -355,9 +355,9 @@ getTypeExpr vtable ftable expr = case expr of
                 then Left "Arguments don't evaluate to given types"
                 else Right retT
 
-    (ExpMethodCall _) -> return $ Type "Object"
+    (ExpMethodCall _) -> return $ NormalType "Object"
     (ExpIdent i) -> note (notFound i) (M.lookup i vtable) 
-    (ExpLit l) -> return $ Type $ case l of
+    (ExpLit l) -> return $ NormalType $ case l of
                 Str _ -> "string"
                 Ch _ -> "char"
                 Number (Left _) -> "int"
@@ -373,30 +373,30 @@ getTypeExpr vtable ftable expr = case expr of
                if leftType /= rightType 
                    then Left "Both expressions expected to be the same type"
                    else case leftType of
-                       (Type "int") -> return $ Type "int"
-                       (Type "double") -> return $ Type "double"
+                       (NormalType "int") -> return $ NormalType "int"
+                       (NormalType "double") -> return $ NormalType "double"
                        _ -> Left $ "Expected integer or double type"
 
            | bop `elem` intIntIntOp = do                
                leftType  <- getTypeExpr vtable ftable e1
                rightType <- getTypeExpr vtable ftable e2
                case (leftType, rightType) of
-                   (Type "int", Type "int") -> return $ Type "int"
+                   (NormalType "int", NormalType "int") -> return $ NormalType "int"
                    _ -> Left $ "Expected integer values"      
 
            | bop `elem` compareOp = do
                leftType  <- getTypeExpr vtable ftable e1
                rightType <- getTypeExpr vtable ftable e2
                case (leftType, rightType) of
-                   (Type "int", Type "int") -> return $ Type "bool"
-                   (Type "double", Type "double") -> return $ Type "bool"
+                   (NormalType "int", NormalType "int") -> return $ NormalType "bool"
+                   (NormalType "double", NormalType "double") -> return $ NormalType "bool"
                    _ -> Left $ "Expected numeric values of the same type"      
 
            | bop `elem` boolOp = do
                leftType  <- getTypeExpr vtable ftable e1
                rightType <- getTypeExpr vtable ftable e2
                case (leftType, rightType) of
-                   (Type "bool", Type "bool") -> return $ Type "bool"
+                   (NormalType "bool", NormalType "bool") -> return $ NormalType "bool"
                    _ -> Left $ "Expected boolean values"    
                      
             | otherwise = Left $ "Compiler error during obtaining type of binary expression"
@@ -409,11 +409,11 @@ getTypeExpr vtable ftable expr = case expr of
        getTypeUnOp operation e 
         | operation == Not || operation == Neg = getTypeExpr vtable ftable e >>= 
             \t -> case t of 
-                (Type "int") -> return $ Type "int"
+                (NormalType "int") -> return $ NormalType "int"
                 _ -> Left "Expected integer expression"
         | operation == BNot = getTypeExpr vtable ftable e >>=
             \t -> case t of 
-                (Type "bool") -> return $ Type "bool"
+                (NormalType "bool") -> return $ NormalType "bool"
                 _ -> Left "Expected boolean expression"
         
         | otherwise = Left $ "Compiler error during obtaining type of unary expression"

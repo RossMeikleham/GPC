@@ -121,9 +121,10 @@ genTLConstructObjs (ConstructObjs var libName cName exprs) =
             return $ SymbolList True (constructor : args')
 
         -- TODO work out how to map
-        (VarArrayElem _ _) -> do
+        (VarArrayElem _ indexExpr) -> do
+            index <- checkConst indexExpr
             let constructor = Symbol $ GOpSymbol $ 
-                            MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
+                           MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
             args <- mapM checkConst exprs
             let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
             return $ SymbolList True (constructor : args')

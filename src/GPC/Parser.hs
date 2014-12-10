@@ -36,7 +36,7 @@ binaryOps binary = [[binary "*"  Mul ,binary "/"  Div, binary "%" Mod] --
 
 -- |Unary operators from highest to lowest precedence
 unaryOps :: ([Char] -> UnaryOps -> Operator s u m a) -> [[Operator s u m a]]
-unaryOps unary = [[unary "-" Neg, unary "!" Not, unary "~" BNot]]
+unaryOps unary = [[unary "-" Neg, unary "!" Not, unary "~" BNot, unary "*" Deref]]
 
 
 -- | Parse given source file, returns parse error string on
@@ -102,7 +102,7 @@ args :: Parser [(Type, Ident)]
 args =  commaSep arg
  where arg :: Parser (Type,Ident) 
        arg = do 
-           aType <- Type <$> typeT 
+           aType <- parseType
            aName <- Ident <$> ident
            return (aType, aName)
 
@@ -193,8 +193,8 @@ methodCall = try (MethodCall <$> parseIdent <*> (reservedOp "." *> parseIdent) <
             (VarArrayElem name _) <- parseVar
             reservedOp "."
             method <- parseIdent
-            args <- args'
-            return $ MethodCall name method args
+            args'' <- args'
+            return $ MethodCall name method args''
             
     where args' = parens $ commaSep expr
 
@@ -210,8 +210,9 @@ parseIdent = Ident <$> ident
 
 -- | Parse types
 parseType :: Parser Type
-parseType = Type <$> typeT
-
+parseType = try (NormalType <$> typeT)
+        <|> (PointerType <$> (reservedOp "*" *> typeT))
+            
 -- | Parse number
 num :: Parser (Either Integer Double)
 num = Right <$> try float
