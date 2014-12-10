@@ -465,7 +465,6 @@ reduceExpr vtable expr = case expr of
     (ExpLit l) -> return (ExpLit l)
  where notFound (Ident i) = "Identifier " ++ i ++ "not declared in scope"
 
-
 -- | Attempts to evaluate a constant binary expression, checks the types as well
 evaluateBinExpr :: BinOps -> Expr -> Expr -> Either String Expr
 evaluateBinExpr b (ExpLit l1) (ExpLit l2) = (binOpTable b) l1 l2
@@ -541,25 +540,31 @@ evaluateUnExpr :: UnaryOps -> Expr -> Either String Expr
 evaluateUnExpr unOp (ExpLit l) = (unOpTable unOp) l
 evaluateUnExpr _ e = Right e
 
-
+-- | Function table of Unary operations on literals
 unOpTable u = case u of
     Not -> performUnNotOp
     Neg -> performUnNegOp
     BNot -> performUnBNotOp
+    Deref -> performDerefOp
 
 
+-- | Perform Boolean NOT operation on literal value
 performUnNotOp ::  Literal -> Either String Expr
 performUnNotOp (Bl b1) = Right $ ExpLit $ Bl $ not b1
 performUnNotOp _ = Left "Error expected boolean value"
 
-
+-- | Perform Negation operation on literal value
 performUnNegOp :: Literal -> Either String Expr
 performUnNegOp (Number (Left i)) =  Right $ ExpLit $ Number $ Left  $ negate i
 performUnNegOp (Number (Right i)) = Right  $ ExpLit $ Number $ Right $ negate i
 performUnNegOp _ = Left "Error expected numeric type"
 
-
+-- | Perform Bitwise NOT operation on literal value
 performUnBNotOp :: Literal -> Either String Expr
 performUnBNotOp (Number (Left i)) = Right $ ExpLit $ Number $ Left $ complement i
 performUnBNotOp _ = Left "Error expected integer value"
+
+-- | Perform dereference operation on literal value
+performDerefOp :: Literal -> Either String Expr
+performDerefOp _ =  Left $ "Error cannot derefence literal value"
 

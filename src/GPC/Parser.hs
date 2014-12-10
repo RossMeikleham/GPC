@@ -210,8 +210,8 @@ parseIdent = Ident <$> ident
 
 -- | Parse types
 parseType :: Parser Type
-parseType = try (NormalType <$> typeT)
-        <|> (PointerType <$> (reservedOp "*" *> typeT))
+parseType = try (PointerType <$> (typeT <* reservedOp "*"))
+        <|> (NormalType <$> typeT)
             
 -- | Parse number
 num :: Parser (Either Integer Double)
