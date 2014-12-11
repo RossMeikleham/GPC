@@ -19,6 +19,8 @@ genCode' (Symbol gSymbol) carryQuote = case gSymbol of
         text $ strQuoted ++ lib ++ "." ++  gClass ++ "." ++ method
      where strQuoted = if quoted || carryQuote then "'" else "" 
 
+genCode' EmptyTree _ = text ""
+
 -- | Generate Source Code for Symbol Tree
 genCode' (SymbolList quoted symbolTree) carryQuote = case symbolTree of
     [] -> text ""

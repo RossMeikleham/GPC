@@ -19,6 +19,7 @@ module GPC.AST(
     , Var(..)
     , ConstructObjs(..)
     , LibName
+    , Pointer(..)
     ) where
 
 data Program = Program [TopLevel] deriving Show
@@ -73,6 +74,7 @@ data Expr =
     | ExpMethodCall MethodCall -- ^ C++ Object method call
     | ExpIdent Ident -- ^ Identifier  
     | ExpLit Literal -- ^ Constant/Literal value
+    | ExpPointer Pointer -- ^ Pointer value
      deriving Show
 
 
@@ -134,8 +136,10 @@ data Ident = Ident String deriving (Eq, Ord)
 instance Show Ident where
     show (Ident s) = s
 
+data Pointer = Pointer Ident Integer deriving (Show, Eq) -- |Pointer to array elem with offset
+
 -- | Types
-data Type = PointerType String | NormalType String  deriving (Show, Eq)
+data Type = PointerType Type | NormalType String  deriving (Show, Eq)
 
 -- | Block of Statements
 data BlockStmt = BlockStmt [Stmt] deriving Show

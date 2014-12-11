@@ -84,7 +84,8 @@ genTLAssign (TLAssign (Assign _ ident expr)) = case expr of
     (ExpLit l) -> do         
         cTable <- use constTable
         assign constTable $ M.insert ident l cTable 
-    _ -> lift $ Left $ "Compiler error, in top level assignment code generation"  
+    (ExpPointer _) -> return ()
+    _ -> lift $ Left $ (show expr) --"Compiler error, in top level assignment code generation"  
 genTLAssign _ = lift $ Left $ "Not top level Assignment statement"
 
 
@@ -122,7 +123,7 @@ genTLConstructObjs (ConstructObjs var libName cName exprs) =
 
         -- TODO work out how to map
         (VarArrayElem _ indexExpr) -> do
-            index <- checkConst indexExpr
+            _ <- checkConst indexExpr
             let constructor = Symbol $ GOpSymbol $ 
                            MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
             args <- mapM checkConst exprs
@@ -246,6 +247,7 @@ genExpr expr = case expr of
                     Not -> "not"
                     Neg -> "neg"
                     BNot -> "bnot"
+                    _ -> error "undefined operation"
 
         let unSymbol = Symbol $ GOpSymbol $
                     MkOpSymbol False ("Dummy", 0) "CoreSevices" "ALU" method
@@ -274,6 +276,8 @@ genExpr expr = case expr of
 
     ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
     
+    ExpPointer p -> return EmptyTree
+
 -- | Generate Inline Function by replacing all identifieres
 -- | in scope with supplied argument expressions
 genInlineFunc :: Ident -> [Expr] -> GenState BlockStmt
@@ -358,7 +362,8 @@ replaceExprIdent ident replaceExpr givenExpr = case givenExpr of
     ExpIdent expId -> if expId == ident then replaceExpr else (ExpIdent expId)
 
     ExpLit lit -> ExpLit lit
-
+    
+    ExpPointer p -> ExpPointer p
 
 -- | inclusive MapWhile function, returns results which satisfy a condition
 -- | TODO stick in utilities module

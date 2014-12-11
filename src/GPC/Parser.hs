@@ -52,8 +52,14 @@ program = Program <$> (whiteSpace *> topLevels)
 
 -- | Parse top level statements/definitions
 topLevels :: Parser [TopLevel] 
-topLevels =      try ((:) <$> topLevel <*> topLevels)
-             <|> (eof >> return [])
+topLevels = try ((:) <$> topLevel <*> topLevels) 
+        <|> try (do 
+             aAssign <- arrayAssign
+             let aAssign' = map TLAssign aAssign
+             tls <- topLevels
+             return $ aAssign' ++ tls)
+         <|> (eof >> return [])
+
 
 
 -- | Parse Top Level definitions
@@ -157,6 +163,29 @@ expr = buildExpressionParser exprOperators expr'
            <|> try (ExpLit   <$> literal)
            <|> parens expr
 
+-- | Parse Static Array declaration
+-- | type name[] = {elem1, elem2, ... elemn};
+arrayAssign :: Parser [Assign]
+arrayAssign = do
+    aType <- parseType
+    arrayName <- parseIdent
+    reservedOp "["
+    reservedOp "]"
+    reservedOp "="
+    reservedOp "{"
+    exprs <- commaSep expr
+    reservedOp "}"
+    _ <- semi
+    let arrPtr = Assign (PointerType aType) arrayName $ ExpPointer (Pointer arrayName 0)
+    let arrElems = map (\(e, n) -> 
+                Assign (aType) (catIdent n arrayName) e) $ zip exprs [0,1..]
+    return $ arrElems ++ [arrPtr]
+ where 
+    -- Prefix integer onto Identifier
+    catIdent :: Int -> Ident -> Ident
+    catIdent n (Ident a) = Ident (show n ++ a)
+
+
 -- | Parse variable assignment
 assign :: Parser Assign
 assign = Assign <$> parseType <*> 
@@ -210,9 +239,17 @@ parseIdent = Ident <$> ident
 
 -- | Parse types
 parseType :: Parser Type
-parseType = try (PointerType <$> (typeT <* reservedOp "*"))
-        <|> (NormalType <$> typeT)
-            
+parseType = do
+    baseType <- NormalType <$> typeT
+    ptrs <- many getPointer 
+    return $ foldr (\ ptr cur -> (ptr cur)) baseType ptrs
+ where
+    getPointer :: Parser (Type -> Type)
+    getPointer = do
+        reservedOp "*" 
+        return PointerType 
+
+
 -- | Parse number
 num :: Parser (Either Integer Double)
 num = Right <$> try float
