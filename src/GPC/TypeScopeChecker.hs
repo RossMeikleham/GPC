@@ -143,7 +143,8 @@ evalTLAssign (Assign typeG ident expr) = do
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
     ptrs <- use tlPtrs
-    reducedExpr <- lift $ reduceExpr tVars $ injectPtrs ptrs $ injectConstants cVars expr
+    reducedExpr' <- lift $ reduceExpr tVars $ injectConstants cVars $ injectPtrs ptrs expr
+    let reducedExpr = injectConstants cVars reducedExpr'
     exprType <- lift $ getTypeExpr tVars M.empty reducedExpr 
  
     -- Check Types match and Variable is Single instance
@@ -154,7 +155,8 @@ evalTLAssign (Assign typeG ident expr) = do
             case reducedExpr of 
                 (ExpPointer p) -> assign tlPtrs $ M.insert ident p ptrs
                 (ExpLit l) -> assign tlConstVars $ M.insert ident l cVars
-                _ -> notConstant
+                --(ExpIdent i) -> 
+                _ -> lift $ Left $ show reducedExpr --notConstant
 
             return $ Assign typeG ident reducedExpr
 
@@ -166,8 +168,8 @@ evalTLAssign (Assign typeG ident expr) = do
         "in scope, cannot redefine it" 
     conflictingTypes exprType = lift $ Left $ show (ident) ++ "is defined as type" ++ 
         (show typeG) ++ " but assignment evaluates to type " ++ (show exprType)
-    notConstant = lift $ Left $ "Top level assignment are expected to be constant, " ++ 
-        (show ident) ++ "is not constant"
+   -- notConstant = lift $ Left $ "Top level assignment are expected to be constant, " ++ 
+   --     (show ident) ++ "is not constant" ++ (show expr)
 
 
 -- | Type check Function                          
@@ -609,6 +611,8 @@ performBinBoolOp _ _ _ = Left "Error expected boolean values"
 -- |well
 evaluateUnExpr :: UnaryOps -> Expr -> Either String Expr
 evaluateUnExpr unOp (ExpLit l) = (unOpTable unOp) l
+evaluateUnExpr Deref (ExpPointer (Pointer (Ident i) offset)) = 
+    Right $ ExpIdent $ Ident (show offset ++ i)
 evaluateUnExpr _ e = Right e
 
 -- | Function table of Unary operations on literals
