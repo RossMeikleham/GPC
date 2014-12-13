@@ -84,7 +84,7 @@ evalTLStmt tl = case tl of
 
 -- | Type check object initializations
 evalConstruct :: ConstructObjs -> CodeState ConstructObjs
-evalConstruct (ConstructObjs var libName cName exprs) = do
+evalConstruct (ConstructObjs nameSpace var exprs) = do
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
 
@@ -95,19 +95,19 @@ evalConstruct (ConstructObjs var libName cName exprs) = do
 
     case var of 
         (VarIdent _) ->  
-            return $ ConstructObjs var libName cName reducedExprs
+            return $ ConstructObjs nameSpace var reducedExprs
 
         (VarArrayElem ident expr) -> do -- Check indexed expression           
             reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
             exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
             checkType intType exprType
             checkConstantExpr reducedExpr
-            return $ ConstructObjs (VarArrayElem ident reducedExpr) libName cName reducedExprs
+            return $ ConstructObjs nameSpace (VarArrayElem ident reducedExpr) reducedExprs
 
 
 -- | Type check object declarations
 evalObjs :: Objects -> CodeState Objects
-evalObjs objs@(Objects _ _ var) = do 
+evalObjs objs@(Objects _ var) = do 
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
     
@@ -147,21 +147,18 @@ evalTLAssign (Assign typeG ident expr) = do
 
             exprType <- lift $ getTypeExpr tVars M.empty reducedExpr 
             -- Check Types match and Variable is Single instance
-            if exprType == typeG then 
-                if ident `M.notMember` tVars then do -- Update State
-                  assign tlConstVars $ M.insert ident l cVars
-                  assign tlConstVarTypes $ M.insert ident typeG tVars
-                  return $ Assign typeG ident reducedExpr
-                else multipleInstance 
-            else conflictingTypes exprType
+            checkType exprType typeG
+            if ident `M.notMember` tVars then do -- Update State
+                assign tlConstVars $ M.insert ident l cVars
+                assign tlConstVarTypes $ M.insert ident typeG tVars
+                return $ Assign typeG ident reducedExpr
+            else multipleInstance 
 
         _ -> notConstant
                            
  where 
     multipleInstance = lift $ Left $ (show ident) ++ " has already been defined " ++ 
         "in scope, cannot redefine it" 
-    conflictingTypes exprType = lift $ Left $ show (ident) ++ "is defined as type" ++ 
-        (show typeG) ++ " but assignment evaluates to type " ++ (show exprType)
     notConstant = lift $ Left $ "Top level assignment are expected to be constant, " ++ 
         (show ident) ++ "is not constant"
 
@@ -338,8 +335,8 @@ checkConstantExpr expr = case expr of
 -- | Checks that 2 given types match
 checkType :: Type -> Type -> GenericBlockState a ()
 checkType expected actual = 
-    if expected == actual then modify id else lift $ Left $ "Expected type " ++ 
-        (show expected) ++ " but expression evaluated to " ++ (show actual)
+    if expected == actual then modify id else 
+        lift $ Left $ (show expected) ++ " but expression evaluated to " ++ (show actual)
 
 
 -- | Obtain Type of Expression, returns error message
@@ -443,11 +440,6 @@ getTypeExpr vtable ftable expr = case expr of
                 (NormalType "bool") -> return $ NormalType "bool"
                 _ -> Left "Expected boolean expression"
 
-        | operation == Deref = getTypeExpr vtable ftable e >>=
-             \t -> case t of
-                (PointerType gType) -> return $ NormalType gType
-                _ -> Left "Expected pointer type to dereference"
-        
         | otherwise = Left $ "Compiler error during obtaining type of unary expression"
 
 
@@ -577,8 +569,6 @@ unOpTable u = case u of
     Not -> performUnNotOp
     Neg -> performUnNegOp
     BNot -> performUnBNotOp
-    Deref -> performDerefOp
-
 
 -- | Perform Boolean NOT operation on literal value
 performUnNotOp ::  Literal -> Either String Expr
@@ -595,8 +585,3 @@ performUnNegOp _ = Left "Error expected numeric type"
 performUnBNotOp :: Literal -> Either String Expr
 performUnBNotOp (Number (Left i)) = Right $ ExpLit $ Number $ Left $ complement i
 performUnBNotOp _ = Left "Error expected integer value"
-
--- | Perform dereference operation on literal value
-performDerefOp :: Literal -> Either String Expr
-performDerefOp _ =  Left $ "Error cannot derefence literal value"
-

@@ -36,7 +36,7 @@ binaryOps binary = [[binary "*"  Mul ,binary "/"  Div, binary "%" Mod] --
 
 -- |Unary operators from highest to lowest precedence
 unaryOps :: ([Char] -> UnaryOps -> Operator s u m a) -> [[Operator s u m a]]
-unaryOps unary = [[unary "-" Neg, unary "!" Not, unary "~" BNot, unary "*" Deref]]
+unaryOps unary = [[unary "-" Neg, unary "!" Not, unary "~" BNot]]
 
 
 -- | Parse given source file, returns parse error string on
@@ -52,8 +52,9 @@ program = Program <$> (whiteSpace *> topLevels)
 
 -- | Parse top level statements/definitions
 topLevels :: Parser [TopLevel] 
-topLevels =      try ((:) <$> topLevel <*> topLevels)
-             <|> (eof >> return [])
+topLevels = ((:) <$> topLevel <*> topLevels) 
+         <|> (eof >> return [])
+
 
 
 -- | Parse Top Level definitions
@@ -67,28 +68,20 @@ topLevel = try function
 -- | Parse C++ Object definitions
 objs :: Parser Objects
 objs = do 
-    (libName, className) <- parseClass
+    nameSpace <- sepBy1 parseIdent $ reservedOp "::"
     var <- parseVar
     _ <- semi
-    return $ Objects libName className var
+    return $ Objects nameSpace var
 
 
 constructObjs :: Parser ConstructObjs
 constructObjs = do 
     var <- parseVar
     reservedOp "="
-    (libName, className) <- parseClass
+    nameSpace <- sepBy1 parseIdent $ reservedOp "::"
     exprs <- parens $ commaSep expr
     _ <- semi 
-    return $ ConstructObjs var libName className exprs 
-
--- | Parse Class 
-parseClass :: Parser (LibName, ClassName)
-parseClass = do 
-    libName <- parseIdent
-    reservedOp "::"
-    className <- parseIdent
-    return (libName, className)
+    return $ ConstructObjs nameSpace var exprs 
 
 
 -- | Parse Function definition
@@ -157,6 +150,7 @@ expr = buildExpressionParser exprOperators expr'
            <|> try (ExpLit   <$> literal)
            <|> parens expr
 
+
 -- | Parse variable assignment
 assign :: Parser Assign
 assign = Assign <$> parseType <*> 
@@ -210,9 +204,17 @@ parseIdent = Ident <$> ident
 
 -- | Parse types
 parseType :: Parser Type
-parseType = try (PointerType <$> (typeT <* reservedOp "*"))
-        <|> (NormalType <$> typeT)
-            
+parseType = do
+    baseType <- NormalType <$> typeT
+    ptrs <- many getPointer 
+    return $ foldr (\ ptr cur -> (ptr cur)) baseType ptrs
+ where
+    getPointer :: Parser (Type -> Type)
+    getPointer = do
+        reservedOp "*" 
+        return PointerType 
+
+
 -- | Parse number
 num :: Parser (Either Integer Double)
 num = Right <$> try float

@@ -111,11 +111,11 @@ genTopLevelStmt tl = case tl of
          
 -- | Generate Object Constructors
 genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
-genTLConstructObjs (ConstructObjs var libName cName exprs) =  
+genTLConstructObjs (ConstructObjs nameSpace var exprs) =  
     case var of  
         (VarIdent _) -> do
             let constructor = Symbol $ GOpSymbol $ 
-                            MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
+                            MkOpSymbol False ("dummy", 0) (show $ nameSpace !! 0) (show $  nameSpace !! 1) (show $ nameSpace !! 1)
             args <- mapM checkConst exprs
             let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
             return $ SymbolList True (constructor : args')
@@ -124,7 +124,7 @@ genTLConstructObjs (ConstructObjs var libName cName exprs) =
         (VarArrayElem _ indexExpr) -> do
             index <- checkConst indexExpr
             let constructor = Symbol $ GOpSymbol $ 
-                           MkOpSymbol False ("dummy", 0) (show libName) (show cName) (show cName)
+                            MkOpSymbol False ("dummy", 0) (show $ nameSpace !! 0) (show $  nameSpace !! 1) (show $ nameSpace !! 1)
             args <- mapM checkConst exprs
             let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
             return $ SymbolList True (constructor : args')

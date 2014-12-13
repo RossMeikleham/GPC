@@ -34,8 +34,7 @@ data TopLevel =
 
 -- | Objects
 data Objects = Objects {
-   objLName :: LibName,
-   objCName :: ClassName,
+   nameSpace :: [Ident],
    objVar ::Var 
 } deriving Show
 
@@ -46,7 +45,7 @@ data Var =
          deriving Show
 
 -- | Constructing Objects
-data ConstructObjs = ConstructObjs Var LibName ClassName [Expr] deriving Show
+data ConstructObjs = ConstructObjs [Ident]  Var [Expr] deriving Show
 
 -- | Statement
 data Stmt = 
@@ -104,7 +103,6 @@ data UnaryOps =
       Not -- ^ Boolean NOT
     | Neg -- ^ Number negation
     | BNot -- ^ Bitwise NOT
-    | Deref -- ^ Dereference pointer
      deriving (Show, Eq)
 
 -- | Literal/Constants
@@ -135,7 +133,7 @@ instance Show Ident where
     show (Ident s) = s
 
 -- | Types
-data Type = PointerType String | NormalType String  deriving (Show, Eq)
+data Type = PointerType Type | NormalType String  deriving (Show, Eq)
 
 -- | Block of Statements
 data BlockStmt = BlockStmt [Stmt] deriving Show
