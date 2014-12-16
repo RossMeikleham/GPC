@@ -15,9 +15,10 @@ genCode' (Symbol gSymbol) carryQuote = case gSymbol of
     ConstSymbol quoted str -> text (strQuoted ++ str) 
      where strQuoted = if quoted || carryQuote then "'"  else ""
 
-    GOpSymbol (MkOpSymbol quoted _ lib gClass method) ->
-        text $ strQuoted ++ lib ++ "." ++  gClass ++ "." ++ method
+    GOpSymbol (MkOpSymbol quoted _ method) ->
+        text $ strQuoted ++ method' method
      where strQuoted = if quoted || carryQuote then "'" else "" 
+           method' m = foldl1 (\a b -> a ++ "." ++ b) m
 
 -- | Generate Source Code for Symbol Tree
 genCode' (SymbolList quoted symbolTree) carryQuote = case symbolTree of

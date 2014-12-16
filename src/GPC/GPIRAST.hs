@@ -21,9 +21,7 @@ data GannetSymbol =
 data OpSymbol = MkOpSymbol {
                         quoted  :: Quoted, -- ^ Whether symbol is quoted or not
                         node    :: (String, Int), -- ^ Node to run on
-                        lib     :: String, -- ^ C++ library
-                        gClass   :: String, -- ^ C++ class name
-                        method  :: String  -- ^ C++ method call name
+                        method :: [String] -- ^ Namespace + method
                     } deriving (Eq,Ord, Show)
 
 type Quoted = Bool

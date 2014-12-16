@@ -72,7 +72,7 @@ genTopLevel tls = do
         else return $ SymbolList False symbolTrees
  where 
     seqSymbol = Symbol $ GOpSymbol $
-                MkOpSymbol False ("Dummy", 0) "CoreServices" "Seq" "seq"
+                MkOpSymbol False ("Dummy", 0) ["CoreServices", "Seq", "seq"]
 
 -- | Generate all Top Level Assignments
 genTLAssigns :: [TopLevel] -> GenState ()
@@ -115,7 +115,7 @@ genTLConstructObjs (ConstructObjs nameSpace var exprs) =
     case var of  
         (VarIdent _) -> do
             let constructor = Symbol $ GOpSymbol $ 
-                            MkOpSymbol False ("dummy", 0) (show $ nameSpace !! 0) (show $  nameSpace !! 1) (show $ nameSpace !! 1)
+                            MkOpSymbol False ("dummy", 0) (map show nameSpace) 
             args <- mapM checkConst exprs
             let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
             return $ SymbolList True (constructor : args')
@@ -124,7 +124,7 @@ genTLConstructObjs (ConstructObjs nameSpace var exprs) =
         (VarArrayElem _ indexExpr) -> do
             index <- checkConst indexExpr
             let constructor = Symbol $ GOpSymbol $ 
-                            MkOpSymbol False ("dummy", 0) (show $ nameSpace !! 0) (show $  nameSpace !! 1) (show $ nameSpace !! 1)
+                            MkOpSymbol False ("dummy", 0) (map show nameSpace)
             args <- mapM checkConst exprs
             let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
             return $ SymbolList True (constructor : args')
@@ -141,7 +141,7 @@ genStmt stmt = case stmt of
     -- When assigning a variable need to write it to a register
     AssignStmt (Assign _ name expr) -> do
         let assignSymbol = Symbol $ GOpSymbol $ 
-                            MkOpSymbol False ("", 0) "CoreServices" "reg" "write"
+                            MkOpSymbol False ("", 0) ["CoreServices", "reg", "write"]
         expr' <- genExpr expr
         reg <- updateRegs name
         let regSymbol = Symbol $ ConstSymbol True (show reg)
@@ -149,7 +149,7 @@ genStmt stmt = case stmt of
 
     Seq (BlockStmt stmts) -> do
         let seqSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) "CoreServices" "Seq" "seq"
+                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "Seq", "seq"]
         stmts' <- mapM genStmt stmts
         return $ SymbolList False (seqSymbol : stmts')
 
@@ -164,13 +164,13 @@ genStmt stmt = case stmt of
 
     MethodStmt (MethodCall cName mName exprs) -> do
         let call = Symbol $ GOpSymbol $ 
-                    MkOpSymbol False ("Dummy", 0) "temp" (show cName) (show mName)
+                    MkOpSymbol False ("Dummy", 0) ["temp", (show cName), (show mName)]
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
     If expr stmt' -> do
         let ifSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) "CoreServices" "IF" "if"
+                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "IF", "if"]
         cond <- genExpr expr
         stmt'' <- genStmt stmt'
         let dummyStmt = Symbol $ ConstSymbol True "0"
@@ -178,7 +178,7 @@ genStmt stmt = case stmt of
         
     IfElse expr stmt1 stmt2 -> do                
         let ifSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) "CoreServices" "IF" "if"
+                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "IF", "if"]
         cond <- genExpr expr
         stmt1' <- genStmt stmt1
         stmt2' <- genStmt stmt2
@@ -186,7 +186,7 @@ genStmt stmt = case stmt of
        
     Return expr -> do
         let returnSymbol = Symbol $ GOpSymbol $
-                            MkOpSymbol False ("Dummy", 0) "CoreServices" "RETURN" "return"
+                            MkOpSymbol False ("Dummy", 0) ["CoreServices", "RETURN", "return"]
         expr' <- genExpr expr
         return $ SymbolList False [returnSymbol, expr']
         
@@ -235,7 +235,7 @@ genExpr expr = case expr of
                     BOr -> "bor"
 
         let binSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) "CoreServices" "ALU" method 
+                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "ALU", method] 
 
         lExpr' <- genExpr lExpr
         rExpr' <- genExpr rExpr
@@ -248,7 +248,7 @@ genExpr expr = case expr of
                     BNot -> "bnot"
 
         let unSymbol = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) "CoreSevices" "ALU" method
+                    MkOpSymbol False ("Dummy", 0) ["CoreSevices", "ALU", method]
         expr'' <- genExpr expr'
         return $ SymbolList False [unSymbol, expr'']
 
@@ -259,7 +259,7 @@ genExpr expr = case expr of
 
     ExpMethodCall (MethodCall cName mName exprs) -> do
         let call = Symbol $ GOpSymbol $ 
-                    MkOpSymbol False ("Dummy", 0) "temp" (show cName) (show mName)
+                    MkOpSymbol False ("Dummy", 0) ["temp", (show cName), (show mName)]
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
@@ -268,7 +268,7 @@ genExpr expr = case expr of
         regTable <- use varRegTable
         reg <- lift $ note regNotFound $ (M.lookup ident regTable) 
         let regSymbol = Symbol $ GOpSymbol $ 
-                        MkOpSymbol False ("", 0) "CoreServices" "Reg" "read"
+                        MkOpSymbol False ("", 0) ["CoreServices", "Reg", "read"]
         return $ SymbolList False  [regSymbol, Symbol $ ConstSymbol True (show reg)]
      where regNotFound = "Compiler error, register for ident " ++ (show ident) ++ "not found"
 
