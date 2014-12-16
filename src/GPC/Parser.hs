@@ -150,7 +150,6 @@ expr = buildExpressionParser exprOperators expr'
            <|> try (ExpLit   <$> literal)
            <|> parens expr
 
-
 -- | Parse variable assignment
 assign :: Parser Assign
 assign = Assign <$> parseType <*> 

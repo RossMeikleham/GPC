@@ -20,6 +20,8 @@ genCode' (Symbol gSymbol) carryQuote = case gSymbol of
      where strQuoted = if quoted || carryQuote then "'" else "" 
            method' m = foldl1 (\a b -> a ++ "." ++ b) m
 
+genCode' EmptyTree _ = text ""
+
 -- | Generate Source Code for Symbol Tree
 genCode' (SymbolList quoted symbolTree) carryQuote = case symbolTree of
     [] -> text ""
