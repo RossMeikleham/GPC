@@ -38,9 +38,14 @@ isObject tl = case tl of
     TLObjs _ -> True
     _ -> False
 
-isNonMainFunc :: TopLevel -> Bool
-isNonMainFunc tl = case tl of
-    Func _ name _ _ -> name /= Ident "main" 
+isFunc :: TopLevel -> Bool
+isFunc tl = case tl of
+    Func _ _ _ _ -> True
+    _ -> False
+
+isNonEntryFunc :: String -> TopLevel -> Bool
+isNonEntryFunc eName tl = case tl of
+    Func _ fName _ _ -> fName /= Ident eName
     _ -> False
 
 -- | Update the register table and counter
@@ -54,30 +59,29 @@ updateRegs ident = do
     assign varRegTable $ M.insert ident newVarId vRegTable
     return $ Ident (show newVarId)
 
-genGPIR :: Program -> Either String SymbolTree
-genGPIR (Program tls) = case runStateT (genTopLevel tls) initial of 
+genGPIR :: String -> Program -> Either String SymbolTree
+genGPIR name (Program tls) = case runStateT (genTopLevel name tls) initial of 
     Left s -> Left s
     (Right (tl, _)) -> Right $ tl
  where initial = CodeGen M.empty M.empty 0 M.empty
 
 
-genTopLevel :: [TopLevel] -> GenState SymbolTree
-genTopLevel tls = do
+genTopLevel :: String -> [TopLevel] -> GenState SymbolTree
+genTopLevel name tls = do
     genTLAssigns tls 
     genFuncs tls
-    let tls' = filter (\x -> not (isAssign x || isObject x || isNonMainFunc x)) tls
+    let tls' = filter (\x -> not (isAssign x || isObject x || isNonEntryFunc name x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
     if length symbolTrees > 1 
         then return $ SymbolList False (seqSymbol : symbolTrees)
         else return $ SymbolList False symbolTrees
  where 
     seqSymbol = Symbol $ GOpSymbol $
-                MkOpSymbol False ("Dummy", 0) ["CoreServices", "Seq", "seq"]
+                MkOpSymbol False ("", 0) ["CoreServices", "Seq", "seq"]
 
 -- | Generate all Top Level Assignments
 genTLAssigns :: [TopLevel] -> GenState ()
 genTLAssigns tls = mapM_ genTLAssign $ filter isAssign tls
-
 
 genTLAssign :: TopLevel -> GenState ()
 genTLAssign (TLAssign (Assign _ ident expr)) = case expr of
@@ -89,24 +93,25 @@ genTLAssign (TLAssign (Assign _ ident expr)) = case expr of
 genTLAssign _ = lift $ Left $ "Not top level Assignment statement"
 
 
+-- | Store all functions, to be evaluated later
 genFuncs :: [TopLevel] -> GenState ()
-genFuncs tls = mapM_ genFunc $ filter isNonMainFunc tls  
+genFuncs tls = mapM_ genFunc $ filter isFunc tls  
 
 genFunc :: TopLevel -> GenState ()
 genFunc (Func _ name args stmts) = do
     fTable <- use funTable
     assign funTable $ M.insert name (map snd args, stmts) fTable 
          
-genFunc _ = lift $ Left $ "Not Function definition"
+genFunc a = lift $ Left $ "Not Function definition" ++ (show a)
 
 
 -- | Generate GPIR from Top Level statements
 genTopLevelStmt :: TopLevel -> GenState SymbolTree
 genTopLevelStmt tl = case tl of
       (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
-      (Func _ (Ident "main")  _ bStmt) -> genMain bStmt
+      (Func _ _ _ bStmt) -> genEntryFunc bStmt
       _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level " ++ 
-                "Assignments, Object Decls or non Main functions"
+                "Assignments, Object Decls or non Entry functions"
 
 
          
@@ -133,8 +138,8 @@ genTLConstructObjs (ConstructObjs nameSpace var exprs) =
 
 
 -- | Generate Program
-genMain :: BlockStmt -> GenState SymbolTree
-genMain (BlockStmt stmts) = (SymbolList True) <$> (mapM genStmt stmts)
+genEntryFunc :: BlockStmt -> GenState SymbolTree
+genEntryFunc (BlockStmt stmts) = (SymbolList True) <$> (mapM genStmt stmts)
 
 genStmt :: Stmt -> GenState SymbolTree
 genStmt stmt = case stmt of

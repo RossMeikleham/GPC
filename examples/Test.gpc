@@ -20,7 +20,7 @@ int fun1() {
     return 1;
 }
 
-int main() {
+int Test() {
     seq {
         int k = fun0();
         if (k < 3) {

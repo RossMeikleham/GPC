@@ -6,20 +6,21 @@ import GPC.Parser
 import GPC.CodeGen
 import GPC.GenGPIR
 import GPC.TypeScopeChecker
+import GPC.AST
 
 outputCode :: FilePath -> String -> IO()
 outputCode f s = writeFile f s --mapM_ putStrLn (lines s)
 
-parseResult f yml p = case p of
+parseResult :: String -> Either String Program -> IO ()
+parseResult f p = case p of
     Left err -> print err
     Right v ->  do 
-        print v 
         case runTypeChecker v of
             Left err -> print err
-            Right reduced -> case genGPIR reduced of
+            Right reduced -> case genGPIR f reduced of
                 Left err -> print err
                 Right gpir -> do 
-                    outputCode f $ ";" ++ yml ++ "\n" ++ (genCode gpir)
+                    outputCode (f ++ ".td") $ ";" ++ f ++ ".yml\n" ++ (genCode gpir)
     
 
 main = do
@@ -27,9 +28,8 @@ main = do
         progName <- getProgName
 
         let file = head args
-            outFile = (head $ splitOn "." file) ++ ".td"
-            yml = (head $ splitOn "." file) ++ ".yml"
+            filePrefix = (head $ splitOn "." file) ++ ".td"
 
         if length args <= 0
             then putStrLn ("Usage " ++ progName ++ " file")
-            else (parseResult outFile yml) . parseSource =<< readFile file
+            else (parseResult filePrefix) . parseSource =<< readFile file
