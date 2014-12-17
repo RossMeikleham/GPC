@@ -21,7 +21,7 @@ module GPC.AST(
     , Pointer(..)
     ) where
 
-data Program = Program [TopLevel] deriving Show
+data Program = Program [TopLevel] deriving (Show,Eq)
 
 
 -- | Top Level Expressions
@@ -30,22 +30,22 @@ data TopLevel =
       | TLObjs Objects -- ^ External objects
       | TLConstructObjs ConstructObjs -- ^ External object constructor calls
       | TLAssign Assign -- ^ Top level assignment
-       deriving Show
+       deriving (Show, Eq)
 
 -- | Objects
 data Objects = Objects {
    nameSpace :: [Ident],
    objVar ::Var 
-} deriving Show
+} deriving (Show, Eq)
 
 -- | Variable
 data Var = 
           VarArrayElem Ident Expr -- ^ Element of Array
         | VarIdent Ident -- ^ Ordinary identifier
-         deriving Show
+         deriving (Show, Eq)
 
 -- | Constructing Objects
-data ConstructObjs = ConstructObjs [Ident]  Var [Expr] deriving Show
+data ConstructObjs = ConstructObjs [Ident]  Var [Expr] deriving (Show, Eq)
 
 -- | Statement
 data Stmt = 
@@ -58,11 +58,11 @@ data Stmt =
       | IfElse Expr Stmt Stmt -- ^ If Else statement
       | Return Expr -- ^ Return value from current function
       | ForLoop Ident Expr Expr Expr BlockStmt -- ^ Start, Stop, Step, statements, static for loops
-       deriving Show
+       deriving (Show, Eq)
 
-data Assign = Assign Type Ident Expr deriving Show -- ^ Variable assignment
-data FunCall = FunCall Ident [Expr] deriving Show -- ^ Function call layout
-data MethodCall = MethodCall Ident Ident [Expr] deriving Show -- ^ Method call layout
+data Assign = Assign Type Ident Expr deriving (Show, Eq) -- ^ Variable assignment
+data FunCall = FunCall Ident [Expr] deriving (Show, Eq) -- ^ Function call layout
+data MethodCall = MethodCall Ident Ident [Expr] deriving (Show, Eq) -- ^ Method call layout
 
 -- | Expression
 data Expr =
@@ -73,7 +73,7 @@ data Expr =
     | ExpIdent Ident -- ^ Identifier  
     | ExpLit Literal -- ^ Constant/Literal value
     | ExpPointer Pointer -- ^ Pointer value
-     deriving Show
+     deriving (Show, Eq)
 
 
 -- | Binary Operators
@@ -144,4 +144,4 @@ data Type = PointerType Type -- Pointer to a Type
           deriving (Show, Eq) 
 
 -- | Block of Statements
-data BlockStmt = BlockStmt [Stmt] deriving Show
+data BlockStmt = BlockStmt [Stmt] deriving (Show, Eq)

@@ -56,8 +56,33 @@ expectedAfterInject = [intConst 24
                                      (intConst 20) 
                       ]
 
---methodCalls = [
+-- Check that method calls cast the return type implicitly at compiler time
+-- into a kernel type
 
+programTempl stmts = Program [Func (intTypeNK) (Ident "test") [] $ BlockStmt stmts]
+
+methodCalls = map programTempl 
+    [[AssignStmt $ Assign intTypeNK (Ident "i") 
+        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") [intConst 5]))]]
+
+expectedTCMethodCalls = map programTempl 
+    [[AssignStmt $ Assign intTypeK (Ident "i") 
+        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") [intConst 5]))]]
+
+-- Check that after assigning a method call result to a variable, that
+-- that variable can't then be used in non-kernel ways 
+invalidMethodUse = map programTempl 
+                    [[(AssignStmt $ Assign intTypeNK (Ident "i") 
+                        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") []))),
+                      (AssignStmt $ Assign intTypeNK (Ident "j") (ExpIdent $ Ident "i"))]
+
+                    -- check kernel Boolean can't be used in if
+                    ,[(AssignStmt $ Assign boolTypeNK (Ident "i") 
+                        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") []))),
+                      (If (ExpIdent $ Ident "i") (BStmt $ BlockStmt []))]
+                   ]
+
+-- Programs which should pass type checking
 validPrograms = [Program [TLAssign (Assign intTypeNK (Ident "i") (intConst 5))
                          ,TLAssign (Assign intTypeNK (Ident "j") (ExpIdent (Ident "i")))
                          ]
@@ -93,6 +118,28 @@ validProgramTest p = TestCase (
             assertFailure "This should never happen")
  where result = runTypeChecker p
 
+-- Given a Program and an Expected reduced Program,
+-- type check and reduce the given program and assert the
+-- type checking is correct and the reduced program
+-- matches the expected reduced program
+typeCheckAndReduceTest :: Program -> Program -> Test
+typeCheckAndReduceTest inP expectedOutP = TestCase (
+    case result of
+        Left err -> assertFailure err
+        Right outP -> assertEqual "" outP expectedOutP)
+  where result = runTypeChecker inP
+
+
+-- Given a Program which should fail type checking
+-- assert that it does actually fail when type checking.
+invalidProgramTest :: Program -> Test
+invalidProgramTest p = TestCase (
+    unless (isLeft result) $ 
+    assertFailure $ "Program should have caused a parse error" ++ show result)
+ where isLeft = null . rights . return
+       result = runTypeChecker p
+
+
 validInject :: Expr -> Either String Expr -> Test
 validInject e a = TestCase (
  case a of
@@ -113,6 +160,8 @@ typeTests = test $ (map (\(expected,expr) ->
         validInject expected (reduceExpr vars $ injectConstants ctable expr)) 
         (zip expectedAfterInject injectExpressions)
     ) ++ 
-    (map validProgramTest validPrograms)
-
+    (map validProgramTest validPrograms) ++
+    (map invalidProgramTest invalidMethodUse) ++
+    (map (\(expected, inProg) -> typeCheckAndReduceTest inProg expected) 
+        (zip expectedTCMethodCalls methodCalls))
 
