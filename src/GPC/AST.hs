@@ -1,5 +1,4 @@
 {- GPC abstract syntax tree -}
-
 module GPC.AST(    
       Program(..)
     , TopLevel(..)
@@ -137,7 +136,12 @@ instance Show Ident where
 data Pointer = Pointer Ident Integer deriving (Show, Eq) -- |Pointer to array elem with offset
 
 -- | Types
-data Type = PointerType Type | NormalType String  deriving (Show, Eq)
+data Type = PointerType Type -- Pointer to a Type
+          | NormalType { 
+              isKernel :: Bool, -- ^ is base type in Kernel
+              typeName :: String -- ^ type name (e.g. int, bool)
+            }
+          deriving (Show, Eq) 
 
 -- | Block of Statements
 data BlockStmt = BlockStmt [Stmt] deriving Show

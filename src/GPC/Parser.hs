@@ -204,15 +204,14 @@ parseIdent = Ident <$> ident
 -- | Parse types
 parseType :: Parser Type
 parseType = do
-    baseType <- NormalType <$> typeT
+    baseType <- NormalType <$> pure False <*> typeT
     ptrs <- many getPointer 
     return $ foldr (\ ptr cur -> (ptr cur)) baseType ptrs
  where
     getPointer :: Parser (Type -> Type)
     getPointer = do
         reservedOp "*" 
-        return PointerType 
-
+        return PointerType
 
 -- | Parse number
 num :: Parser (Either Integer Double)

@@ -19,11 +19,27 @@ type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident (Type, [Type])
 type PtrTable = M.Map Ident Pointer
 
-boolType = NormalType "bool"
-intType = NormalType "int"
---strType = Type "string"
---chType = Type "char"
---doubleType = Type "double"
+boolType kernel = NormalType kernel "bool"
+intType kernel = NormalType kernel "int"
+strType kernel = NormalType kernel "string"
+chType kernel = NormalType kernel "char"
+doubleType kernel = NormalType kernel "double"
+
+
+-- Upcast a type to a Kernel type, if
+-- the given type is already a Kernel type then
+-- returns the given type
+castToKernel :: Type -> Type
+castToKernel (PointerType t) = PointerType $ castToKernel t
+castToKernel (NormalType _ n) = NormalType True n
+
+isInKernel :: Type -> Bool
+isInKernel (PointerType t) = isInKernel t
+isInKernel (NormalType k _) = k
+
+notKernel = False
+inKernel = True
+
 
 isPointer :: Type -> Bool
 isPointer (PointerType _) = True
@@ -102,7 +118,7 @@ evalConstruct (ConstructObjs nameSpace var exprs) = do
         (VarArrayElem ident expr) -> do -- Check indexed expression           
             reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
             exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
-            checkType intType exprType
+            checkType (intType notKernel) exprType
             checkConstantExpr reducedExpr
             return $ ConstructObjs nameSpace (VarArrayElem ident reducedExpr) reducedExprs
 
@@ -117,7 +133,7 @@ evalObjs objs@(Objects _ var) = do
         -- Single Object, check identifier isn't already in scope
         (VarIdent ident) -> do
             if ident `M.notMember` tVars then do
-                assign tlConstVarTypes $ M.insert ident (NormalType "object") tVars 
+                assign tlConstVarTypes $ M.insert ident (NormalType inKernel "object") tVars 
                 return objs
             else multipleInstance ident
 
@@ -127,9 +143,9 @@ evalObjs objs@(Objects _ var) = do
             if ident `M.notMember` tVars then do
                 reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
                 exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
-                checkType intType exprType
+                checkType (intType notKernel) exprType
                 checkConstantExpr reducedExpr
-                assign tlConstVarTypes $ M.insert ident (NormalType "objArray") tVars
+                assign tlConstVarTypes $ M.insert ident (NormalType inKernel "objArray") tVars
                 return $ objs {objVar = (VarArrayElem ident reducedExpr)}
             else multipleInstance ident
  where          
@@ -150,7 +166,6 @@ evalTLAssign (Assign typeG ident expr) = do
     case reducedExpr of
         (ExpLit l) -> do
 
-            exprType <- lift $ getTypeExpr tVars M.empty reducedExpr 
             -- Check Types match and Variable is Single instance
             checkType exprType typeG
             if ident `M.notMember` tVars then do -- Update State
@@ -250,7 +265,7 @@ checkIf expr stmt = do
     scopeVars <- M.union <$> use curVars <*> use prevVars 
     exprType <- lift $ getTypeExpr scopeVars fTable expr
     reducedExpr <- lift $ reduceExpr scopeVars $ injectPtrs ptrs $ injectConstants cTable expr
-    if exprType == boolType then do
+    if exprType == (boolType notKernel) then do
         reducedStmt <- evalStmt stmt
         return $ If reducedExpr reducedStmt
     else lift $ Left $ "Expression within if is expected to be a bool " ++
@@ -286,9 +301,9 @@ checkForLoop ident startExpr stopExpr stepExpr blockStmt = do
     let exprs = [startExpr', stopExpr', stepExpr']
     mapM_ checkConstantExpr exprs
     types <- lift $ mapM (getTypeExpr scopeVars fTable) exprs
-    mapM_ (checkType intType) types
+    mapM_ (checkType $ intType notKernel) types
 
-    reducedBlock <- checkBlock blockStmt (M.singleton ident intType)
+    reducedBlock <- checkBlock blockStmt (M.singleton ident (intType notKernel))
     return $ ForLoop ident startExpr' stopExpr' stepExpr' reducedBlock
      
 
@@ -352,6 +367,7 @@ checkType expected actual =
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
+-- | TODO seperate this huge function
 getTypeExpr :: VarTable -> FunTable -> Expr -> Either String Type
 getTypeExpr vtable ftable expr = case expr of
     (ExpBinOp b e1 e2) -> getTypeBinOp b e1 e2
@@ -366,56 +382,63 @@ getTypeExpr vtable ftable expr = case expr of
                 then Left "Arguments don't evaluate to given types"
                 else Right retT
 
-    (ExpMethodCall _) -> return $ NormalType "Object"
+    (ExpMethodCall _) -> return $ NormalType inKernel "Object"
     (ExpIdent i) -> note (notFound i) (M.lookup i vtable) 
 
     (ExpPointer (Pointer ident@(Ident i) n)) -> 
         PointerType <$> (note (notFound ident) (M.lookup catIdent vtable))
           where catIdent = Ident (show n ++ i)
 
-    (ExpLit l) -> return $ NormalType $ case l of
-                Str _ -> "string"
-                Ch _ -> "char"
-                Number (Left _) -> "int"
-                Number (Right _) -> "double"
-                Bl _ -> "bool"
+    (ExpLit l) -> return $ case l of
+                Str _ -> strType'
+                Ch _ -> chType'
+                Number (Left _) -> intType'
+                Number (Right _) -> doubleType'
+                Bl _ -> boolType'
 
  where notFound (Ident i) = "Identifier " ++ i ++ " not declared in scope"
-
+       intType' = intType notKernel
+       boolType' = boolType notKernel
+       doubleType' = doubleType notKernel
+       strType' = strType notKernel 
+       chType' = chType notKernel
+        
        getTypeBinOp :: BinOps -> Expr -> Expr -> Either String Type
        getTypeBinOp bop e1 e2  = do
             leftType <- getTypeExpr vtable ftable e1
             rightType <- getTypeExpr vtable ftable e2
-            if isPointer leftType || isPointer rightType then
-                getPointerTypeBin bop leftType rightType
-            else getNormalTypeBin bop leftType rightType
+            -- If one of the expressions is in the kernel, cast the other
+            -- one into the kernel
+            let leftType' = if isInKernel rightType then castToKernel leftType else leftType
+                rightType' = if isInKernel leftType then castToKernel rightType else rightType
+            if isPointer leftType' || isPointer rightType' then
+                getPointerTypeBin bop leftType' rightType'
+            else getNormalTypeBin bop leftType' rightType'
                 
 
        getNormalTypeBin :: BinOps -> Type -> Type -> Either String Type
        getNormalTypeBin bop leftType rightType          
            | bop `elem` numNumNumOp = do
-               if leftType /= rightType 
-                   then Left "Both expressions expected to be the same type"
-                   else case leftType of
-                       (NormalType "int") -> return $ NormalType "int"
-                       (NormalType "double") -> return $ NormalType "double"
-                       _ -> Left $ "Expected integer or double type"
+               if leftType /= rightType then 
+                   Left "Both expressions expected to be the same type"
+               else if leftType == intType' then return intType'
+               else if leftType == doubleType' then return doubleType'
+               else Left $ "Expected integer or double type"
 
-           | bop `elem` intIntIntOp = do                
-               case (leftType, rightType) of
-                   (NormalType "int", NormalType "int") -> return $ NormalType "int"
-                   _ -> Left $ "Expected integer values"      
+           | bop `elem` intIntIntOp = 
+               if (leftType, rightType) == (intType', intType')
+                   then return intType' 
+                   else Left $ "Expected integer values on both sides"              
 
-           | bop `elem` compareOp = do
-               case (leftType, rightType) of
-                   (NormalType "int", NormalType "int") -> return $ NormalType "bool"
-                   (NormalType "double", NormalType "double") -> return $ NormalType "bool"
-                   _ -> Left $ "Expected numeric values of the same type"      
+           | bop `elem` compareOp = 
+               if (leftType, rightType) `elem` [(intType', intType'), (doubleType', doubleType')] 
+                   then return boolType'
+                   else Left $ "Expected numeric values of the same type"      
 
-           | bop `elem` boolOp = do
-               case (leftType, rightType) of
-                   (NormalType "bool", NormalType "bool") -> return $ NormalType "bool"
-                   _ -> Left $ "Expected boolean values"    
+           | bop `elem` boolOp = 
+               if (leftType, rightType) == (boolType', boolType')
+                   then return $ boolType'
+                   else Left $ "Expected boolean values"    
                      
             | otherwise = Left $ "Compiler error during obtaining type of binary expression"
          where numNumNumOp = [Add, Sub, Mul, Div]        
@@ -426,19 +449,19 @@ getTypeExpr vtable ftable expr = case expr of
        getPointerTypeBin :: BinOps -> Type -> Type -> Either String Type
        getPointerTypeBin bop leftType rightType
         | bop == Add = 
-            if (isPointer leftType  && rightType == intType) then
+            if (isPointer leftType  && rightType == intType') then
                 return leftType    
-            else if (isPointer rightType && leftType  == intType) then
+            else if (isPointer rightType && leftType  == intType') then
                 return rightType
             else Left "Can only add Pointers to Integers"
         | bop == Sub =
-            if (isPointer leftType && rightType == intType) then
+            if (isPointer leftType && rightType == intType') then
                 return leftType
             else Left "expected pointer type on lhs and integer type on rhs for pointer subtraction"                
         | bop `elem` [Equals, NEquals] = case (leftType, rightType) of
             ((PointerType a, PointerType b)) -> 
                 if a == b then 
-                    return boolType
+                    return boolType'
                 else Left $ "Expected pointer types to be equal, left points to " ++ (show a) ++
                           ". Right points to " ++ (show b) ++ "."
             _ -> Left "Cannot perform an equality comparison of pointer and non pointer types"
@@ -448,16 +471,15 @@ getTypeExpr vtable ftable expr = case expr of
        getTypeUnOp :: UnaryOps -> Expr -> Either String Type
        getTypeUnOp operation e 
         | operation == Not || operation == Neg = getTypeExpr vtable ftable e >>= 
-            \t -> case t of 
-                (NormalType "int") -> return $ NormalType "int"
-                _ -> Left "Expected integer expression"
+            \t -> if t == intType' 
+                    then return intType' 
+                    else Left "Expected integer expression"
         | operation == BNot = getTypeExpr vtable ftable e >>=
-            \t -> case t of 
-                (NormalType "bool") -> return $ NormalType "bool"
-                _ -> Left "Expected boolean expression"
+            \t -> if t == boolType' 
+                    then return boolType'
+                    else Left $ "Expected boolean expression"
 
         | otherwise = Left $ "Compiler error during obtaining type of unary expression"
-
 
 -- Replace all constant identifiers with their
 -- constant value
