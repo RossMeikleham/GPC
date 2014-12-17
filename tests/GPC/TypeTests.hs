@@ -17,7 +17,7 @@ isRight' = either (const False) (const True)
 intTypeNK = NormalType False "int"
 intTypeK  = NormalType True  "int"
 boolTypeNK = NormalType False "bool"
-boolTypeK = NormalType True "bool"
+--boolTypeK = NormalType True "bool"
 
 expressions = [intConst 20 -- ^ Check constant integer
               ,(ExpBinOp Less (intConst 10) (ExpIdent $ Ident "a")) -- ^ Check binary expression

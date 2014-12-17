@@ -119,9 +119,9 @@ genTopLevelStmt tl = case tl of
          
 -- | Generate Object Constructors
 genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
-genTLConstructObjs (ConstructObjs nameSpace var exprs) = do 
+genTLConstructObjs (ConstructObjs ns var exprs) = do 
     let constructor = Symbol $ GOpSymbol $ 
-                    MkOpSymbol False ("dummy", 0) (map show nameSpace) 
+                    MkOpSymbol False ("", 0) (map show ns) 
     args <- mapM checkConst exprs
     let args' = map (Symbol . ConstSymbol True . show) args
 
@@ -276,7 +276,7 @@ genExpr expr = case expr of
 
     ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
     
-    ExpPointer p -> return EmptyTree
+    ExpPointer _ -> return EmptyTree
 
 -- | Generate Inline Function by replacing all identifieres
 -- | in scope with supplied argument expressions
