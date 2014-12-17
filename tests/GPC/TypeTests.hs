@@ -14,6 +14,11 @@ intConst a = ExpLit $ Number $ Left a
 strConst = ExpLit . Str 
 isRight' = either (const False) (const True)
 
+intTypeNK = NormalType False "int"
+intTypeK  = NormalType True  "int"
+boolTypeNK = NormalType False "bool"
+boolTypeK = NormalType True "bool"
+
 expressions = [intConst 20 -- ^ Check constant integer
               ,(ExpBinOp Less (intConst 10) (ExpIdent $ Ident "a")) -- ^ Check binary expression
               ,(ExpFunCall $ FunCall (Ident "fun1")  -- ^ Check Function call expression
@@ -23,7 +28,7 @@ expressions = [intConst 20 -- ^ Check constant integer
               ] 
 
 
-expectedTypes = map (NormalType) ["int"
+expectedTypes = map (NormalType False) ["int"
                            ,"bool"
                            ,"int"
                            ,"string"
@@ -51,19 +56,22 @@ expectedAfterInject = [intConst 24
                                      (intConst 20) 
                       ]
 
-validPrograms = [Program [TLAssign (Assign (NormalType "int") (Ident "i") (intConst 5))
-                         ,TLAssign (Assign (NormalType "int") (Ident "j") (ExpIdent (Ident "i")))
+--methodCalls = [
+
+validPrograms = [Program [TLAssign (Assign intTypeNK (Ident "i") (intConst 5))
+                         ,TLAssign (Assign intTypeNK (Ident "j") (ExpIdent (Ident "i")))
                          ]
                 ]
 
 
-vars = M.fromList $ map (\(a,b) -> (Ident a, NormalType b)) 
+vars = M.fromList $ map (\(a,b) -> (Ident a, NormalType False b)) 
               [("a", "int")
               ,("b", "bool")
               ,("c", "double")
               ,("test", "int")
               ]
-ftable = M.fromList [(Ident "fun1", (NormalType "int" , map NormalType ["int", "int"]))
+ftable = M.fromList [(Ident "fun1", (NormalType False "int" , 
+            map (NormalType False) ["int", "int"]))
                      ]
 ctable = M.fromList [(Ident "a", Number (Left 6))
                     ,(Ident "b", Bl True)

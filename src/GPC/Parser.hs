@@ -68,10 +68,15 @@ topLevel = try function
 -- | Parse C++ Object definitions
 objs :: Parser Objects
 objs = do 
-    nameSpace <- sepBy1 parseIdent $ reservedOp "::"
+    nameSpace <- sepBy2 parseIdent $ reservedOp "::"
     var <- parseVar
     _ <- semi
     return $ Objects nameSpace var
+  where sepBy2 seg sep = do
+            x <- seg
+            _ <- sep
+            xs <- sepBy1 seg sep
+            return (x:xs)  
 
 
 constructObjs :: Parser ConstructObjs
