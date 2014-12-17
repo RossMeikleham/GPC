@@ -63,7 +63,7 @@ brackets = Token.brackets lexer
 -- Parse specific character
 parseCh c = reserved [c]
 -- Parse specific string
-parseStr s = reserved s
+parseStr = reserved 
 
 -- Setup parsers for literal values
 ch = Token.charLiteral lexer

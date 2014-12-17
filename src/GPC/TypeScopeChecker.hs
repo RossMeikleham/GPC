@@ -87,7 +87,7 @@ runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
 
 -- | Type Check all top level statements
 evalTLStmts :: [TopLevel] -> CodeState [TopLevel]
-evalTLStmts tls = mapM evalTLStmt tls
+evalTLStmts = mapM evalTLStmt
 
 
 -- | Type check a given top level statement
@@ -106,7 +106,7 @@ evalConstruct (ConstructObjs ns var exprs) = do
     tVars <- use tlConstVarTypes
 
     -- Check expressions for Constructor are constant 
-    reducedExprs <- lift $ mapM (\e ->reduceExpr tVars $ injectConstants cVars e) exprs
+    reducedExprs <- lift $ mapM (reduceExpr tVars . injectConstants cVars) exprs
     _ <- lift $ mapM (getTypeExpr tVars M.empty) reducedExprs
     mapM_ checkConstantExpr reducedExprs
 
@@ -130,7 +130,7 @@ evalObjs objs@(Objects _ var) = do
     
     case var of
         -- Single Object, check identifier isn't already in scope
-        (VarIdent ident) -> do
+        (VarIdent ident) -> 
             if ident `M.notMember` tVars then do
                 assign tlConstVarTypes $ M.insert ident (NormalType inKernel "object") tVars 
                 return objs
@@ -138,17 +138,17 @@ evalObjs objs@(Objects _ var) = do
 
         -- Static Array of Objects, check type of array size, check size
         -- is a constant, and that that identifier for the array isn't already in scope
-        (VarArrayElem ident expr) -> do
-            if ident `M.notMember` tVars then do
+        (VarArrayElem ident expr) -> 
+            if ident `M.notMember` tVars then do 
                 reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
                 exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
                 checkType (intType notKernel) exprType
                 checkConstantExpr reducedExpr
                 assign tlConstVarTypes $ M.insert ident (NormalType inKernel "objArray") tVars
-                return $ objs {objVar = (VarArrayElem ident reducedExpr)}
+                return $ objs {objVar = VarArrayElem ident reducedExpr}
             else multipleInstance ident
  where          
-    multipleInstance ident = lift $ Left $ (show ident) ++ " has already been defined " ++ 
+    multipleInstance ident = lift $ Left $ show ident ++ " has already been defined " ++ 
         "in scope, cannot redefine it"      
 
 
@@ -176,10 +176,10 @@ evalTLAssign (Assign typeG ident expr) = do
         _ -> notConstant
                            
  where 
-    multipleInstance = lift $ Left $ (show ident) ++ " has already been defined " ++ 
+    multipleInstance = lift $ Left $ show ident ++ " has already been defined " ++ 
         "in scope, cannot redefine it" 
     notConstant = lift $ Left $ "Top level assignment are expected to be constant, " ++ 
-        (show ident) ++ "is not constant"
+        show ident ++ "is not constant"
 
 
 -- | Type check Function                          
@@ -198,7 +198,7 @@ evalFunc typeG ident args (BlockStmt stmts) = do
             funBlock <- lift $ runBlockCheck stmts newBlock
            -- assign funcs $ M.insert ident funBlock funs
             return $ Func typeG ident args funBlock
-        else lift $ Left $ "Function " ++ show (ident) ++ "occurs more than once"
+        else lift $ Left $ "Function " ++ show ident ++ "occurs more than once"
 
 
 -- | Run Type Checker on new code block
@@ -210,7 +210,7 @@ runBlockCheck stmts cb =  case runStateT (evalStmts stmts) cb of
 
 -- | Type Check all statements in the current scope
 evalStmts :: [Stmt] -> BlockState [Stmt]
-evalStmts tls = mapM evalStmt tls
+evalStmts = mapM evalStmt
 
 
 -- | Type check given statement    
@@ -224,7 +224,7 @@ evalStmt stmt = case stmt of
    (Return expr) -> checkReturn expr
    (ForLoop ident expr1 expr2 expr3 stmts) -> checkForLoop ident expr1 expr2 expr3 stmts
    (MethodStmt method) -> MethodStmt <$> checkMethodCall method
-   _ -> lift $ Left $ "Not implemented"
+   _ -> lift $ Left "Not implemented"
 
 
 -- |Type Check Assignment Statement
@@ -259,12 +259,12 @@ checkAssign (Assign gType ident expr) = do
         else typeMismatch gType exprType
     else redefine
  where
-    redefine = lift $ Left $ "Error, cannot redefine " ++ (show ident) ++ " in current scope" 
-    typeMismatch l r = lift $ Left $ (show ident) ++ " declared as type " ++ (show l) ++
-                            "but rhs evaluates to type " ++ (show r) 
+    redefine = lift $ Left $ "Error, cannot redefine " ++ show ident ++ " in current scope" 
+    typeMismatch l r = lift $ Left $ show ident ++ " declared as type " ++ show l ++
+                            "but rhs evaluates to type " ++ show r
 
     isMethodCall exp = case exp of
-        (ExpMethodCall (MethodCall _ _ _)) -> True
+        (ExpMethodCall (MethodCall{})) -> True
         _ -> False
 
 -- |Type Check If Statement
@@ -276,11 +276,11 @@ checkIf expr stmt = do
     scopeVars <- M.union <$> use curVars <*> use prevVars 
     exprType <- lift $ getTypeExpr scopeVars fTable expr
     reducedExpr <- lift $ reduceExpr scopeVars $ injectPtrs ptrs $ injectConstants cTable expr
-    if exprType == (boolType notKernel) then do
+    if exprType == boolType notKernel then do
         reducedStmt <- evalStmt stmt
         return $ If reducedExpr reducedStmt
     else lift $ Left $ "Expression within if is expected to be a bool " ++
-        " but it evaluates to a " ++ (show exprType)
+        " but it evaluates to a " ++ show exprType
 
 
 -- |Type Check If - Else Statement
@@ -291,7 +291,7 @@ checkIfElse expr thenStmt elseStmt = do
     case reducedIf of
         (If expr1 stmt) ->
             return $ IfElse expr1 stmt reducedElse
-        _ -> lift $ Left $ "Compiler error in checkIfElse"
+        _ -> lift $ Left "Compiler error in checkIfElse"
 
 
 -- | Type check for loop
@@ -330,8 +330,7 @@ checkBlock (BlockStmt stmts) innerTable = do
     -- Create and type check new inner block, and add to current
     -- list of inner blocks if successful
     let newBlock = CodeBlock fName fTable scopeVars innerTable ptrs cTable   
-    subBlock <- lift $ runBlockCheck stmts newBlock         
-    return subBlock
+    lift $ runBlockCheck stmts newBlock         
 
 
 -- | Type check return stmt
@@ -344,7 +343,7 @@ checkReturn expr = do
     scopeVars <- M.union <$> use curVars <*> use prevVars 
     reducedExpr <- lift $ reduceExpr scopeVars $ injectPtrs ptrs $ injectConstants cTable expr
 
-    let notFound = "Error, function not found " ++ show (fName)
+    let notFound = "Error, function not found " ++ show fName
 
     (retType, _) <- lift $ note notFound $ M.lookup fName fTable
     exprType <- lift $ getTypeExpr scopeVars fTable expr
@@ -352,28 +351,28 @@ checkReturn expr = do
     if retType == exprType then
         return $ Return reducedExpr
     else
-        lift $ Left $ "The return type of function " ++ (show fName) ++
-            "is " ++ (show retType) ++ "but return expression evaluates to" ++
-            "type " ++ (show exprType)
+        lift $ Left $ "The return type of function " ++ show fName ++
+            "is " ++ show retType ++ "but return expression evaluates to" ++
+            "type " ++ show exprType
 
 
 -- | TODO Type check method call
 checkMethodCall :: MethodCall -> BlockState MethodCall
-checkMethodCall a = return a
+checkMethodCall = return
 
 
 -- | Check that an expression is Constant
 checkConstantExpr :: Expr -> GenericBlockState a ()
 checkConstantExpr expr = case expr of
     (ExpLit _) -> modify id
-    _ -> lift $ Left $ "expected constant expression"
+    _ -> lift $ Left "expected constant expression"
 
 
 -- | Checks that 2 given types match
 checkType :: Type -> Type -> GenericBlockState a ()
 checkType expected actual = 
     if expected == actual then modify id else 
-        lift $ Left $ (show expected) ++ " but expression evaluated to " ++ (show actual)
+        lift $ Left $ show expected ++ " but expression evaluated to " ++ show actual
 
 
 -- | Obtain Type of Expression, returns error message
@@ -386,9 +385,9 @@ getTypeExpr vtable ftable expr = case expr of
     (ExpFunCall (FunCall s exps)) -> do
         argTypes <- mapM (getTypeExpr vtable ftable) exps
         (retT, ts) <- note (notFound s) (M.lookup s ftable)
-        if (length argTypes) /= (length ts)
-            then Left $ "Function " ++ (show s) ++  " expects " ++ (show $ length ts) ++
-                      " arguments but was given " ++ (show $ length argTypes)
+        if length argTypes /= length ts
+            then Left $ "Function " ++ show s ++  " expects " ++ show (length ts) ++
+                      " arguments but was given " ++ show (length argTypes)
             else if argTypes /= ts 
                 then Left "Arguments don't evaluate to given types"
                 else Right retT
@@ -397,7 +396,7 @@ getTypeExpr vtable ftable expr = case expr of
     (ExpIdent i) -> note (notFound i) (M.lookup i vtable) 
 
     (ExpPointer (Pointer ident@(Ident i) n)) -> 
-        PointerType <$> (note (notFound ident) (M.lookup catIdent vtable))
+        PointerType <$> note (notFound ident) (M.lookup catIdent vtable)
           where catIdent = Ident (show n ++ i)
 
     (ExpLit l) -> return $ flip id notKernel $ case l of
@@ -427,29 +426,29 @@ getTypeBinOp vtable ftable bop e1 e2  = do
 -- Get Type of binary expression involving no pointers
 getNormalTypeBin :: BinOps -> Type -> Type -> Either String Type
 getNormalTypeBin bop leftType rightType          
-   | bop `elem` numNumNumOp = do
+   | bop `elem` numNumNumOp = 
        if leftType /= rightType then 
            Left "Both expressions expected to be the same type"
        else if leftType == intType' then return intType'
        else if leftType == doubleType' then return doubleType'
-       else Left $ "Expected integer or double type"
+       else Left "Expected integer or double type"
 
    | bop `elem` intIntIntOp = 
        if (leftType, rightType) == (intType', intType')
            then return intType' 
-           else Left $ "Expected integer values on both sides"              
+           else Left "Expected integer values on both sides"              
 
    | bop `elem` compareOp = 
        if (leftType, rightType) `elem` [(intType', intType'), (doubleType', doubleType')] 
            then return boolType'
-           else Left $ "Expected numeric values of the same type"      
+           else Left "Expected numeric values of the same type"      
 
    | bop `elem` boolOp = 
        if (leftType, rightType) == (boolType', boolType')
-           then return $ boolType'
-           else Left $ "Expected boolean values"    
+           then return boolType'
+           else Left "Expected boolean values"    
              
-    | otherwise = Left $ "Compiler error during obtaining type of binary expression"
+    | otherwise = Left "Compiler error during obtaining type of binary expression"
   where 
      numNumNumOp = [Add, Sub, Mul, Div]        
      intIntIntOp = [Mod, BAnd, BOr, BXor, ShiftL, ShiftR]
@@ -464,25 +463,25 @@ getNormalTypeBin bop leftType rightType
 getPointerTypeBin :: BinOps -> Type -> Type -> Either String Type
 getPointerTypeBin bop leftType rightType
     | bop == Add = 
-        if (isPointer leftType  && rightType == intType') then
+        if isPointer leftType && rightType == intType' then
             return leftType    
-        else if (isPointer rightType && leftType  == intType') then
+        else if isPointer rightType && leftType == intType' then
             return rightType
         else Left "Can only add Pointers to Integers"
 
     | bop == Sub =
-        if (isPointer leftType && rightType == intType') then
+        if isPointer leftType && rightType == intType' then
         return leftType
         else Left "expected pointer type on lhs and integer type on rhs for pointer subtraction"                
     | bop `elem` [Equals, NEquals] = case (leftType, rightType) of
         ((PointerType a, PointerType b)) -> 
             if a == b then 
                 return boolType'
-            else Left $ "Expected pointer types to be equal, left points to " ++ (show a) ++
-                  ". Right points to " ++ (show b) ++ "."
+            else Left $ "Expected pointer types to be equal, left points to " ++ show a ++
+                  ". Right points to " ++ show b ++ "."
         _ -> Left "Cannot perform an equality comparison of pointer and non pointer types"
 
-    | otherwise =  Left $ "operation " ++ (show bop) ++ " not defined for pointer types"
+    | otherwise =  Left $ "operation " ++ show bop ++ " not defined for pointer types"
   where
      intType' = intType kernel
      boolType' = boolType kernel
@@ -502,7 +501,7 @@ getTypeUnOp vtable ftable operation expr
             (NormalType kernel "bool") -> return $ NormalType kernel "bool"
             e -> Left $ "Expected boolean expression, but found " ++ show e
 
-    | otherwise = Left $ "Compiler error during obtaining type of unary expression"
+    | otherwise = Left "Compiler error during obtaining type of unary expression"
 
 
 -- Replace all constant identifiers with their
@@ -517,7 +516,7 @@ injectConstants ctable expr = case expr of
     (ExpIdent i) -> case M.lookup i ctable of
                                 Just l ->   ExpLit l
                                 Nothing ->  ExpIdent i
-    (ExpLit l) -> (ExpLit l)
+    (ExpLit l) -> ExpLit l
     (ExpPointer p) -> ExpPointer p
 
 
@@ -531,7 +530,7 @@ injectPtrs ptrs expr = case expr of
     (ExpIdent i) -> case M.lookup i ptrs of
                                 Just p ->   ExpPointer p
                                 Nothing ->  ExpIdent i
-    (ExpLit l) -> (ExpLit l)
+    (ExpLit l) -> ExpLit l
     (ExpPointer p) -> ExpPointer p
 
 
@@ -559,8 +558,8 @@ reduceExpr vtable expr = case expr of
         return $ ExpMethodCall (MethodCall obj method rexps)
 
     (ExpIdent i) -> ExpIdent <$> if M.member i vtable 
-                                    then (Right i) 
-                                    else (Left $ notFound i)
+                                    then Right i
+                                    else Left $ notFound i
 
     (ExpLit l) -> return (ExpLit l)
     (ExpPointer p) -> return (ExpPointer p)
@@ -569,7 +568,7 @@ reduceExpr vtable expr = case expr of
 -- | Attempts to evaluate a constant binary expression, checks the types as well
 evaluateBinExpr :: BinOps -> Expr -> Expr -> Either String Expr
 -- Binary operations with literals
-evaluateBinExpr b (ExpLit l1) (ExpLit l2) = (binOpTable b) l1 l2
+evaluateBinExpr b (ExpLit l1) (ExpLit l2) = binOpTable b l1 l2
 -- Binary Operation with pointers
 evaluateBinExpr Add (ExpPointer (Pointer ident n)) (ExpLit (Number (Left i))) =
     Right $ ExpPointer $ Pointer ident (n + i)
@@ -582,7 +581,7 @@ evaluateBinExpr  b e1 e2 = return $ ExpBinOp b e1 e2
 
 
 -- | Obtain binary operation to use with literal values
-binOpTable :: BinOps -> (Literal -> Literal -> Either String Expr)
+binOpTable :: BinOps -> Literal -> Literal -> Either String Expr
 binOpTable b = case b of
     Add -> performBinNumOp (+)
     Sub -> performBinNumOp (-)
@@ -647,7 +646,7 @@ performBinBoolOp _ _ _ = Left "Error expected boolean values"
 -- |Attempts to evaluate a constant unary expression, check the types as
 -- |well
 evaluateUnExpr :: UnaryOps -> Expr -> Either String Expr
-evaluateUnExpr unOp (ExpLit l) = (unOpTable unOp) l
+evaluateUnExpr unOp (ExpLit l) = unOpTable unOp l
 evaluateUnExpr _ e = Right e
 
 -- | Function table of Unary operations on literals

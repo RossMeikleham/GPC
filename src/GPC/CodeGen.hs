@@ -18,19 +18,18 @@ genCode' (Symbol gSymbol) carryQuote = case gSymbol of
     GOpSymbol (MkOpSymbol quoted _ method) ->
         text $ strQuoted ++ method' method
      where strQuoted = if quoted || carryQuote then "'" else "" 
-           method' m = foldl1 (\a b -> a ++ "." ++ b) m
-
-genCode' EmptyTree _ = text ""
+           method' = foldl1 (\a b -> a ++ "." ++ b)
 
 -- | Generate Source Code for Symbol Tree
 genCode' (SymbolList quoted symbolTree) carryQuote = case symbolTree of
     [] -> text ""
-    (x:[]) -> (genCode' x quoted) -- If tree contains 1 element, carry the quote over
-    xs -> (parens' (quoted || carryQuote) $ foldl1 (<+>) (map (\x -> genCode' x False) xs))
+    (x:[]) -> genCode' x quoted -- If tree contains 1 element, carry the quote over
+    xs -> parens'(quoted || carryQuote) $ 
+            foldl1 (<+>) (map (`genCode'` False) xs)
 
 
 parens' :: Quoted -> Doc -> Doc 
-parens' q x = nest' nestLevel $ quoteText <> (parens x)
+parens' q x = nest' nestLevel $ quoteText <> parens x
  where quoteText = text $ if q then "'" else ""
 
 nest' :: Int -> Doc -> Doc

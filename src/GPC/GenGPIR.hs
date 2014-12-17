@@ -40,7 +40,7 @@ isObject tl = case tl of
 
 isFunc :: TopLevel -> Bool
 isFunc tl = case tl of
-    Func _ _ _ _ -> True
+    Func{} -> True
     _ -> False
 
 isNonEntryFunc :: String -> TopLevel -> Bool
@@ -62,7 +62,7 @@ updateRegs ident = do
 genGPIR :: String -> Program -> Either String SymbolTree
 genGPIR name (Program tls) = case runStateT (genTopLevel name tls) initial of 
     Left s -> Left s
-    (Right (tl, _)) -> Right $ tl
+    (Right (tl, _)) -> Right tl
  where initial = CodeGen M.empty M.empty 0 M.empty
 
 
@@ -72,12 +72,14 @@ genTopLevel name tls = do
     genFuncs tls
     let tls' = filter (\x -> not (isAssign x || isObject x || isNonEntryFunc name x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
-    if length symbolTrees > 1 
-        then return $ SymbolList False (seqSymbol : symbolTrees)
-        else return $ SymbolList False symbolTrees
+    return $ SymbolList False $  
+      if length symbolTrees > 1 
+         then seqSymbol : symbolTrees
+         else symbolTrees
  where 
     seqSymbol = Symbol $ GOpSymbol $
                 MkOpSymbol False ("", 0) ["CoreServices", "Seq", "seq"]
+
 
 -- | Generate all Top Level Assignments
 genTLAssigns :: [TopLevel] -> GenState ()
@@ -88,9 +90,9 @@ genTLAssign (TLAssign (Assign _ ident expr)) = case expr of
     (ExpLit l) -> do         
         cTable <- use constTable
         assign constTable $ M.insert ident l cTable 
-    (ExpPointer _) -> return ()
-    _ -> lift $ Left $ (show expr) --"Compiler error, in top level assignment code generation"  
-genTLAssign _ = lift $ Left $ "Not top level Assignment statement"
+    (ExpPointer _) -> return () 
+    _ -> lift $ Left $ show expr --"Compiler error, in top level assignment code generation"  
+genTLAssign _ = lift $ Left "Not top level Assignment statement"
 
 
 -- | Store all functions, to be evaluated later
@@ -102,7 +104,7 @@ genFunc (Func _ name args stmts) = do
     fTable <- use funTable
     assign funTable $ M.insert name (map snd args, stmts) fTable 
          
-genFunc a = lift $ Left $ "Not Function definition" ++ (show a)
+genFunc a = lift $ Left $ "Not Function definition" ++ show a
 
 
 -- | Generate GPIR from Top Level statements
@@ -117,29 +119,23 @@ genTopLevelStmt tl = case tl of
          
 -- | Generate Object Constructors
 genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
-genTLConstructObjs (ConstructObjs nameSpace var exprs) =  
+genTLConstructObjs (ConstructObjs nameSpace var exprs) = do 
+    let constructor = Symbol $ GOpSymbol $ 
+                    MkOpSymbol False ("dummy", 0) (map show nameSpace) 
+    args <- mapM checkConst exprs
+    let args' = map (Symbol . ConstSymbol True . show) args
+
     case var of  
-        (VarIdent _) -> do
-            let constructor = Symbol $ GOpSymbol $ 
-                            MkOpSymbol False ("dummy", 0) (map show nameSpace) 
-            args <- mapM checkConst exprs
-            let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
-            return $ SymbolList True (constructor : args')
-
         -- TODO work out how to map
-        (VarArrayElem _ indexExpr) -> do
-            _ <- checkConst indexExpr
-            let constructor = Symbol $ GOpSymbol $ 
-                            MkOpSymbol False ("dummy", 0) (map show nameSpace)
-            args <- mapM checkConst exprs
-            let args' = map (\x -> Symbol (ConstSymbol True (show x))) args
-            return $ SymbolList True (constructor : args')
+        (VarArrayElem _ indexExpr) -> void $ checkConst indexExpr
+        (VarIdent _) -> return ()
 
+    return $ SymbolList True (constructor : args')
 
 
 -- | Generate Program
 genEntryFunc :: BlockStmt -> GenState SymbolTree
-genEntryFunc (BlockStmt stmts) = (SymbolList True) <$> (mapM genStmt stmts)
+genEntryFunc (BlockStmt stmts) = SymbolList True <$> mapM genStmt stmts
 
 genStmt :: Stmt -> GenState SymbolTree
 genStmt stmt = case stmt of
@@ -170,7 +166,7 @@ genStmt stmt = case stmt of
 
     MethodStmt (MethodCall cName mName exprs) -> do
         let call = Symbol $ GOpSymbol $ 
-                    MkOpSymbol False ("Dummy", 0) ["temp", (show cName), (show mName)]
+                    MkOpSymbol False ("Dummy", 0) ["temp", show cName, show mName]
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
@@ -201,8 +197,8 @@ genStmt stmt = case stmt of
        start' <- getInt start
        stop'  <- getInt stop
        step'  <- getInt step
-       if (start' > stop') then lift $ Left $ "For loop error, start can't be greater than stop"
-       else if (step' == 0 || step' < 0) then lift $ Left $ "For loop error, infinite loop generated"
+       if start' > stop' then lift $ Left "For loop error, start can't be greater than stop"
+       else if step' == 0 || step' < 0 then lift $ Left "For loop error, infinite loop generated"
        else do
            let unrolledStmts = map (\i -> 
                                 genInlineStmt [(ident, ExpLit (Number (Left i)))] (BStmt stmt'))  
@@ -214,7 +210,7 @@ genStmt stmt = case stmt of
  where 
     getInt :: Expr -> GenState Integer
     getInt (ExpLit (Number (Left i))) = return i
-    getInt _ = lift $ Left $ "Compiler error, expected integer value from expression"
+    getInt _ = lift $ Left "Compiler error, expected integer value from expression"
 
 genExpr :: Expr -> GenState SymbolTree
 genExpr expr = case expr of
@@ -265,18 +261,18 @@ genExpr expr = case expr of
 
     ExpMethodCall (MethodCall cName mName exprs) -> do
         let call = Symbol $ GOpSymbol $ 
-                    MkOpSymbol False ("Dummy", 0) ["temp", (show cName), (show mName)]
+                    MkOpSymbol False ("Dummy", 0) ["temp", show cName, show mName]
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
     -- Encounterd a variable, need to read it from its register
     ExpIdent ident -> do 
         regTable <- use varRegTable
-        reg <- lift $ note regNotFound $ (M.lookup ident regTable) 
+        reg <- lift $ note regNotFound $ M.lookup ident regTable
         let regSymbol = Symbol $ GOpSymbol $ 
                         MkOpSymbol False ("", 0) ["CoreServices", "Reg", "read"]
         return $ SymbolList False  [regSymbol, Symbol $ ConstSymbol True (show reg)]
-     where regNotFound = "Compiler error, register for ident " ++ (show ident) ++ "not found"
+     where regNotFound = "Compiler error, register for ident " ++ show ident ++ "not found"
 
     ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
     
@@ -292,7 +288,7 @@ genInlineFunc name args = do
             let (BStmt stmts') = genInlineStmt (zip idents args) (BStmt stmts)
             return stmts'
             
-        Nothing -> lift $ Left $ "Compiler error genInlineFunc"
+        Nothing -> lift $ Left "Compiler error genInlineFunc"
 
 
 genInlineStmt :: [(Ident, Expr)] -> Stmt -> Stmt
@@ -332,10 +328,9 @@ genInlineStmt exprs stmt = case stmt of
     -- map up until the identifier is out of scope, and then add on the rest of
     -- the unmapped statements to the block as they won't need any substitution 
     genBlock :: [Stmt] -> [Stmt]
-    genBlock stmts = mappedVals ++ (drop (length mappedVals) stmts)
+    genBlock stmts = mappedVals ++ drop (length mappedVals) stmts
       where mappedVals = incMapWhile inScope (genInlineStmt exprs) stmts
-    inScope (AssignStmt (Assign _ name _)) = 
-        if name `elem` idents then False else True
+    inScope (AssignStmt (Assign _ name _)) = name `notElem` idents
     inScope _ = True 
     idents = map fst exprs
 
@@ -363,7 +358,7 @@ replaceExprIdent ident replaceExpr givenExpr = case givenExpr of
         ExpMethodCall (MethodCall cName mName $ 
             map (replaceExprIdent ident replaceExpr) exprs)
 
-    ExpIdent expId -> if expId == ident then replaceExpr else (ExpIdent expId)
+    ExpIdent expId -> if expId == ident then replaceExpr else ExpIdent expId
 
     ExpLit lit -> ExpLit lit
     
@@ -372,7 +367,7 @@ replaceExprIdent ident replaceExpr givenExpr = case givenExpr of
 -- | inclusive MapWhile function, returns results which satisfy a condition
 -- | TODO stick in utilities module
 incMapWhile :: (b -> Bool) -> (a -> b) -> [a] -> [b]
-incMapWhile cond f (x:xs) = if cond res then res : (incMapWhile cond f xs) else [res]
+incMapWhile cond f (x:xs) = if cond res then res : incMapWhile cond f xs else [res]
  where res = f x
 incMapWhile _ _ [] = []
 
@@ -380,4 +375,4 @@ incMapWhile _ _ [] = []
 checkConst :: Expr -> GenState Literal
 checkConst expr = case expr of 
     (ExpLit l) -> return l
-    _ -> lift $ Left $ "Expected constant expression"
+    _ -> lift $ Left "Expected constant expression"
