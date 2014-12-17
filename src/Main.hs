@@ -28,7 +28,7 @@ main = do
         progName <- getProgName
 
         let file = head args
-            filePrefix = (head $ splitOn "." file) ++ ".td"
+            filePrefix = (head $ splitOn "." file)
 
         if length args <= 0
             then putStrLn ("Usage " ++ progName ++ " file")
