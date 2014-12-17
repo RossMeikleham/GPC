@@ -239,6 +239,7 @@ checkAssign (Assign gType ident expr) = do
     reducedExpr <- lift $ reduceExpr scopeVars $ injectPtrs ptrs $ injectConstants cTable expr
     if ident `M.notMember` vTable then do
         exprType <- lift $ getTypeExpr scopeVars ftable reducedExpr
+       
         if gType == exprType then do
             -- Update Var table with new variable
             assign curVars   $ M.insert ident gType vTable
@@ -247,6 +248,14 @@ checkAssign (Assign gType ident expr) = do
                             (ExpLit l) -> M.insert ident l cTable
                             _ -> M.delete ident cTable
             return $ Assign gType ident reducedExpr
+        
+        -- If expression is a method call, we implicitly lift the type
+        -- of the entire expression into the GPRM::Kernel
+        else if isMethodCall reducedExpr then do
+            let gType' = castToKernel gType 
+            assign curVars $ M.insert ident gType' vTable
+            return $ Assign gType' ident reducedExpr
+
         else typeMismatch gType exprType
     else redefine
  where
@@ -254,6 +263,9 @@ checkAssign (Assign gType ident expr) = do
     typeMismatch l r = lift $ Left $ (show ident) ++ " declared as type " ++ (show l) ++
                             "but rhs evaluates to type " ++ (show r) 
 
+    isMethodCall exp = case exp of
+        (ExpMethodCall (MethodCall _ _ _)) -> True
+        _ -> False
 
 -- |Type Check If Statement
 checkIf :: Expr -> Stmt -> BlockState Stmt
