@@ -1,0 +1,20 @@
+
+int N = 2;
+GPRM::Kernel::Test tests[N];
+
+tests[0] = GPRM::Kernel::Test::Test(0);
+tests[1] = GPRM::Kernel::Test::Test(1);
+
+
+// Same name as source file, used as entry function
+int Test3(int *a, int *b, bool stuff) {
+    
+    int *c = a + 6; //Pointer arithmetic
+    int *d = b - 7;
+
+    for (int i = 0; 2; 1) {
+        tests[i].m1(a, b, stuff);
+    }
+
+    return 0;
+}

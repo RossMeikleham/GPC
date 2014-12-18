@@ -96,7 +96,6 @@ evalTLStmt tl = case tl of
     (TLObjs objects) -> TLObjs <$> evalObjs objects
     (TLConstructObjs cObjs) -> TLConstructObjs <$> evalConstruct cObjs
 
-
 -- | Type check object initializations
 evalConstruct :: ConstructObjs -> CodeState ConstructObjs
 evalConstruct (ConstructObjs ns var exprs) = do
@@ -131,7 +130,12 @@ evalConstruct (ConstructObjs ns var exprs) = do
                     ++ "of objects, expecting assignment to a single element"
                 (VarArrayElem i exp) -> do
                     -- Check indexing is in bounds
-                    case (reducedExpr, exp) of
+
+                    reducedExpr' <- lift $ reduceExpr tVars $ injectConstants cVars exp
+                    exprType' <- lift $ getTypeExpr tVars M.empty reducedExpr'
+                    checkType (intType notKernel) exprType'
+                    checkConstantExpr reducedExpr'
+                    case (reducedExpr, reducedExpr') of
                         (ExpLit (Number (Left n1)), ExpLit (Number (Left n2))) ->
                             if n1 >= n2 || n1 < 0 then
                                 lift $ Left $ "Index out of bounds " ++ show n1 ++
@@ -140,7 +144,7 @@ evalConstruct (ConstructObjs ns var exprs) = do
                                     (VarArrayElem ident reducedExpr) reducedExprs
 
                         _ -> lift $ Left $ "Compiler error in" ++ 
-                            "type checking object declerations"
+                            "type checking object declerations"-- ++ show var ++ show v
     
   where             
     notFound i = "Error, object not found " ++ show i
