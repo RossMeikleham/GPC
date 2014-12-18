@@ -24,6 +24,7 @@ strType = flip NormalType "string"
 chType = flip NormalType "char"
 doubleType = flip NormalType "double"
 objectType = NormalType True "object"
+arrayObjType = NormalType True "objArray"
 
 -- Upcast a type to a Kernel type, if
 -- the given type is already a Kernel type then
@@ -93,7 +94,7 @@ evalTLStmt :: TopLevel -> CodeState TopLevel
 evalTLStmt tl = case tl of
     (TLAssign a) -> TLAssign <$> evalTLAssign a
     (Func gType ident args stmts) -> evalFunc gType ident args stmts
-    (TLObjs objects) -> TLObjs <$> evalObjs objects
+    (TLObjs objs) -> TLObjs <$> evalObjs objs
     (TLConstructObjs cObjs) -> TLConstructObjs <$> evalConstruct cObjs
 
 -- | Type check object initializations
@@ -128,10 +129,10 @@ evalConstruct (ConstructObjs ns var exprs) = do
             case v of 
                 (VarIdent i) -> lift $ Left $ show i ++ "is declared as an array"
                     ++ "of objects, expecting assignment to a single element"
-                (VarArrayElem i exp) -> do
+                (VarArrayElem i expr') -> do
                     -- Check indexing is in bounds
 
-                    reducedExpr' <- lift $ reduceExpr tVars $ injectConstants cVars exp
+                    reducedExpr' <- lift $ reduceExpr tVars $ injectConstants cVars expr'
                     exprType' <- lift $ getTypeExpr tVars M.empty reducedExpr'
                     checkType (intType notKernel) exprType'
                     checkConstantExpr reducedExpr'
@@ -158,6 +159,8 @@ evalConstruct (ConstructObjs ns var exprs) = do
             show (init ns ++ [last ns]) ++ " but found " ++ show ns
     else return oVar
     }
+
+
 
 -- | Type check object declarations
 evalObjs :: Objects -> CodeState Objects
@@ -422,20 +425,40 @@ checkReturn expr = do
 
 
 checkMethodCall :: MethodCall -> BlockState MethodCall
-checkMethodCall (MethodCall obj method args) = do
+checkMethodCall (MethodCall var method args) = do
     vTable <- M.union <$> use curVars <*> use prevVars
     cTable <- use constVars
+    fTable <- use funcDefs
+    scopeVars <- M.union <$> use curVars <*> use prevVars
     reducedExprs <- lift $ mapM (reduceExpr vTable . injectConstants cTable) args
     
-    let notFound = "Error, object not found " ++ show obj
-    gType <- lift $ note (notFound) (M.lookup obj vTable)
-    if gType == objectType
-        then return $ MethodCall obj method reducedExprs
-        else expectedObject gType
+    case var of
+        (VarIdent i) -> do
+            gType <- lift $ findType i vTable
+            if gType == objectType then 
+                return $ MethodCall var method reducedExprs                
+            else expectedObject i gType
             
-  where expectedObject t = lift $ Left $ "Can only call methods on objects, " ++
-                            (show obj) ++ " is of type " ++  (show t)
+        -- Check we're accessing an element of an array of objects,
+        -- and that the element is an integer type
+        (VarArrayElem i el) -> do
+            gType <- lift $ findType i vTable
+            reducedElem <- lift $ reduceExpr vTable $ injectConstants cTable el
+            elemType <- lift $ getTypeExpr scopeVars fTable reducedElem
+            if elemType == intType False then
+                if gType == arrayObjType then 
+                    return $ MethodCall (VarArrayElem i reducedElem) 
+                                method reducedExprs 
+                else expectedObject i gType
+            else expectedInt elemType
 
+
+  where findType i vTable = note (notFound i) (M.lookup i vTable)
+        notFound  obj = "Error, object not found " ++ show obj
+        expectedObject obj t = lift $ Left $ "Can only call methods on objects, " ++
+                            (show obj) ++ " is of type " ++  (show t)
+        expectedInt t = lift $ Left $ "Array indexing must use integer values" ++
+                            "found type " ++ show t
 
 -- | Check that an expression is Constant
 checkConstantExpr :: Expr -> GenericBlockState a ()
@@ -450,6 +473,11 @@ checkType expected actual =
     if expected == actual then modify id else
         lift $ Left $ show expected ++ " but expression evaluated to " ++ show actual
 
+
+checkType' :: Type -> Type -> Either String ()
+checkType' expected actual =
+    if expected == actual then Right () else
+        Left $ show expected ++ " but expression evaluated to " ++ show actual
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
@@ -467,14 +495,21 @@ getTypeExpr vtable ftable expr = case expr of
                 then Left "Arguments don't evaluate to given types"
                 else Right retT
 
-    (ExpMethodCall (MethodCall obj _ args)) -> do
+    (ExpMethodCall (MethodCall var _ args)) -> do
         _ <- mapM (getTypeExpr vtable ftable) args
-        objType <- note (notFound obj) (M.lookup obj vtable)
-        if objType == objectType then
-            return $ NormalType inKernel "object"
-        else
-            Left $ "Can only call methods on objects, " ++
-                show obj ++ " is of type " ++  show objType
+
+        case var of
+            (VarIdent i) -> do
+                objType <- note (notFound i) (M.lookup i vtable)
+                checkType' objType objectType
+                return $ NormalType inKernel "object"
+            
+            (VarArrayElem i el) -> do
+                objType <- note (notFound i) (M.lookup i vtable)
+                elemType <- getTypeExpr vtable ftable el
+                checkType' (intType False) elemType
+                checkType' objType arrayObjType
+                return $ NormalType inKernel "object"
 
     (ExpIdent i) -> note (notFound i) (M.lookup i vtable)
 
@@ -596,7 +631,13 @@ injectConstants ctable expr = case expr of
     (ExpUnaryOp u e) -> ExpUnaryOp u (injectConstants ctable e)
     (ExpFunCall (FunCall s exps)) -> ExpFunCall (FunCall s (map (injectConstants ctable) exps))
     (ExpMethodCall (MethodCall obj method args)) ->
-        ExpMethodCall (MethodCall obj method (map (injectConstants ctable) args))
+        case obj of
+            (VarArrayElem i el) -> 
+                ExpMethodCall (MethodCall (VarArrayElem i (injectConstants ctable el))
+                                method (map (injectConstants ctable) args))
+            (VarIdent _) ->    
+                 ExpMethodCall (MethodCall obj method (map (injectConstants ctable) args))
+
     (ExpIdent i) -> case M.lookup i ctable of
                                 Just l ->   ExpLit l
                                 Nothing ->  ExpIdent i

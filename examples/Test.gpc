@@ -16,13 +16,13 @@ int fun0() {
 int fun1() {
     int j = test.print();
     for(int i = 0; n; 1) { // Static for loop
-       // test.print(i); 
-        int j = 7;
+        test.print(i); 
     }
     int i = test.m1();
     return 1;
 }
 
+//Entry function
 int Test() {
     seq {
         int k = fun0();
@@ -30,6 +30,7 @@ int Test() {
             return fun1() + (10 * 5 -2);
         }
         else {
+            multi[0].m2();
             return n;
         }
     }

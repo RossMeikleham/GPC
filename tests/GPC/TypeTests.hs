@@ -66,17 +66,17 @@ programTempl stmts = Program
 
 methodCalls = map programTempl 
     [[AssignStmt $ Assign intTypeNK (Ident "i") 
-        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") [intConst 5]))
+        (ExpMethodCall (MethodCall (VarIdent $ Ident "obj") (Ident "m1") [intConst 5]))
 
-     ,MethodStmt $ MethodCall (Ident "obj") (Ident "m1") [intConst 32]
+     ,MethodStmt $ MethodCall (VarIdent $ Ident "obj") (Ident "m1") [intConst 32]
      ]
     ]
 
 expectedTCMethodCalls = map programTempl 
     [[AssignStmt $ Assign intTypeK (Ident "i") 
-        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") [intConst 5]))
+        (ExpMethodCall (MethodCall (VarIdent $ Ident "obj") (Ident "m1") [intConst 5]))
 
-     ,MethodStmt $ MethodCall (Ident "obj") (Ident "m1") [intConst 32]
+     ,MethodStmt $ MethodCall (VarIdent $ Ident "obj") (Ident "m1") [intConst 32]
      ]
     ]
 
@@ -101,12 +101,12 @@ expectedTCPointerAssigns = map pointerProgramTempl
 -- that variable can't then be used in non-kernel ways 
 invalidMethodUse = map programTempl 
                     [[(AssignStmt $ Assign intTypeNK (Ident "i") 
-                        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") []))),
+                        (ExpMethodCall (MethodCall (VarIdent $ Ident "obj") (Ident "m1") []))),
                       (AssignStmt $ Assign intTypeNK (Ident "j") (ExpIdent $ Ident "i"))]
 
                     -- check kernel Boolean can't be used in if
                     ,[(AssignStmt $ Assign boolTypeNK (Ident "i") 
-                        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") []))),
+                        (ExpMethodCall (MethodCall (VarIdent $ Ident "obj") (Ident "m1") []))),
                       (If (ExpIdent $ Ident "i") (BStmt $ BlockStmt []))]
                    ]
 

@@ -62,7 +62,11 @@ data Stmt =
 
 data Assign = Assign Type Ident Expr deriving (Show, Eq) -- ^ Variable assignment
 data FunCall = FunCall Ident [Expr] deriving (Show, Eq) -- ^ Function call layout
-data MethodCall = MethodCall Ident Ident [Expr] deriving (Show, Eq) -- ^ Method call layout
+data MethodCall = MethodCall { 
+      mVar :: Var, 
+      mName :: Ident, 
+      mArgs ::  [Expr] 
+} deriving (Show, Eq) -- ^ Method call layout
 
 -- | Expression
 data Expr =
