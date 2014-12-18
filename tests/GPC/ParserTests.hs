@@ -198,11 +198,31 @@ ifElseCheck = [ifCheck, elseCheck]
     fun xs = Func (NormalType False "tes") (Ident "test") [] (BlockStmt xs)
     funStr = "tes test() {"
 
+-- | Check Pointer
+pointersCheck :: [(Program, Either String Program)]
+pointersCheck = [singlePtr, mulPtr]
+  where
+     singlePtr = (Program [Func intType (Ident "test") [(PointerType intType, a)] 
+                            $ BlockStmt [AssignStmt 
+                                $ Assign (PointerType intType) b (ExpIdent a)]]
+                 ,parseSource "int test(int *a) {int *b = a;}") 
+
+
+     mulPtr = (Program [Func intType (Ident "test") [(triplePtr intType, a)] 
+                            $ BlockStmt [AssignStmt 
+                                $ Assign (triplePtr intType) b (ExpIdent a)]]
+                 ,parseSource "int test(int ***a) {int ***b = a;}") 
+
+     intType = NormalType False "int"
+     triplePtr = PointerType . PointerType . PointerType
+     a = Ident "a"
+     b = Ident "b"
+
 validTest :: Program -> Either String Program -> Test
 validTest e a = TestCase (
  case a of
     Left err -> assertFailure err
-    Right p -> assertEqual "" (show p) (show e))
+    Right p -> assertEqual "" (show e) (show p))
 
 validTests :: String -> [(Program, Either String Program)] -> Test
 validTests s ps = makeLabels s tests
@@ -236,6 +256,10 @@ validSeqParTests = validTests "seqParTest" seqParBlockCheck
 validIfElseTests :: Test
 validIfElseTests = validTests "ifElseTest" ifElseCheck
 
+-- | Test Pointer Parsing
+validPointerTests :: Test
+validPointerTests = validTests "pointerTest" pointersCheck
+
 -- | Test invalid statement
 invalidTest :: Either String Program -> Test
 invalidTest a = TestCase (
@@ -257,5 +281,5 @@ parserTests = TestList [validAssignTests, invalidAssignTests
                        ,validOpTests, validUnOpTests
                        ,validFunCallTests, validSeqParTests
                        ,validIfElseTests, validObjectsTests
-                       ,invalidObjectsTests
+                       ,invalidObjectsTests, validPointerTests
                        ]

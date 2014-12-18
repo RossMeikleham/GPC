@@ -8,6 +8,7 @@ import Text.Parsec.Expr
 import GPC.AST
 import GPC.Lexer
 import Control.Arrow
+import Control.Monad
 
 {- Operator Tables -}
 
@@ -215,8 +216,11 @@ parseType = do
  where
     getPointer :: Parser (Type -> Type)
     getPointer = do
-        reservedOp "*" 
+        whiteSpace
+        char '*'
         return PointerType
+        --if c == '*' then return PointerType else mzero
+            
 
 -- | Parse number
 num :: Parser (Either Integer Double)

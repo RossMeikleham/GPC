@@ -29,7 +29,7 @@ import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
 reservedTypes = ["int", "double", "bool","void"] :: [String]
-otherReserved = ["if", "else", "true", "false", "seq", "par","return"] :: [String]
+otherReserved = ["if", "else", "true", "false", "seq", "par","return", "for"] :: [String]
 
 -- Define the tokens used in our language
 languageDef = emptyDef {
