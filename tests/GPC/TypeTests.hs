@@ -69,6 +69,22 @@ expectedTCMethodCalls = map programTempl
     [[AssignStmt $ Assign intTypeK (Ident "i") 
         (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") [intConst 5]))]]
 
+-- Check Pointers type checked correctly, and reduced
+pointerProgramTempl stmts = Program [Func (intTypeNK) (Ident "test") 
+                                [(PointerType intTypeNK, Ident "a")] $ BlockStmt stmts]
+pointerAssigns = map pointerProgramTempl
+    [[AssignStmt $ Assign (PointerType intTypeNK) (Ident "b")
+        (ExpBinOp Add (ExpIdent $ Ident "a") 
+            (ExpBinOp Add (intConst 4) (intConst 3)))
+     ]
+    ]
+
+expectedTCPointerAssigns = map pointerProgramTempl
+    [[AssignStmt $ Assign (PointerType intTypeNK) (Ident "b")
+        (ExpBinOp Add (ExpIdent $ Ident "a") (intConst 7))
+     ]
+    ]
+
 -- Check that after assigning a method call result to a variable, that
 -- that variable can't then be used in non-kernel ways 
 invalidMethodUse = map programTempl 
@@ -163,5 +179,6 @@ typeTests = test $ (map (\(expected,expr) ->
     (map validProgramTest validPrograms) ++
     (map invalidProgramTest invalidMethodUse) ++
     (map (\(expected, inProg) -> typeCheckAndReduceTest inProg expected) 
-        (zip expectedTCMethodCalls methodCalls))
-
+        (zip expectedTCMethodCalls methodCalls)) ++
+    (map (\(expected, inProg) -> typeCheckAndReduceTest inProg expected) 
+        (zip expectedTCPointerAssigns pointerAssigns))

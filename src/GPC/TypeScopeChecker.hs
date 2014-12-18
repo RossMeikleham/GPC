@@ -9,14 +9,13 @@ import           Control.Error.Util
 import           Control.Lens
 import           Control.Monad.State.Lazy
 import           Data.Bits
+import           Data.Tuple
 import qualified Data.Map as M
 import           GPC.AST
 
 type VarTable = M.Map Ident Type
 type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident (Type, [Type])
-type PtrTable = M.Map Ident Pointer
-
 
 boolType = flip NormalType "bool"
 intType = flip NormalType "int"
@@ -46,8 +45,7 @@ isPointer _ = False
 data MainBlock = MainBlock {
     _tlFuncDefs      :: FunTable, -- ^ Function Definitions
     _tlConstVars     :: ConstVarTable, -- ^ Top Level Constant Variable values
-    _tlConstVarTypes :: VarTable, -- ^ Top Level Constant variable types
-    _tlPtrs          :: PtrTable
+    _tlConstVarTypes :: VarTable  -- ^ Top Level Constant variable types
 } deriving (Show)
 
 
@@ -56,7 +54,6 @@ data CodeBlock = CodeBlock {
     _funcDefs   :: FunTable, -- ^ Function names and return/argument types
     _prevVars   :: VarTable, -- ^ Identifiers visible in current scope with types
     _curVars    :: VarTable , -- ^ Identifiers declared in current scope
-    _pointers   :: PtrTable, -- ^ Pointers declared in current scope
     _constVars  :: ConstVarTable  -- ^ Identifiers visible from current scope which
                                         -- ^ evaluate to a constant value
 } deriving (Show)
@@ -81,7 +78,7 @@ runTypeChecker :: Program -> Either String Program
 runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
  Left s -> Left s
  (Right (tl, _)) -> Right $ Program tl
- where initialBlock = MainBlock M.empty M.empty M.empty M.empty
+ where initialBlock = MainBlock M.empty M.empty M.empty
 
 
 -- | Type Check all top level statements
@@ -156,9 +153,7 @@ evalTLAssign :: Assign -> CodeState Assign
 evalTLAssign (Assign typeG ident expr) = do
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
-    ptrs <- use tlPtrs
-    reducedExpr' <- lift $ reduceExpr tVars $ injectConstants cVars $ injectPtrs ptrs expr
-    let reducedExpr = injectConstants cVars reducedExpr'
+    reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
     exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
 
     case reducedExpr of
@@ -187,15 +182,31 @@ evalFunc typeG ident args (BlockStmt stmts) = do
     fTable <- use tlFuncDefs
     cVars <- use tlConstVars
     varTypes <- use tlConstVarTypes
-    ptrs <- use tlPtrs
+
     -- Check function isn't already defined
     if ident `M.notMember` fTable
         then do
+            -- Create a new variable scope based on the identifiers
+            -- in the function definition, these should override any
+            -- identifiers currently in scope of the same name
+            let args' = M.fromList $ map swap args
+            let newVarTable = M.union args' varTypes
+
+            -- Need to remove constants which contain
+            -- identifiers in the new function scope
+            let newCVars = M.filterWithKey (\k _ -> 
+                            k `notElem` (map snd args)) cVars
+
+            -- Add current function to the function scope
             let newFTable = M.insert ident (typeG, map fst args) fTable
-            let newBlock = CodeBlock ident newFTable varTypes M.empty ptrs cVars
-            assign tlFuncDefs newFTable
+
+            -- Type Check and reduce function
+            let newBlock = CodeBlock ident newFTable newVarTable M.empty newCVars
             funBlock <- lift $ runBlockCheck stmts newBlock
-           -- assign funcs $ M.insert ident funBlock funs
+
+            -- Update Global function scope, and return reduced function
+            -- AST
+            assign tlFuncDefs newFTable
             return $ Func typeG ident args funBlock
         else lift $ Left $ "Function " ++ show ident ++ "occurs more than once"
 
@@ -233,9 +244,8 @@ checkAssign (Assign gType ident expr) = do
     oldVtable <- use prevVars
     vTable <- use curVars
     cTable <- use constVars
-    ptrs <- use pointers
     let scopeVars = vTable `M.union` oldVtable -- Gives all visible identifiers
-    reducedExpr <- lift $ reduceExpr scopeVars $ injectPtrs ptrs $ injectConstants cTable expr
+    reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
     if ident `M.notMember` vTable then do
         exprType <- lift $ getTypeExpr scopeVars ftable reducedExpr
 
@@ -272,10 +282,9 @@ checkIf :: Expr -> Stmt -> BlockState Stmt
 checkIf expr stmt = do
     fTable <- use funcDefs
     cTable <- use constVars
-    ptrs <- use pointers
     scopeVars <- M.union <$> use curVars <*> use prevVars
     exprType <- lift $ getTypeExpr scopeVars fTable expr
-    reducedExpr <- lift $ reduceExpr scopeVars $ injectPtrs ptrs $ injectConstants cTable expr
+    reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
     if exprType == boolType notKernel then do
         reducedStmt <- evalStmt stmt
         return $ If reducedExpr reducedStmt
@@ -299,12 +308,11 @@ checkForLoop :: Ident -> Expr -> Expr -> Expr -> BlockStmt -> BlockState Stmt
 checkForLoop ident startExpr stopExpr stepExpr blockStmt = do
     cTable <- use constVars
     fTable <- use funcDefs
-    ptrs <- use pointers
     scopeVars <- M.union <$> use curVars <*> use prevVars
 
-    startExpr' <- lift $ reduceExpr scopeVars $ injectPtrs ptrs $ injectConstants cTable startExpr
-    stopExpr'  <- lift $ reduceExpr scopeVars $ injectPtrs ptrs $ injectConstants cTable stopExpr
-    stepExpr'  <- lift $ reduceExpr scopeVars $ injectPtrs ptrs $ injectConstants cTable stepExpr
+    startExpr' <- lift $ reduceExpr scopeVars $ injectConstants cTable startExpr
+    stopExpr'  <- lift $ reduceExpr scopeVars $ injectConstants cTable stopExpr
+    stepExpr'  <- lift $ reduceExpr scopeVars $ injectConstants cTable stepExpr
 
     -- Check all expressions are constant (for loops are static)
     -- Check types of each expression are all integers
@@ -324,12 +332,11 @@ checkBlock (BlockStmt stmts) innerTable = do
     fName <- use currentFun
     fTable <- use funcDefs
     cTable <- use constVars
-    ptrs <- use pointers
     scopeVars <- M.union <$> use curVars <*> use prevVars
 
     -- Create and type check new inner block, and add to current
     -- list of inner blocks if successful
-    let newBlock = CodeBlock fName fTable scopeVars innerTable ptrs cTable
+    let newBlock = CodeBlock fName fTable scopeVars innerTable cTable
     lift $ runBlockCheck stmts newBlock
 
 
@@ -339,9 +346,8 @@ checkReturn expr = do
     fName <- use currentFun
     fTable <- use funcDefs
     cTable <- use constVars
-    ptrs <- use pointers
     scopeVars <- M.union <$> use curVars <*> use prevVars
-    reducedExpr <- lift $ reduceExpr scopeVars $ injectPtrs ptrs $ injectConstants cTable expr
+    reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
 
     let notFound = "Error, function not found " ++ show fName
 
@@ -520,19 +526,6 @@ injectConstants ctable expr = case expr of
     (ExpLit l) -> ExpLit l
     (ExpPointer p) -> ExpPointer p
 
-
-injectPtrs :: PtrTable -> Expr -> Expr
-injectPtrs ptrs expr = case expr of
-    (ExpBinOp b e1 e2) -> ExpBinOp b (injectPtrs ptrs e1) (injectPtrs ptrs e2)
-    (ExpUnaryOp u e) -> ExpUnaryOp u (injectPtrs ptrs e)
-    (ExpFunCall (FunCall s exps)) -> ExpFunCall (FunCall s (map (injectPtrs ptrs) exps))
-    (ExpMethodCall (MethodCall obj method args)) ->
-        ExpMethodCall (MethodCall obj method (map (injectPtrs ptrs) args))
-    (ExpIdent i) -> case M.lookup i ptrs of
-                                Just p ->   ExpPointer p
-                                Nothing ->  ExpIdent i
-    (ExpLit l) -> ExpLit l
-    (ExpPointer p) -> ExpPointer p
 
 
 -- | Attempts to reduce an expression as much as possible
