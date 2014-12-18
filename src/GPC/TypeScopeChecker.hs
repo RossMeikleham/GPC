@@ -240,8 +240,19 @@ evalStmt stmt = case stmt of
    (Return expr) -> checkReturn expr
    (ForLoop ident expr1 expr2 expr3 stmts) -> checkForLoop ident expr1 expr2 expr3 stmts
    (MethodStmt method) -> MethodStmt <$> checkMethodCall method
-   _ -> lift $ Left "Not implemented"
+   (FunCallStmt fc) -> FunCallStmt <$> checkFunCall fc
+   e -> lift $ Left $ "Not implemented " ++ show e
 
+
+-- | Type check Function Call args
+checkFunCall :: FunCall -> BlockState FunCall
+checkFunCall f@(FunCall name args) = do    
+    fTable <- use funcDefs
+    vTable <- use curVars
+    cTable <- use constVars
+    reducedExprs <- lift $ mapM (reduceExpr vTable . injectConstants cTable) args
+    exprTypes <- lift $ getTypeExpr vTable fTable (ExpFunCall f)
+    return $ FunCall name reducedExprs
 
 -- |Type Check Assignment Statement
 checkAssign :: Assign -> BlockState Assign
