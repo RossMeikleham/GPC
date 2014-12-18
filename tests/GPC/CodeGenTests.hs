@@ -5,6 +5,9 @@ module GPC.CodeGenTests (codeGenTests) where
 import Test.HUnit
 --import GPC.CodeGen
 import GPC.Tests
+import qualified Test.Framework.Providers.API as TFA
+import Test.Framework.Providers.HUnit
+
 
 -- | Return expected and actual program output
 -- | These are expected to pass and to be equal
@@ -14,19 +17,19 @@ genAssignCheck = [asInt]
     -- |Check integer literal assignment
     asInt = ("placeholder", "placeholder")
    
-generateTest :: String -> String -> Test
-generateTest e a = TestCase $ assertEqual "" e a
+generateTest :: String -> (String, String) -> TFA.Test
+generateTest label (e, a) = testCase label $ assertEqual "" e a
 
 -- | Generate test cases
-generateTests :: String -> [(String, String)] -> Test
-generateTests s ps = makeLabels s tests
-    where tests = map (uncurry generateTest) ps
+generateTests :: String -> [(String, String)] -> [TFA.Test]
+generateTests s ps = map (uncurry generateTest) $ zip labels ps 
+    where labels = makeLabels s ps
 
   
 -- | Test valid assignments 
-assignGenTests :: Test
+assignGenTests :: [TFA.Test]
 assignGenTests = generateTests "CodeGenAssignTest" genAssignCheck
 
 -- | All Test cases to run
-codeGenTests :: Test
-codeGenTests = TestList [assignGenTests]
+codeGenTests :: TFA.Test
+codeGenTests = TFA.testGroup "CodeGenTests" $ concat [assignGenTests]

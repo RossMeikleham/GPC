@@ -2,11 +2,14 @@
 module GPC.ParserTests(parserTests) where
 
 import Data.Either
-import Control.Monad
+import qualified Test.Framework.Providers.API as TFA
+import Test.Framework.Providers.HUnit
 import Test.HUnit
+import Control.Monad
+import GPC.Tests
 import GPC.Parser
 import GPC.AST
-import GPC.Tests
+
 
 -- | Check declaring objects and arrays of objects works
 objectsCheck :: [(Program , Either String Program)]
@@ -218,68 +221,68 @@ pointersCheck = [singlePtr, mulPtr]
      a = Ident "a"
      b = Ident "b"
 
-validTest :: Program -> Either String Program -> Test
-validTest e a = TestCase (
+validTest :: String -> (Program, Either String Program) -> TFA.Test
+validTest label (e, a) = testCase label (
  case a of
     Left err -> assertFailure err
     Right p -> assertEqual "" (show e) (show p))
 
-validTests :: String -> [(Program, Either String Program)] -> Test
-validTests s ps = makeLabels s tests
-    where tests = map (uncurry validTest) ps
+validTests :: String -> [(Program, Either String Program)] -> [TFA.Test]
+validTests s ps = map (uncurry validTest) $ zip labels ps
+    where labels = makeLabels s ps
 
-validObjectsTests :: Test
+validObjectsTests :: [TFA.Test]
 validObjectsTests = validTests "validObjectDecl" objectsCheck
 
 
 -- | Test valid assignments 
-validAssignTests :: Test
+validAssignTests :: [TFA.Test]
 validAssignTests = validTests "validAssignTest" assignCheck
 
 -- | Test valid assignments with binary operators
-validOpTests :: Test
+validOpTests :: [TFA.Test]
 validOpTests = validTests "validOpTest" binOpCheck
 
 -- | Test valid assignments with unary operators
-validUnOpTests :: Test
+validUnOpTests :: [TFA.Test]
 validUnOpTests = validTests "validUnOpTest" unOpCheck
 
 -- | Test valid function call expressions
-validFunCallTests :: Test
+validFunCallTests :: [TFA.Test]
 validFunCallTests = validTests "validFunCallTest" funCallCheck
 
 -- | Test valid sequential/parallel blocks
-validSeqParTests :: Test
+validSeqParTests :: [TFA.Test]
 validSeqParTests = validTests "seqParTest" seqParBlockCheck
 
 -- | Test valid if/else statements
-validIfElseTests :: Test
+validIfElseTests :: [TFA.Test]
 validIfElseTests = validTests "ifElseTest" ifElseCheck
 
 -- | Test Pointer Parsing
-validPointerTests :: Test
+validPointerTests :: [TFA.Test]
 validPointerTests = validTests "pointerTest" pointersCheck
 
 -- | Test invalid statement
-invalidTest :: Either String Program -> Test
-invalidTest a = TestCase (
+invalidTest :: String -> Either String Program -> TFA.Test
+invalidTest label a = testCase label (
     unless (isLeft a) $ 
     assertFailure $ "Program should have caused a parse error" ++ show a)
  where isLeft = null . rights . return
 
-invalidAssignTests :: Test
-invalidAssignTests = makeLabels "invalidAssignTest" tests
- where tests = map invalidTest assignFailCheck
+invalidAssignTests :: [TFA.Test]
+invalidAssignTests = map (uncurry invalidTest) $ zip labels assignFailCheck
+ where labels = makeLabels "invalidAssignTest" assignFailCheck
 
-invalidObjectsTests :: Test
-invalidObjectsTests = makeLabels "invalidObjDeclTest" tests
- where tests = map invalidTest invalidObjsCheck
+invalidObjectsTests :: [TFA.Test]
+invalidObjectsTests = map (uncurry invalidTest) $ zip labels invalidObjsCheck
+ where labels = makeLabels "invalidObjDeclTest" invalidObjsCheck
 
 
-parserTests :: Test
-parserTests = TestList [validAssignTests, invalidAssignTests
-                       ,validOpTests, validUnOpTests
-                       ,validFunCallTests, validSeqParTests
-                       ,validIfElseTests, validObjectsTests
-                       ,invalidObjectsTests, validPointerTests
-                       ]
+parserTests = TFA.testGroup "Parser Tests" $ concat
+    [validAssignTests, invalidAssignTests
+    ,validOpTests, validUnOpTests
+    ,validFunCallTests, validSeqParTests
+    ,validIfElseTests, validObjectsTests
+    ,invalidObjectsTests, validPointerTests
+    ]

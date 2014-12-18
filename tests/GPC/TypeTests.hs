@@ -3,6 +3,8 @@
 module GPC.TypeTests(typeTests) where
 
 import Test.HUnit
+import qualified Test.Framework.Providers.API as TFA
+import Test.Framework.Providers.HUnit
 import GPC.AST
 import GPC.TypeScopeChecker
 import Control.Monad
@@ -227,14 +229,14 @@ ctable = M.fromList [(Ident "a", Number (Left 6))
                     ]
 
  
-validTest :: Type -> Either String Type -> Test
-validTest e a = TestCase (
+validTest :: Type -> Either String Type -> TFA.Test
+validTest e a = testCase "type check passed test" (
  case a of
     Left err -> assertFailure err
     Right p -> assertEqual "" (show p) (show e))
 
-validProgramTest :: Program -> Test
-validProgramTest p = TestCase (
+validProgramTest :: Program -> TFA.Test
+validProgramTest p = testCase "Checking full programs" (
     case result  of
         Left err -> assertFailure err
         Right _ -> unless (isRight' result) $ 
@@ -245,8 +247,8 @@ validProgramTest p = TestCase (
 -- type check and reduce the given program and assert the
 -- type checking is correct and the reduced program
 -- matches the expected reduced program
-typeCheckAndReduceTest :: Program -> Program -> Test
-typeCheckAndReduceTest inP expectedOutP = TestCase (
+typeCheckAndReduceTest :: Program -> Program -> TFA.Test
+typeCheckAndReduceTest inP expectedOutP = testCase "Checking type/scope and reduction" (
     case result of
         Left err -> assertFailure err
         Right outP -> assertEqual "" outP expectedOutP)
@@ -255,28 +257,28 @@ typeCheckAndReduceTest inP expectedOutP = TestCase (
 
 -- Given a Program which should fail type checking
 -- assert that it does actually fail when type checking.
-invalidProgramTest :: Program -> Test
-invalidProgramTest p = TestCase (
+invalidProgramTest :: Program -> TFA.Test
+invalidProgramTest p = testCase "error catching test for full Program" (
     unless (isLeft result) $ 
     assertFailure $ "Program should have contained type/scope error" ++ show result)
  where isLeft = null . rights . return
        result = runTypeChecker p
 
 
-validInject :: Expr -> Either String Expr -> Test
-validInject e a = TestCase (
+validInject :: Expr -> Either String Expr -> TFA.Test
+validInject e a = testCase "injectingConstants" (
  case a of
     Left err -> assertFailure err
     Right p -> assertEqual "" (show p) (show e))
 
-invalidTest :: Either String Type -> Test
-invalidTest a = TestCase (
+invalidTest :: Either String Type -> TFA.Test
+invalidTest a = testCase "Error catching test" (
     unless (isLeft a) $ 
     assertFailure "Expected test to fail")
  where isLeft = null . rights . return
 
-typeTests :: Test
-typeTests = test $ (map (\(expected,expr) -> 
+typeTests :: TFA.Test
+typeTests = TFA.testGroup "Type/Scope Tests" $ (map (\(expected,expr) -> 
     validTest expected (getTypeExpr vars ftable expr)) (zip expectedTypes expressions)) ++
     (map (invalidTest . (getTypeExpr vars ftable) ) failExpressions) ++
     (map (\(expected, expr) -> 
@@ -290,3 +292,6 @@ typeTests = test $ (map (\(expected,expr) ->
         (zip expectedTCMethodCalls methodCalls)) ++
     (map (\(expected, inProg) -> typeCheckAndReduceTest inProg expected) 
         (zip expectedTCPointerAssigns pointerAssigns))
+
+    
+
