@@ -66,11 +66,19 @@ programTempl stmts = Program
 
 methodCalls = map programTempl 
     [[AssignStmt $ Assign intTypeNK (Ident "i") 
-        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") [intConst 5]))]]
+        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") [intConst 5]))
+
+     ,MethodStmt $ MethodCall (Ident "obj") (Ident "m1") [intConst 32]
+     ]
+    ]
 
 expectedTCMethodCalls = map programTempl 
     [[AssignStmt $ Assign intTypeK (Ident "i") 
-        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") [intConst 5]))]]
+        (ExpMethodCall (MethodCall (Ident "obj") (Ident "m1") [intConst 5]))
+
+     ,MethodStmt $ MethodCall (Ident "obj") (Ident "m1") [intConst 32]
+     ]
+    ]
 
 -- Check Pointers type checked correctly, and reduced
 pointerProgramTempl stmts = Program [Func (intTypeNK) (Ident "test") 

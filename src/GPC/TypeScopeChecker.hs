@@ -380,12 +380,12 @@ checkReturn expr = do
 
 checkMethodCall :: MethodCall -> BlockState MethodCall
 checkMethodCall (MethodCall obj method args) = do
-    vTable <- use curVars
+    vTable <- M.union <$> use curVars <*> use prevVars
     cTable <- use constVars
     reducedExprs <- lift $ mapM (reduceExpr vTable . injectConstants cTable) args
     
     let notFound = "Error, object not found " ++ show obj
-    gType <- lift $ note notFound $ M.lookup obj vTable
+    gType <- lift $ note (notFound) (M.lookup obj vTable)
     if gType == objectType
         then return $ MethodCall obj method reducedExprs
         else expectedObject gType
