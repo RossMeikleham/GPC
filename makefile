@@ -1,2 +1,2 @@
 all:
-	cabal configure --enable-tests && cabal build && cabal test && cabal install
+	cabal install --enable-tests
