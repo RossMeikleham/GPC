@@ -185,7 +185,11 @@ evalFunc typeG ident args (BlockStmt stmts) = do
 
     -- Check function isn't already defined
     if ident `M.notMember` fTable
-        then do
+        -- Check argument identifiers only occur once each
+        then if hasDuplicate (map snd args) then lift $ Left $ 
+                  "Function " ++ show ident ++ "contains duplicate argument names"
+
+        else do
             -- Create a new variable scope based on the identifiers
             -- in the function definition, these should override any
             -- identifiers currently in scope of the same name
@@ -208,8 +212,10 @@ evalFunc typeG ident args (BlockStmt stmts) = do
             -- AST
             assign tlFuncDefs newFTable
             return $ Func typeG ident args funBlock
-        else lift $ Left $ "Function " ++ show ident ++ "occurs more than once"
 
+    else lift $ Left $ "Function " ++ show ident ++ "occurs more than once"
+  where hasDuplicate (x:xs) = x `elem` xs || hasDuplicate xs
+        hasDuplicate _ = False 
 
 -- | Run Type Checker on new code block
 runBlockCheck :: [Stmt] -> CodeBlock -> Either String BlockStmt
@@ -246,7 +252,7 @@ checkAssign (Assign gType ident expr) = do
     cTable <- use constVars
     let scopeVars = vTable `M.union` oldVtable -- Gives all visible identifiers
     reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
-    if ident `M.notMember` vTable then do
+    if ident `M.notMember` scopeVars then do
         exprType <- lift $ getTypeExpr scopeVars ftable reducedExpr
 
         if gType == exprType then do
@@ -383,7 +389,6 @@ checkType expected actual =
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
--- | TODO seperate this huge function
 getTypeExpr :: VarTable -> FunTable -> Expr -> Either String Type
 getTypeExpr vtable ftable expr = case expr of
     (ExpBinOp b e1 e2) -> getTypeBinOp vtable ftable b e1 e2

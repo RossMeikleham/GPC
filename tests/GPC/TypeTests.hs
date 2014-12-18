@@ -85,6 +85,7 @@ expectedTCPointerAssigns = map pointerProgramTempl
      ]
     ]
 
+
 -- Check that after assigning a method call result to a variable, that
 -- that variable can't then be used in non-kernel ways 
 invalidMethodUse = map programTempl 
@@ -98,6 +99,24 @@ invalidMethodUse = map programTempl
                       (If (ExpIdent $ Ident "i") (BStmt $ BlockStmt []))]
                    ]
 
+
+-- Check multiple variables can't be declared in the same scope
+multipleDefInScope = 
+    -- Check identifiers on top level scope not duplicated
+    [Program [TLAssign (Assign intTypeNK (Ident "i") (intConst 5))
+             ,TLAssign (Assign intTypeNK (Ident "i") (intConst 3))
+             ]
+     -- Check function arguments not duplicated    
+     ,Program [Func (intTypeNK) (Ident "mulArgsTest") 
+                [(intTypeNK, Ident "a"), (boolTypeNK, Ident "a")] $ BlockStmt []
+              ]                
+     -- Check function argument, not also present in main
+     -- function block
+     ,Program [Func (intTypeNK) (Ident "argsFunDups") [(boolTypeNK, Ident "b")] $ BlockStmt
+                [AssignStmt $ Assign intTypeNK (Ident "b") (intConst 42)]
+              ]
+     ]                  
+                
 -- Programs which should pass type checking
 validPrograms = [Program [TLAssign (Assign intTypeNK (Ident "i") (intConst 5))
                          ,TLAssign (Assign intTypeNK (Ident "j") (ExpIdent (Ident "i")))
@@ -151,7 +170,7 @@ typeCheckAndReduceTest inP expectedOutP = TestCase (
 invalidProgramTest :: Program -> Test
 invalidProgramTest p = TestCase (
     unless (isLeft result) $ 
-    assertFailure $ "Program should have caused a parse error" ++ show result)
+    assertFailure $ "Program should have contained type/scope error" ++ show result)
  where isLeft = null . rights . return
        result = runTypeChecker p
 
@@ -177,7 +196,7 @@ typeTests = test $ (map (\(expected,expr) ->
         (zip expectedAfterInject injectExpressions)
     ) ++ 
     (map validProgramTest validPrograms) ++
-    (map invalidProgramTest invalidMethodUse) ++
+    (map invalidProgramTest $ invalidMethodUse ++ multipleDefInScope) ++
     (map (\(expected, inProg) -> typeCheckAndReduceTest inProg expected) 
         (zip expectedTCMethodCalls methodCalls)) ++
     (map (\(expected, inProg) -> typeCheckAndReduceTest inProg expected) 
