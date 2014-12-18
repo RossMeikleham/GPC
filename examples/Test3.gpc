@@ -7,14 +7,23 @@ tests[1] = GPRM::Kernel::Test::Test(1);
 
 
 // Same name as source file, used as entry function
-int Test3(int *a, int *b, bool stuff) {
+int Test3(int *a, double *b, bool stuff) {
     
-    int *c = a + 6; //Pointer arithmetic
-    int *d = b - 7;
+    int *c = a + 6; //Pointer arithmetic examples
+    double *d = b - 7;
+
+    int j = tests[0].m0(); // j is now in Kernel namespace GPRM::Kernel::int
 
     for (int i = 0; 2; 1) {
-        tests[i].m1(a, b, stuff);
+        tests[i].m1(a, b, stuff, j + 5); // Can pass j into kernel methods, 
+                                         // and even use arithmetic
     }
 
-    return 0;
+    /* It can't be used in the current namespace however,
+     * e.g. these statements cause errors at type checking time:
+     * return j;   
+     * int k = j;
+     * if j > 5 .. */
+
+     return 0;
 }
