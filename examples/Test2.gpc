@@ -1,13 +1,13 @@
 // Another test program
 
-int n = 2; // Constant
+int n = 3; // Constant
 
 Kernel::Stuff arrayOfStuff[n];
 
 /* Construct Objects */
-arrayOfStuff[0] = Kernel::Stuff(1); /* Need to fix constructor syntax*/
-arrayOfStuff[1] = Kernel::Stuff(2); /* Should be Kernel::Stuff::Stuff(x) */
-arrayOfStuff[2] = Kernel::Stuff(3);
+arrayOfStuff[0] = Kernel::Stuff::Stuff(1); 
+arrayOfStuff[1] = Kernel::Stuff::Stuff(2); 
+arrayOfStuff[2] = Kernel::Stuff::Stuff(3);
 
 int main() {
     seq {
