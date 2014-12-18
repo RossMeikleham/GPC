@@ -22,7 +22,7 @@ intType = flip NormalType "int"
 strType = flip NormalType "string"
 chType = flip NormalType "char"
 doubleType = flip NormalType "double"
-
+objectType = NormalType True "object"
 
 -- Upcast a type to a Kernel type, if
 -- the given type is already a Kernel type then
@@ -241,7 +241,6 @@ evalStmt stmt = case stmt of
    (ForLoop ident expr1 expr2 expr3 stmts) -> checkForLoop ident expr1 expr2 expr3 stmts
    (MethodStmt method) -> MethodStmt <$> checkMethodCall method
    (FunCallStmt fc) -> FunCallStmt <$> checkFunCall fc
-   e -> lift $ Left $ "Not implemented " ++ show e
 
 
 -- | Type check Function Call args
@@ -251,7 +250,7 @@ checkFunCall f@(FunCall name args) = do
     vTable <- use curVars
     cTable <- use constVars
     reducedExprs <- lift $ mapM (reduceExpr vTable . injectConstants cTable) args
-    exprTypes <- lift $ getTypeExpr vTable fTable (ExpFunCall f)
+    _ <- lift $ getTypeExpr vTable fTable (ExpFunCall f)
     return $ FunCall name reducedExprs
 
 -- |Type Check Assignment Statement
@@ -379,9 +378,20 @@ checkReturn expr = do
             "type " ++ show exprType
 
 
--- | TODO Type check method call
 checkMethodCall :: MethodCall -> BlockState MethodCall
-checkMethodCall = return
+checkMethodCall (MethodCall obj method args) = do
+    vTable <- use curVars
+    cTable <- use constVars
+    reducedExprs <- lift $ mapM (reduceExpr vTable . injectConstants cTable) args
+    
+    let notFound = "Error, object not found " ++ show obj
+    gType <- lift $ note notFound $ M.lookup obj vTable
+    if gType == objectType
+        then return $ MethodCall obj method reducedExprs
+        else expectedObject gType
+            
+  where expectedObject t = lift $ Left $ "Can only call methods on objects, " ++
+                            (show obj) ++ " is of type " ++  (show t)
 
 
 -- | Check that an expression is Constant
@@ -414,7 +424,15 @@ getTypeExpr vtable ftable expr = case expr of
                 then Left "Arguments don't evaluate to given types"
                 else Right retT
 
-    (ExpMethodCall _) -> return $ NormalType inKernel "Object"
+    (ExpMethodCall (MethodCall obj _ args)) -> do
+        _ <- mapM (getTypeExpr vtable ftable) args
+        objType <- note (notFound obj) (M.lookup obj vtable)
+        if objType == objectType then
+            return $ NormalType inKernel "object"
+        else
+            Left $ "Can only call methods on objects, " ++
+                show obj ++ " is of type " ++  show objType
+
     (ExpIdent i) -> note (notFound i) (M.lookup i vtable)
 
     (ExpPointer (Pointer ident@(Ident i) n)) ->

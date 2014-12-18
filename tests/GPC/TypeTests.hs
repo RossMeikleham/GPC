@@ -59,7 +59,10 @@ expectedAfterInject = [intConst 24
 -- Check that method calls cast the return type implicitly at compiler time
 -- into a kernel type
 
-programTempl stmts = Program [Func (intTypeNK) (Ident "test") [] $ BlockStmt stmts]
+programTempl stmts = Program 
+    [TLObjs $ Objects (map Ident ["GPRM","Kernel","A"]) (VarIdent $ Ident "obj")    
+    ,Func (intTypeNK) (Ident "test") [] $ BlockStmt stmts
+    ]
 
 methodCalls = map programTempl 
     [[AssignStmt $ Assign intTypeNK (Ident "i") 

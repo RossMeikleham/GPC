@@ -136,6 +136,7 @@ genEntryFunc (BlockStmt stmts) args = do
     mapM_(updateRegs) (map snd args) -- Create placeholder for entry args 
     SymbolList True <$> mapM genStmt stmts
 
+
 genStmt :: Stmt -> GenState SymbolTree
 genStmt stmt = case stmt of
 
