@@ -127,10 +127,87 @@ multipleDefInScope =
                 [AssignStmt $ Assign intTypeNK (Ident "b") (intConst 42)]
               ]
      ]                  
+
+-- Check constructors which shouldn't compile
+checkConstructors =
+  map objTempl  
+    -- Check assigning an object not declared doesn't work
+    [[TLConstructObjs $ ConstructObjs 
+        (map Ident ["GPRM", "Kernel", "A", "A"]) 
+        (VarIdent $ Ident "e") []
+     ]   
+   -- Check constructor syntax is correct
+   ,[TLConstructObjs $ ConstructObjs 
+        (map Ident ["GPRM", "Kernel", "A", "C"]) 
+        (VarIdent $ Ident "o") []
+    ]
+    -- Check constructing array element for something not in an array
+   ,[TLConstructObjs $ ConstructObjs 
+        (map Ident ["GPRM", "Kernel", "A", "A"]) 
+        (VarArrayElem (Ident "o") (intConst 0)) []]
+
+   -- Check assigning an array element of an object not declared doesn't
+   -- work
+   ,[TLConstructObjs $ ConstructObjs 
+        (map Ident ["GPRM", "Kernel", "A", "D"]) 
+        (VarArrayElem (Ident "e") (intConst 0)) []
+    ]
+   -- Check constructor syntax for array elements are correct
+   ,[TLConstructObjs $ ConstructObjs 
+        (map Ident ["GPRM", "Kernel", "A", "C"]) 
+        (VarArrayElem (Ident "t") (intConst 0)) []
+    ]
+    -- Check constructing object for an array
+   ,[TLConstructObjs $ ConstructObjs 
+        (map Ident ["GPRM", "Kernel", "A", "D"]) 
+        (VarIdent $ Ident "t") []
+    ]
+   -- Check out of bounds array access
+   ,[TLConstructObjs $ ConstructObjs 
+        (map Ident ["GPRM", "Kernel", "A", "D"]) 
+        (VarArrayElem (Ident "t") (intConst 2)) []
+    ]
+   -- Check out of bounds array access (negative element)
+   ,[TLConstructObjs $ ConstructObjs 
+        (map Ident ["GPRM", "Kernel", "A", "D"]) 
+        (VarArrayElem (Ident "t") (intConst (-1))) []
+    ]
+   ]
+    where 
+        objTempl :: [TopLevel] -> Program
+        objTempl stmts = Program (
+            [TLObjs $ Objects (map Ident ["GPRM", "Kernel", "A"]) 
+                              (VarIdent $ Ident "o")
+                                           
+            ,TLObjs $ Objects (map Ident ["GPRM", "Kernel", "D"]) 
+                              (VarArrayElem (Ident "t") (intConst 2))]
+            ++ stmts)
                 
 -- Programs which should pass type checking
 validPrograms = [Program [TLAssign (Assign intTypeNK (Ident "i") (intConst 5))
                          ,TLAssign (Assign intTypeNK (Ident "j") (ExpIdent (Ident "i")))
+                         ]
+                -- Check single object declarations and construction
+                ,Program [TLObjs $ Objects (map Ident ["GPRM", "Kernel", "A"]) 
+                                           (VarIdent $ Ident "o"),
+                          TLConstructObjs $ ConstructObjs 
+                            (map Ident ["GPRM", "Kernel", "A", "A"]) 
+                            (VarIdent $ Ident "o")
+                            [intConst 72] 
+                         ]
+                -- Check array object declarations and construction   
+                ,Program [TLObjs $ Objects (map Ident ["GPRM", "Kernel", "A"]) 
+                                           (VarArrayElem (Ident "o") (intConst 2)),
+                          TLConstructObjs $ ConstructObjs 
+                            (map Ident ["GPRM", "Kernel", "A", "A"]) 
+                            (VarArrayElem (Ident "o") (intConst 1))
+                            [intConst 72],
+                            
+                          TLConstructObjs $ ConstructObjs 
+                            (map Ident ["GPRM", "Kernel", "A", "A"]) 
+                            (VarArrayElem (Ident "o") (intConst 0))
+                            [intConst 32] 
+                           
                          ]
                 ]
 
@@ -207,7 +284,8 @@ typeTests = test $ (map (\(expected,expr) ->
         (zip expectedAfterInject injectExpressions)
     ) ++ 
     (map validProgramTest validPrograms) ++
-    (map invalidProgramTest $ invalidMethodUse ++ multipleDefInScope) ++
+    (map invalidProgramTest $ invalidMethodUse ++ multipleDefInScope ++ 
+                              checkConstructors ) ++
     (map (\(expected, inProg) -> typeCheckAndReduceTest inProg expected) 
         (zip expectedTCMethodCalls methodCalls)) ++
     (map (\(expected, inProg) -> typeCheckAndReduceTest inProg expected) 

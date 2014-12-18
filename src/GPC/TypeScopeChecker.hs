@@ -16,6 +16,7 @@ import           GPC.AST
 type VarTable = M.Map Ident Type
 type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident (Type, [Type])
+type ObjectTable = M.Map Ident Objects
 
 boolType = flip NormalType "bool"
 intType = flip NormalType "int"
@@ -45,7 +46,8 @@ isPointer _ = False
 data MainBlock = MainBlock {
     _tlFuncDefs      :: FunTable, -- ^ Function Definitions
     _tlConstVars     :: ConstVarTable, -- ^ Top Level Constant Variable values
-    _tlConstVarTypes :: VarTable  -- ^ Top Level Constant variable types
+    _tlConstVarTypes :: VarTable,  -- ^ Top Level Constant variable types
+    _objects         :: ObjectTable   
 } deriving (Show)
 
 
@@ -78,7 +80,7 @@ runTypeChecker :: Program -> Either String Program
 runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
  Left s -> Left s
  (Right (tl, _)) -> Right $ Program tl
- where initialBlock = MainBlock M.empty M.empty M.empty
+ where initialBlock = MainBlock M.empty M.empty M.empty M.empty
 
 
 -- | Type Check all top level statements
@@ -100,34 +102,69 @@ evalConstruct :: ConstructObjs -> CodeState ConstructObjs
 evalConstruct (ConstructObjs ns var exprs) = do
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
-
+    objs <- use objects
     -- Check expressions for Constructor are constant
     reducedExprs <- lift $ mapM (reduceExpr tVars . injectConstants cVars) exprs
     _ <- lift $ mapM (getTypeExpr tVars M.empty) reducedExprs
     mapM_ checkConstantExpr reducedExprs
 
+   
     case var of
-        (VarIdent _) ->
-            return $ ConstructObjs ns var reducedExprs
+        (VarIdent ident) -> do
+            v <- checkNameSpace ident objs
+            case v of
+                (VarIdent _) -> return $ ConstructObjs ns var reducedExprs
+                (VarArrayElem i _) -> lift $ Left $ show i ++ "is declared as a " ++
+                    "single object, not an array"
 
         (VarArrayElem ident expr) -> do -- Check indexed expression
+            v <- checkNameSpace ident objs
+      
+            -- Check index is a constant integer value
             reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
             exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
             checkType (intType notKernel) exprType
             checkConstantExpr reducedExpr
-            return $ ConstructObjs ns (VarArrayElem ident reducedExpr) reducedExprs
 
+            case v of 
+                (VarIdent i) -> lift $ Left $ show i ++ "is declared as an array"
+                    ++ "of objects, expecting assignment to a single element"
+                (VarArrayElem i exp) -> do
+                    -- Check indexing is in bounds
+                    case (reducedExpr, exp) of
+                        (ExpLit (Number (Left n1)), ExpLit (Number (Left n2))) ->
+                            if n1 >= n2 || n1 < 0 then
+                                lift $ Left $ "Index out of bounds " ++ show n1 ++
+                                    " for array " ++ show i
+                            else return $ ConstructObjs ns 
+                                    (VarArrayElem ident reducedExpr) reducedExprs
+
+                        _ -> lift $ Left $ "Compiler error in" ++ 
+                            "type checking object declerations"
+    
+  where             
+    notFound i = "Error, object not found " ++ show i
+    checkNameSpace i objs = do {
+    (Objects objNs oVar) <- lift $ note (notFound i) (M.lookup i objs);
+    if objNs /= init ns then
+         lift $ Left $ "No Object(s) declared with namespace " ++
+            show (init ns) ++ "perhaps you meant " ++ show objNs ++ "?"
+    else if last ns /= last (init ns) then
+         lift $ Left $ "Expected object constructor " ++
+            show (init ns ++ [last ns]) ++ " but found " ++ show ns
+    else return oVar
+    }
 
 -- | Type check object declarations
 evalObjs :: Objects -> CodeState Objects
 evalObjs objs@(Objects _ var) = do
     cVars <- use tlConstVars
     tVars <- use tlConstVarTypes
-
     case var of
         -- Single Object, check identifier isn't already in scope
         (VarIdent ident) ->
             if ident `M.notMember` tVars then do
+                objects %= (M.insert ident objs) 
                 assign tlConstVarTypes $ M.insert ident (NormalType inKernel "object") tVars
                 return objs
             else multipleInstance ident
@@ -140,6 +177,7 @@ evalObjs objs@(Objects _ var) = do
                 exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
                 checkType (intType notKernel) exprType
                 checkConstantExpr reducedExpr
+                objects %= (M.insert ident objs) 
                 assign tlConstVarTypes $ M.insert ident (NormalType inKernel "objArray") tVars
                 return $ objs {objVar = VarArrayElem ident reducedExpr}
             else multipleInstance ident
@@ -250,6 +288,7 @@ checkFunCall f@(FunCall name args) = do
     reducedExprs <- lift $ mapM (reduceExpr vTable . injectConstants cTable) args
     _ <- lift $ getTypeExpr vTable fTable (ExpFunCall f)
     return $ FunCall name reducedExprs
+
 
 -- |Type Check Assignment Statement
 checkAssign :: Assign -> BlockState Assign
