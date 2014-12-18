@@ -164,9 +164,9 @@ genStmt stmt = case stmt of
         stmts' <- mapM genStmt stmts
         return $ SymbolList False stmts'
 
-    MethodStmt (MethodCall cName mName exprs) -> do
+    MethodStmt (MethodCall cName method exprs) -> do
         let call = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) ["temp", show cName, show mName]
+                    MkOpSymbol False ("Dummy", 0) ["temp", show cName, show method]
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
@@ -259,9 +259,9 @@ genExpr expr = case expr of
         stmts' <- mapM genStmt stmts
         return $ SymbolList False stmts'
 
-    ExpMethodCall (MethodCall cName mName exprs) -> do
+    ExpMethodCall (MethodCall cName method exprs) -> do
         let call = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) ["temp", show cName, show mName]
+                    MkOpSymbol False ("Dummy", 0) ["temp", show cName, show method]
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
@@ -300,8 +300,8 @@ genInlineStmt exprs stmt = case stmt of
     FunCallStmt (FunCall name args) ->
         FunCallStmt (FunCall name $ map (replaceExprIdents exprs) args)
 
-    MethodStmt (MethodCall cName mName args) ->
-        MethodStmt (MethodCall cName mName $ map (replaceExprIdents exprs) args)
+    MethodStmt (MethodCall cName method args) ->
+        MethodStmt (MethodCall cName method $ map (replaceExprIdents exprs) args)
 
     If expr stmt' ->
         If (replaceExprIdents exprs expr) (genInlineStmt exprs stmt')
@@ -354,8 +354,8 @@ replaceExprIdent ident replaceExpr givenExpr = case givenExpr of
         ExpFunCall (FunCall name $
             map (replaceExprIdent ident replaceExpr) exprs)
 
-    ExpMethodCall (MethodCall cName mName exprs) ->
-        ExpMethodCall (MethodCall cName mName $
+    ExpMethodCall (MethodCall cName method exprs) ->
+        ExpMethodCall (MethodCall cName method $
             map (replaceExprIdent ident replaceExpr) exprs)
 
     ExpIdent expId -> if expId == ident then replaceExpr else ExpIdent expId
