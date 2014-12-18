@@ -191,10 +191,8 @@ evalFunc typeG ident args (BlockStmt stmts) = do
 
         else do
             -- Create a new variable scope based on the identifiers
-            -- in the function definition, these should override any
-            -- identifiers currently in scope of the same name
+            -- in the function definition
             let args' = M.fromList $ map swap args
-            let newVarTable = M.union args' varTypes
 
             -- Need to remove constants which contain
             -- identifiers in the new function scope
@@ -205,7 +203,7 @@ evalFunc typeG ident args (BlockStmt stmts) = do
             let newFTable = M.insert ident (typeG, map fst args) fTable
 
             -- Type Check and reduce function
-            let newBlock = CodeBlock ident newFTable newVarTable M.empty newCVars
+            let newBlock = CodeBlock ident newFTable varTypes args' newCVars
             funBlock <- lift $ runBlockCheck stmts newBlock
 
             -- Update Global function scope, and return reduced function
@@ -262,7 +260,9 @@ checkAssign (Assign gType ident expr) = do
     cTable <- use constVars
     let scopeVars = vTable `M.union` oldVtable -- Gives all visible identifiers
     reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
-    if ident `M.notMember` scopeVars then do
+    -- Check new identifier hasn't already been defined in the current
+    -- scope
+    if ident `M.notMember` vTable then do
         exprType <- lift $ getTypeExpr scopeVars ftable reducedExpr
 
         if gType == exprType then do
