@@ -8,6 +8,10 @@ install:
  - cabal install --only-dependencies --enable-tests 
  
 script:
- - cabal configure --enable-tests 
+ - cabal configure --enable-tests --enable-library-coverage
  - cabal build   
- - cabal test
+ - cabal test --show-details=always
+
+after_script:
+ - cabal install hpc-coveralls
+ - hpc-coveralls --coverage-mode=StrictlyFullLines --exclude-dir=tests test-all
