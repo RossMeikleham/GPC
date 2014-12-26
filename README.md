@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/RossMeikleham/GPC.svg?branch=master)](https://travis-ci.org/RossMeikleham/GPC)
+[![Coverage Status](https://img.shields.io/coveralls/RossMeikleham/GPC.svg)](https://coveralls.io/r/RossMeikleham/GPC)
 
 About
 ===
