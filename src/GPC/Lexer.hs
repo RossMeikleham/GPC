@@ -14,11 +14,9 @@ module GPC.Lexer
     , bool
     , semi
     , whiteSpace
-    , comma
     , braces
     , typeT
     , commaSep
-    , semiSep
     , parseCh
     , brackets
     ) where
@@ -39,9 +37,8 @@ languageDef = emptyDef {
      , Token.nestedComments = True
      , Token.identStart    = letter , Token.identLetter   = alphaNum <|> oneOf "'_"
      , Token.reservedNames =   otherReserved ++ reservedTypes
-     , Token.reservedOpNames = ["+","-","*","/",">>","<<","!","!="
-                               ,"==","^","&","|","||","&&"
-                               ]
+     , Token.reservedOpNames = []
+                               
      , Token.caseSensitive = True
      }
 
@@ -54,10 +51,10 @@ reservedOp = Token.reservedOp lexer
 parens = Token.parens lexer
 semi = Token.semi lexer
 whiteSpace = Token.whiteSpace lexer
-comma = Token.comma lexer
+--comma = Token.comma lexer
 braces = Token.braces lexer
 commaSep = Token.commaSep lexer
-semiSep = Token.semiSep lexer
+--semiSep = Token.semiSep lexer
 brackets = Token.brackets lexer
 
 -- Parse specific character

@@ -99,17 +99,17 @@ assignFailCheck = [noSemi, noAssign]
    noSemi = parseSource "int x ="
     -- | No equals, variables are single assignment
    noAssign = parseSource "float y;"
-     
+       
 -- | Check binary operators are individually parsed
 binOpCheck :: [(Program, Either String Program)]
 binOpCheck = [ asMul, asEq, asShift, asPrece, asPrece2
              , asPrece3, asPrece4, asPrece5, asPrece6
-             , asPrece7, parensCheck]
+             , asPrece7, asPrece8, parensCheck]
  where
     -- Check multiplication assignment of 2 identities
     asMul = (Program [TLAssign (Assign (NormalType False "int") (Ident "i") 
             (ExpBinOp Mul (ExpIdent (Ident "x")) (ExpIdent (Ident "y"))))] 
-            ,parseSource "int i = x * y;")
+            ,parseSource "/* Check comment ignored */ int i = x * y;")
     -- Check equality assignment of a literal and identity
     asEq = (Program [TLAssign (Assign (NormalType False "bool") (Ident "b")
            (ExpBinOp Equals (ExpLit (Bl True)) (ExpIdent (Ident "b"))))]
@@ -166,6 +166,11 @@ binOpCheck = [ asMul, asEq, asShift, asPrece, asPrece2
                )]
                ,parseSource "bool k = a <= b && c > d || e >= f;")
     
+    asPrece8 = (Program [TLAssign (Assign (NormalType False "bool") (Ident "k")
+               (ExpBinOp NEquals (ExpBinOp ShiftR
+               (ExpIdent (Ident "a")) (ExpIdent (Ident "b"))) (ExpIdent (Ident "c"))))]
+               ,parseSource "bool k = a >> b != c;")
+
     -- Check precedence with parens
     parensCheck = (Program [TLAssign (Assign (NormalType False "int")  (Ident "l")
                   (ExpBinOp Mul (ExpIdent (Ident "a")) (ExpBinOp Add 
