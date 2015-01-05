@@ -112,7 +112,7 @@ block = BlockStmt <$> braces stmts
 
 -- | Parse multiple statements
 stmts :: Parser [Stmt]
-stmts = many1 stmt
+stmts = many stmt
 
 
 -- | Parse individual statement

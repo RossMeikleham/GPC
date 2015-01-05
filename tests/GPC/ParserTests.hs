@@ -11,6 +11,24 @@ import GPC.Parser
 import GPC.AST
 
 
+constructObjsCheck :: [(Program, Either String Program)]
+constructObjsCheck = [singleObj, indexedObj]
+  where 
+    singleObj = 
+        (Program 
+            [TLConstructObjs $ 
+                ConstructObjs (map Ident ["Test", "A", "A"]) (VarIdent $ Ident "a") []
+            ]
+        ,parseSource "a = Test::A::A();")
+    
+    indexedObj = 
+        (Program 
+            [TLConstructObjs $
+                ConstructObjs (map Ident ["Test", "Blah", "B", "B"]) 
+                    (VarArrayElem (Ident "b") (ExpLit $ Number (Left 10))) []
+            ]
+        ,parseSource "b[10] = Test::Blah::B::B();")
+
 -- | Check declaring objects and arrays of objects works
 objectsCheck :: [(Program , Either String Program)]
 objectsCheck = [singleObj, largeNsSingleObj, arrObjs, arrObjsSp,
@@ -84,7 +102,9 @@ assignFailCheck = [noSemi, noAssign]
      
 -- | Check binary operators are individually parsed
 binOpCheck :: [(Program, Either String Program)]
-binOpCheck = [asMul, asEq, asShift, asPrece, asPrece2, parensCheck]
+binOpCheck = [ asMul, asEq, asShift, asPrece, asPrece2
+             , asPrece3, asPrece4, asPrece5, asPrece6
+             , asPrece7, parensCheck]
  where
     -- Check multiplication assignment of 2 identities
     asMul = (Program [TLAssign (Assign (NormalType False "int") (Ident "i") 
@@ -109,6 +129,43 @@ binOpCheck = [asMul, asEq, asShift, asPrece, asPrece2, parensCheck]
                (ExpBinOp Add (ExpBinOp Mul 
                (ExpIdent (Ident "a")) (ExpIdent (Ident "b"))) (ExpIdent (Ident "c"))))]
                ,parseSource "int k = a * b + c;")
+
+    asPrece3 = (Program [TLAssign (Assign (NormalType False "bool") (Ident "k")
+               (ExpBinOp Equals (ExpBinOp Div 
+               (ExpIdent (Ident "a")) (ExpIdent (Ident "b"))) (ExpIdent (Ident "c"))))]
+               ,parseSource "bool k = a / b == c;")
+
+    asPrece4 = (Program [TLAssign (Assign (NormalType False "int") (Ident "k")
+               (ExpBinOp ShiftL (ExpBinOp Mod 
+               (ExpIdent (Ident "a")) (ExpIdent (Ident "b"))) (ExpIdent (Ident "c"))))]
+               ,parseSource "int k = a % b << c;")
+
+    asPrece5 = (Program [TLAssign (Assign (NormalType False "bool") (Ident "k")
+               (ExpBinOp Less (ExpBinOp ShiftR
+               (ExpIdent (Ident "a")) (ExpIdent (Ident "b"))) (ExpIdent (Ident "c"))))]
+               ,parseSource "bool k = a >> b < c;")
+
+    asPrece6 = (Program [TLAssign (Assign (NormalType False "int") (Ident "k")
+               (ExpBinOp BOr 
+                 (ExpBinOp BXor 
+                    (ExpBinOp BAnd (ExpIdent (Ident "a")) (ExpIdent (Ident "b"))) 
+                    (ExpIdent (Ident "c"))
+                 ) 
+                 (ExpIdent (Ident "d"))
+               ))]
+               ,parseSource "int k = a & b ^ c | d;")
+   
+    asPrece7 = (Program [TLAssign (Assign (NormalType False "bool") (Ident "k")
+               (ExpBinOp Or 
+                 (ExpBinOp And 
+                     (ExpBinOp LessEq  (ExpIdent (Ident "a")) (ExpIdent (Ident "b")))
+                     (ExpBinOp Greater (ExpIdent (Ident "c")) (ExpIdent (Ident "d")))
+                 )
+                 (ExpBinOp GreaterEq (ExpIdent (Ident "e")) (ExpIdent (Ident "f")))
+               )
+               )]
+               ,parseSource "bool k = a <= b && c > d || e >= f;")
+    
     -- Check precedence with parens
     parensCheck = (Program [TLAssign (Assign (NormalType False "int")  (Ident "l")
                   (ExpBinOp Mul (ExpIdent (Ident "a")) (ExpBinOp Add 
@@ -140,7 +197,7 @@ unOpCheck = [asNot, asPrece, asPrece2, asParens]
 
 -- | Check function calls made within functions are correctly parsed
 funCallCheck :: [(Program, Either String Program)]
-funCallCheck = [noArgs, singleArgs, multiArgs, multiComplexArgs]
+funCallCheck = [noArgs, singleArgs, multiArgs, multiComplexArgs, standAlone]
  where
     -- Check function with no arguments
     noArgs = (Program [fun $ [AssignStmt $ (Assign (NormalType False "int") (Ident "i")
@@ -159,6 +216,50 @@ funCallCheck = [noArgs, singleArgs, multiArgs, multiComplexArgs]
                       (ExpFunCall $ FunCall (Ident "call") [ExpBinOp Mul (ExpIdent (Ident "a")) (ExpIdent (Ident "b")),
                       ExpUnaryOp Neg (ExpIdent (Ident "c"))]))]]
                       ,parseSource $ funStr ++ "int a = call(a * b, -c);" ++ "}")
+
+    -- Check function call statement
+    standAlone = (Program [fun [FunCallStmt $ FunCall (Ident "call") []]]
+                  ,parseSource $ funStr ++ "call();" ++ "}")
+
+    fun xs = Func (NormalType False "tes") (Ident "test") [] (BlockStmt xs)
+    funStr = "tes test() {"
+
+
+-- | Check method calls made within functions are correctly parsed
+methodCallCheck :: [(Program, Either String Program)]
+methodCallCheck = [noArgs, singleArgs, multiArgs, multiComplexArgs, standAlone, standAloneIndexed]
+ where
+    -- Check method with no arguments
+    noArgs = (Program [fun $ [AssignStmt $ (Assign (NormalType False "int") (Ident "i")
+             (ExpMethodCall $ MethodCall (VarIdent $ Ident "a") (Ident "test") []))]]
+             ,parseSource $ funStr ++ "int i = a.test();" ++ "}")
+    -- Check method with one argument
+    singleArgs = (Program [fun $ [AssignStmt $ (Assign (NormalType False "test") (Ident "j")
+                 (ExpMethodCall $ MethodCall (VarIdent $ Ident "a") (Ident "func") 
+                    [ExpIdent (Ident "a")]))]]
+                 ,parseSource $ funStr ++ "test j = a.func(a);" ++ "}")
+    -- Check method with multiple arguments
+    multiArgs = (Program [fun $ [AssignStmt $ (Assign (NormalType False "blarg") (Ident "m")
+                (ExpMethodCall $ MethodCall (VarIdent $ Ident "a") (Ident "destroyAllHumans") 
+                    [ExpIdent (Ident "a"), ExpIdent (Ident "b")]))]]
+                ,parseSource$ funStr ++ "blarg m = a.destroyAllHumans(a, b);" ++ "}")
+    -- Check method with multiple arguments with expressions
+    multiComplexArgs = (Program [ fun $ [AssignStmt $ (Assign (NormalType False "int") (Ident "a")
+                      (ExpMethodCall $ MethodCall (VarIdent $ Ident "a") (Ident "call") 
+                        [ExpBinOp Mul (ExpIdent (Ident "a")) (ExpIdent (Ident "b"))
+                        ,ExpUnaryOp Neg (ExpIdent (Ident "c"))]))
+                        ]]
+                      ,parseSource $ funStr ++ "int a = a.call(a * b, -c);" ++ "}")
+
+    -- Check method call statement
+    standAlone = (Program [fun [MethodStmt $ MethodCall (VarIdent $ Ident "a") (Ident "call") []]]
+                  ,parseSource $ funStr ++ "a.call();" ++ "}")
+    --
+    standAloneIndexed = 
+        (Program [fun [MethodStmt $ MethodCall (VarArrayElem (Ident "a") (ExpLit (Number $ Left 2))) 
+            (Ident "call") []]]
+        ,parseSource $ funStr ++ "a[2].call();" ++ "}")
+
     fun xs = Func (NormalType False "tes") (Ident "test") [] (BlockStmt xs)
     funStr = "tes test() {"
 
@@ -201,6 +302,19 @@ ifElseCheck = [ifCheck, elseCheck]
     fun xs = Func (NormalType False "tes") (Ident "test") [] (BlockStmt xs)
     funStr = "tes test() {"
 
+-- | Check For loop statements are correctly parsed
+forLoopCheck :: [(Program, Either String Program)]
+forLoopCheck = [forCheck]
+  where
+    forCheck = (Program [fun [ 
+              (ForLoop (Ident "a") (ExpUnaryOp Neg (ExpLit $ Number $ Left 17)) 
+                (ExpIdent $ Ident "b") (ExpLit $ Number $ Left 1) (BlockStmt []))]] 
+              , parseSource $ funStr ++ "for (int a = -17; b; 1) {}" ++ "}") 
+
+    fun xs = Func (NormalType False "tes") (Ident "test") [] (BlockStmt xs)
+    funStr = "tes test() {"
+    
+
 -- | Check Pointer
 pointersCheck :: [(Program, Either String Program)]
 pointersCheck = [singlePtr, mulPtr]
@@ -234,6 +348,9 @@ validTests s ps = map (uncurry validTest) $ zip labels ps
 validObjectsTests :: [TFA.Test]
 validObjectsTests = validTests "validObjectDecl" objectsCheck
 
+validObjectConsTests :: [TFA.Test]
+validObjectConsTests = validTests "validObjectCons" constructObjsCheck
+
 
 -- | Test valid assignments 
 validAssignTests :: [TFA.Test]
@@ -247,9 +364,13 @@ validOpTests = validTests "validOpTest" binOpCheck
 validUnOpTests :: [TFA.Test]
 validUnOpTests = validTests "validUnOpTest" unOpCheck
 
--- | Test valid function call expressions
+-- | Test valid function call expressions/statements
 validFunCallTests :: [TFA.Test]
 validFunCallTests = validTests "validFunCallTest" funCallCheck
+
+-- | Test valid method call expressions/statements
+validMethodCallTests :: [TFA.Test]
+validMethodCallTests = validTests "validMethodCallTest" methodCallCheck
 
 -- | Test valid sequential/parallel blocks
 validSeqParTests :: [TFA.Test]
@@ -258,6 +379,10 @@ validSeqParTests = validTests "seqParTest" seqParBlockCheck
 -- | Test valid if/else statements
 validIfElseTests :: [TFA.Test]
 validIfElseTests = validTests "ifElseTest" ifElseCheck
+
+-- | Test valid for loops
+validForLoopTests :: [TFA.Test]
+validForLoopTests = validTests "forLoopTest" forLoopCheck
 
 -- | Test Pointer Parsing
 validPointerTests :: [TFA.Test]
@@ -283,6 +408,7 @@ parserTests = TFA.testGroup "Parser Tests" $ concat
     [validAssignTests, invalidAssignTests
     ,validOpTests, validUnOpTests
     ,validFunCallTests, validSeqParTests
-    ,validIfElseTests, validObjectsTests
+    ,validIfElseTests, validForLoopTests, validObjectsTests
+    ,validObjectConsTests, validMethodCallTests
     ,invalidObjectsTests, validPointerTests
     ]
