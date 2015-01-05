@@ -344,7 +344,7 @@ validTest :: String -> (Program, Either String Program) -> TFA.Test
 validTest label (e, a) = testCase label (
  case a of
     Left err -> assertFailure err
-    Right p -> assertEqual "" (show e) (show p))
+    Right p -> assertEqual "" e p)
 
 validTests :: String -> [(Program, Either String Program)] -> [TFA.Test]
 validTests s ps = map (uncurry validTest) $ zip labels ps
