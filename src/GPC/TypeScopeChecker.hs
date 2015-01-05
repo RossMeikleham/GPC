@@ -21,16 +21,16 @@ type ObjectTable = M.Map Ident Objects
 boolType = flip NormalType "bool"
 intType = flip NormalType "int"
 strType = flip NormalType "string"
-chType = flip NormalType "char"
+--chType = flip NormalType "char"
 doubleType = flip NormalType "double"
 objectType = NormalType True "object"
-arrayObjType = NormalType True "objArray"
+--arrayObjType = NormalType True "objArray"
 
 -- Upcast a type to a Kernel type, if
 -- the given type is already a Kernel type then
 -- returns the given type
 castToKernel :: Type -> Type
-castToKernel (PointerType t) = PointerType $ castToKernel t
+--castToKernel (PointerType t) = PointerType $ castToKernel t
 castToKernel (NormalType _ n) = NormalType True n
 
 isInKernel :: Type -> Bool

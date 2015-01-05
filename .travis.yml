@@ -11,4 +11,4 @@ script:
  - run-cabal-test 
 
 after_script:
- - hpc-coveralls --coverage-mode=StrictlyFullLines --exclude-dir=tests gpc-unit-tests
+ - hpc-coveralls --exclude-dir=tests gpc-unit-tests
