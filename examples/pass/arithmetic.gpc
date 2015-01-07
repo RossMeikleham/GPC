@@ -23,6 +23,8 @@ int arithmetic() {
     bool j = f == true;
     bool k = j == f && true;
     bool l = k || false;
+    bool m = l != k;
+    bool n = m && l;
     
     return 1;    
 }

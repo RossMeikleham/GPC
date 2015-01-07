@@ -578,7 +578,7 @@ getNormalTypeBin bop leftType rightType
      numNumNumOp = [Add, Sub, Mul, Div]
      intIntIntOp = [Mod, BAnd, BOr, BXor, ShiftL, ShiftR]
      compareOp = [LessEq, Less, Greater, GreaterEq]
-     eqOp = [Equals]
+     eqOp = [Equals, NEquals]
      boolOp = [And, Or]
      intType' = intType kernel
      boolType' = boolType kernel

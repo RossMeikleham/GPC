@@ -1,0 +1,8 @@
+
+int ifstmt(int i) {
+    if (i > 5) {
+        return 3;
+    }
+
+    return 0;
+}
