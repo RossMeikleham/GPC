@@ -5,7 +5,8 @@ double z = 5.03;
 char a = 'c';
 string s = "test";
 int b = x + x - x * x / x | x & x ^ x >> 2;
-
+bool c = b <= 5 && b >= 5 || b != 2;
+bool d = b != b;
 
 int arithmetic() {
     
@@ -25,6 +26,8 @@ int arithmetic() {
     bool l = k || false;
     bool m = l != k;
     bool n = m && l;
+    double o = 0.5;
+    double p = -0.5;
     
     return 1;    
 }
