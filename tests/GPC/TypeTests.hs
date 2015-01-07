@@ -34,7 +34,6 @@ expectedTypes = map (NormalType False) ["int"
                            ,"bool"
                            ,"int"
                            ,"string"
-                           ,"bool"
                            ,"int"
                            ]
 
@@ -216,7 +215,7 @@ validPrograms = [Program [TLAssign (Assign intTypeNK (Ident "i") (intConst 5))
 
 vars = M.fromList $ map (\(a,b) -> (Ident a, NormalType False b)) 
               [("a", "int")
-              ,("b", "bool")
+              ,("b", "int")
               ,("c", "double")
               ,("test", "int")
               ]

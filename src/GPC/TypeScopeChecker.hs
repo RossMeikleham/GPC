@@ -618,12 +618,12 @@ getPointerTypeBin bop leftType rightType
 --Get type of unary expression
 getTypeUnOp :: VarTable -> FunTable -> UnaryOps -> Expr -> Either String Type
 getTypeUnOp vtable ftable operation expr
-    | operation == Not || operation == Neg = getTypeExpr vtable ftable expr >>=
+    | operation == BNot || operation == Neg = getTypeExpr vtable ftable expr >>=
         \t -> case t of
             (NormalType kernel "int") -> return $ NormalType kernel "int"
             e -> Left $ "Expected integer expression, but found" ++ show e
 
-    | operation == BNot = getTypeExpr vtable ftable expr >>=
+    | operation == Not = getTypeExpr vtable ftable expr >>=
         \t -> case t of
             (NormalType kernel "bool") -> return $ NormalType kernel "bool"
             e -> Left $ "Expected boolean expression, but found " ++ show e
