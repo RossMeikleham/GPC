@@ -290,10 +290,12 @@ evalStmt stmt = case stmt of
 checkFunCall :: FunCall -> BlockState FunCall
 checkFunCall f@(FunCall name args) = do    
     fTable <- use funcDefs
+    oldVtable <- use prevVars
     vTable <- use curVars
     cTable <- use constVars
-    reducedExprs <- lift $ mapM (reduceExpr vTable . injectConstants cTable) args
-    _ <- lift $ getTypeExpr vTable fTable (ExpFunCall f)
+    let scopeVars = vTable `M.union` oldVtable
+    reducedExprs <- lift $ mapM (reduceExpr scopeVars . injectConstants cTable) args
+    _ <- lift $ getTypeExpr scopeVars fTable (ExpFunCall f)
     return $ FunCall name reducedExprs
 
 

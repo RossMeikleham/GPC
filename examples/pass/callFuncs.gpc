@@ -11,9 +11,14 @@ int fun2(int *a, int *b) {
 }
 
 
+int fun3(int a, int *b, char c, double d, bool e) {
+    return 5;
+}
+
 bool callFuncs(int *a, int *b) {
 
     int c = fun2(a, b);
+    fun3(n, a, 'a', 0.5, false);
     return fun1(n, c);
 
 }
