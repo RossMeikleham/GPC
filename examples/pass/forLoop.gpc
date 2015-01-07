@@ -1,0 +1,7 @@
+
+int forLoop(int i) {
+
+    for(int i = 2; 5; 1) {
+        return 1;
+    }
+}

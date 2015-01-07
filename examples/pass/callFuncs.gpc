@@ -1,0 +1,19 @@
+
+int n = 10;
+int m = n + 2;
+
+bool fun1(int a, int b) {
+    return a == b;
+}
+
+int fun2(int *a, int *b) {
+    return m;
+}
+
+
+bool callFuncs(int *a, int *b) {
+
+    int c = fun2(a, b);
+    return fun1(n, c);
+
+}

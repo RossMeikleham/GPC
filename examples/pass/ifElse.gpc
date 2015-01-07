@@ -1,0 +1,11 @@
+
+
+int ifElse(int i) {
+    
+    if (i < 5) {
+        return 2;
+    } else {
+        return 3;
+    }
+   
+}

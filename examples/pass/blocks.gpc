@@ -1,0 +1,24 @@
+
+GPRM::Kernel::Test test[3];
+test[0] = GPRM::Kernel::Test::Test(0);
+test[1] = GPRM::Kernel::Test::Test(1);
+
+
+
+int blocks() {
+
+    seq {
+        test[0].m1();
+        test[1].m2(5);
+    }
+
+    {
+        int j = 5;
+    }
+
+    par {
+        int k = 6;
+    }
+
+    return 2;
+}
