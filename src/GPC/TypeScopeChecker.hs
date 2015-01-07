@@ -568,11 +568,17 @@ getNormalTypeBin bop leftType rightType
            then return boolType'
            else Left "Expected boolean values"
 
-    | otherwise = Left "Compiler error during obtaining type of binary expression"
+   | bop `elem` eqOp = 
+        if leftType == rightType 
+            then return boolType'
+            else Left "Expected equality of same types"
+
+   | otherwise = Left "Compiler error during obtaining type of binary expression"
   where
      numNumNumOp = [Add, Sub, Mul, Div]
      intIntIntOp = [Mod, BAnd, BOr, BXor, ShiftL, ShiftR]
-     compareOp = [LessEq, Less, Equals, Greater, GreaterEq]
+     compareOp = [LessEq, Less, Greater, GreaterEq]
+     eqOp = [Equals]
      boolOp = [And, Or]
      intType' = intType kernel
      boolType' = boolType kernel

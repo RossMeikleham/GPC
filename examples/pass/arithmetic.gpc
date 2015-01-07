@@ -23,5 +23,6 @@ int arithmetic() {
     bool j = f == true;
     bool k = j == f && true;
     bool l = k || false;
+    
     return 1;    
 }
