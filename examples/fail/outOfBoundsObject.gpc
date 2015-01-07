@@ -1,0 +1,4 @@
+
+GPRM::Kernel::Test a[5];
+
+a[6] = GPRM::Kernel::Test::Test();

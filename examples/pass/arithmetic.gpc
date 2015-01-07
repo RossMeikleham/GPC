@@ -1,0 +1,11 @@
+
+int x = 4 << 3;
+bool y = x == x;
+double z = 5.03;
+char a = 'c';
+string s = "test";
+int b = x + x - x * x / x | x & x ^ x >> 2;
+
+int arithmetic() {
+    return 1;    
+}
