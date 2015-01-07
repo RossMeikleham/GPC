@@ -1,13 +1,29 @@
+GPRM::Kernel::Test test;
+test = GPRM::Kernel::Test::Test();
 
 int n = 10;
 int m = n + 2;
 
 bool fun1(int a, int b) {
+    int x = 4;
+    test.m1();
+    if (x < 4) {
+        return a == b;
+    } else {
+        for (int j = 0; 3; 1) {
+            if (j < 3) {
+                int k = 5;
+            }
+            seq {
+            }
+        }
+    }   
     return a == b;
 }
 
 int fun2(int *a, int *b) {
-    return m;
+    bool m = fun1(2, 3);
+    return 2;
 }
 
 
