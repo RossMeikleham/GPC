@@ -16,6 +16,12 @@ int arithmetic() {
     int e = ~5;
     bool f = !true;
     int g = -6; 
-
+    double x = 0.5 + 0.5;
+    double y = x + z;
+    int h = e + 10;
+    int i = e + h;
+    bool j = f == true;
+    bool k = j == f && true;
+    bool l = k || false;
     return 1;    
 }
