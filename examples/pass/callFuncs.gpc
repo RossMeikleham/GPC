@@ -23,6 +23,7 @@ bool fun1(int a, int b) {
 
 int fun2(int *a, int *b) {
     bool m = fun1(2, 3);
+    fun1(-3, ~4);
     return 2;
 }
 
