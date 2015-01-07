@@ -1,0 +1,16 @@
+// Example of Pointers
+
+int c [] = {10, 20, 30};
+int * b = c + 1; // Should point to c[1]
+int a = *b; // Should equal 20
+
+int * d = b - 1; // Should point to c[0]
+int e = *d; // Should equal 10
+
+// TODO, handle dereferencing using array syntax e.g. a = b[0]
+// Handle properly inside functions
+// Possibly detect out of bounds accesses
+
+int main() {
+    return e * a;
+}

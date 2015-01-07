@@ -6,6 +6,16 @@ char a = 'c';
 string s = "test";
 int b = x + x - x * x / x | x & x ^ x >> 2;
 
+
 int arithmetic() {
+    
+    bool a = 5 < 4;
+    bool b = 5 > 4;
+    bool c = 5 <= 4;
+    bool d = 5 >= 4;
+    int e = ~5;
+    bool f = !true;
+    int g = -6; 
+
     return 1;    
 }
