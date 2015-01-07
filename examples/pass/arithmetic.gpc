@@ -1,3 +1,5 @@
+GPRM::Kernel::Test obj;
+obj = GPRM::Kernel::Test::Test();
 
 int x = 4 << 3;
 bool y = x == x;
@@ -28,6 +30,10 @@ int arithmetic() {
     bool n = m && l;
     double o = 0.5;
     double p = -0.5;
+
+    bool q = !obj.m1();
     
+    int x = g % e;
+
     return 1;    
 }
