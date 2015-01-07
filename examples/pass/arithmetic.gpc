@@ -33,7 +33,7 @@ int arithmetic() {
 
     bool q = !obj.m1();
     
-    int x = g % e;
+    int blah = g % e;
 
     return 1;    
 }
