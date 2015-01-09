@@ -1,1 +1,0 @@
-Mix "tests/GPC/Main.hs" 2014-12-26 13:30:19.963361497 UTC 3721099000 8 [(8:8-8:18,ExpBox False),(8:23-8:33,ExpBox False),(8:36-8:44,ExpBox False),(8:47-8:58,ExpBox False),(8:22-8:59,ExpBox False),(8:8-8:59,ExpBox False),(8:1-8:59,TopLevelBox ["main"])]
