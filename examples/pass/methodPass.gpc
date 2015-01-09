@@ -1,0 +1,14 @@
+
+GPRM::Kernel::Test test;
+GPRM::Kernel::Test tests[5];
+
+int fun(int i) {return i;}
+
+int methodPass() {
+
+    tests[0].m1(test.m2());
+    test.m1(tests[0].m2());
+    
+    return 0;
+
+}
