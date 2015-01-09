@@ -1,8 +1,7 @@
 GPRM::Kernel::Test test;
 test = GPRM::Kernel::Test::Test();
 
-int n = 10;
-int m = n + 2;
+int m = 7;
 
 bool fun1(int a, int b) {
     int x = 4;
@@ -23,7 +22,7 @@ bool fun1(int a, int b) {
 
 int fun2(int *a, int *b) {
     bool m = fun1(2, 3);
-    fun1(-3, ~n);
+    fun1(-3, ~5);
     return 2;
 }
 
@@ -35,7 +34,7 @@ int fun3(int a, int *b, char c, double d, bool e) {
 bool callFuncs(int *a, int *b) {
 
     int c = fun2(a, b);
-    fun3(n, a, 'a', 0.5, false);
-    return fun1(n, c);
+    fun3(20, a, 'a', 0.5, false);
+    return fun1(20, c);
 
 }

@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {- Check types and scope of identifiers -}
 module GPC.TypeScopeChecker(
-    getTypeExpr,injectConstants, reduceExpr, runTypeChecker) where
+    getTypeExpr, runTypeChecker) where
 
 
 import           Control.Applicative hiding (empty, many, optional, (<|>))
@@ -46,8 +46,7 @@ isPointer _ = False
 
 data MainBlock = MainBlock {
     _tlFuncDefs      :: FunTable, -- ^ Function Definitions
-    _tlConstVars     :: ConstVarTable, -- ^ Top Level Constant Variable values
-    _tlConstVarTypes :: VarTable,  -- ^ Top Level Constant variable types
+    _tlVarTypes        :: VarTable,  -- ^ Top Level Constant variable types
     _objects         :: ObjectTable   
 } deriving (Show)
 
@@ -56,9 +55,7 @@ data CodeBlock = CodeBlock {
     _currentFun :: Ident, -- ^ Name of Function block is in
     _funcDefs   :: FunTable, -- ^ Function names and return/argument types
     _prevVars   :: VarTable, -- ^ Identifiers visible in current scope with types
-    _curVars    :: VarTable , -- ^ Identifiers declared in current scope
-    _constVars  :: ConstVarTable  -- ^ Identifiers visible from current scope which
-                                        -- ^ evaluate to a constant value
+    _curVars    :: VarTable  -- ^ Identifiers declared in current scope
 } deriving (Show)
 
 
@@ -81,7 +78,7 @@ runTypeChecker :: Program -> Either String Program
 runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
  Left s -> Left s
  (Right (tl, _)) -> Right $ Program tl
- where initialBlock = MainBlock M.empty M.empty M.empty M.empty
+ where initialBlock = MainBlock M.empty M.empty M.empty
 
 
 -- | Type Check all top level statements
@@ -100,31 +97,24 @@ evalTLStmt tl = case tl of
 -- | Type check object initializations
 evalConstruct :: ConstructObjs -> CodeState ConstructObjs
 evalConstruct (ConstructObjs ns var exprs) = do
-    cVars <- use tlConstVars
-    tVars <- use tlConstVarTypes
+    tVars <- use tlVarTypes
     objs <- use objects
-    -- Check expressions for Constructor are constant
-    reducedExprs <- lift $ mapM (reduceExpr tVars . injectConstants cVars) exprs
-    _ <- lift $ mapM (getTypeExpr tVars M.empty) reducedExprs
-    mapM_ checkConstantExpr reducedExprs
+    _ <- lift $ mapM (getTypeExpr tVars M.empty) exprs
 
-   
     case var of
         (VarIdent ident) -> do
             v <- checkNameSpace ident objs
             case v of
-                (VarIdent _) -> return $ ConstructObjs ns var reducedExprs
+                (VarIdent _) -> return $ ConstructObjs ns var exprs
                 (VarArrayElem i _) -> lift $ Left $ show i ++ "is declared as a " ++
                     "single object, not an array"
 
         (VarArrayElem ident expr) -> do -- Check indexed expression
             v <- checkNameSpace ident objs
       
-            -- Check index is a constant integer value
-            reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
-            exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
+            -- Check index is an integer value
+            exprType <- lift $ getTypeExpr tVars M.empty expr
             checkType (intType notKernel) exprType
-            checkConstantExpr reducedExpr
 
             case v of 
                 (VarIdent i) -> lift $ Left $ show i ++ "is declared as an array"
@@ -132,20 +122,9 @@ evalConstruct (ConstructObjs ns var exprs) = do
                 (VarArrayElem i expr') -> do
                     -- Check indexing is in bounds
 
-                    reducedExpr' <- lift $ reduceExpr tVars $ injectConstants cVars expr'
-                    exprType' <- lift $ getTypeExpr tVars M.empty reducedExpr'
+                    exprType' <- lift $ getTypeExpr tVars M.empty expr'
                     checkType (intType notKernel) exprType'
-                    checkConstantExpr reducedExpr'
-                    case (reducedExpr, reducedExpr') of
-                        (ExpLit (Number (Left n1)), ExpLit (Number (Left n2))) ->
-                            if n1 >= n2 || n1 < 0 then
-                                lift $ Left $ "Index out of bounds " ++ show n1 ++
-                                    " for array " ++ show i
-                            else return $ ConstructObjs ns 
-                                    (VarArrayElem ident reducedExpr) reducedExprs
-
-                        _ -> lift $ Left $ "Compiler error in" ++ 
-                            "type checking object declerations"-- ++ show var ++ show v
+                    return $ ConstructObjs ns var exprs
     
   where             
     notFound i = "Error, object not found " ++ show i
@@ -165,68 +144,44 @@ evalConstruct (ConstructObjs ns var exprs) = do
 -- | Type check object declarations
 evalObjs :: Objects -> CodeState Objects
 evalObjs objs@(Objects _ var) = do
-    cVars <- use tlConstVars
-    tVars <- use tlConstVarTypes
+    
+    tVars <- use tlVarTypes
     case var of
         -- Single Object, check identifier isn't already in scope
-        (VarIdent ident) ->
-            if ident `M.notMember` tVars then do
-                objects %= (M.insert ident objs) 
-                assign tlConstVarTypes $ M.insert ident (NormalType inKernel "object") tVars
-                return objs
-            else multipleInstance ident
+        (VarIdent ident) -> do
+            checkMultipleInstance ident tVars
+            objects %= (M.insert ident objs) 
+            assign tlVarTypes $ M.insert ident (NormalType inKernel "object") tVars
+            return objs
 
-        -- Static Array of Objects, check type of array size, check size
-        -- is a constant, and that that identifier for the array isn't already in scope
-        (VarArrayElem ident expr) ->
-            if ident `M.notMember` tVars then do
-                reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
-                exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
-                checkType (intType notKernel) exprType
-                checkConstantExpr reducedExpr
-                objects %= (M.insert ident objs) 
-                assign tlConstVarTypes $ M.insert ident (NormalType inKernel "objArray") tVars
-                return $ objs {objVar = VarArrayElem ident reducedExpr}
-            else multipleInstance ident
- where
-    multipleInstance ident = lift $ Left $ show ident ++ " has already been defined " ++
-        "in scope, cannot redefine it"
+        -- Static Array of Objects, check type of array size
+        (VarArrayElem ident expr) -> do
+            checkMultipleInstance ident tVars
+            exprType <- lift $ getTypeExpr tVars M.empty expr
+            checkType (intType notKernel) exprType
+            objects %= (M.insert ident objs) 
+            assign tlVarTypes $ M.insert ident (NormalType inKernel "objArray") tVars
+            return $ objs {objVar = VarArrayElem ident expr}
 
 
 -- | Type Check top level assignment
 evalTLAssign :: Assign -> CodeState Assign
 evalTLAssign (Assign typeG ident expr) = do
-    cVars <- use tlConstVars
-    tVars <- use tlConstVarTypes
-    reducedExpr <- lift $ reduceExpr tVars $ injectConstants cVars expr
-    exprType <- lift $ getTypeExpr tVars M.empty reducedExpr
+    tVars <- use tlVarTypes
+    exprType <- lift $ getTypeExpr tVars M.empty expr
 
-    case reducedExpr of
-        (ExpLit l) -> do
-
-            -- Check Types match and Variable is Single instance
-            checkType exprType typeG
-            if ident `M.notMember` tVars then do -- Update State
-                assign tlConstVars $ M.insert ident l cVars
-                assign tlConstVarTypes $ M.insert ident typeG tVars
-                return $ Assign typeG ident reducedExpr
-            else multipleInstance
-
-        _ -> notConstant
-
- where
-    multipleInstance = lift $ Left $ show ident ++ " has already been defined " ++
-        "in scope, cannot redefine it"
-    notConstant = lift $ Left $ "Top level assignment are expected to be constant, " ++
-        show ident ++ "is not constant"
+    -- Check Types match and Variable is Single instance
+    checkType exprType typeG
+    checkMultipleInstance ident tVars
+    assign tlVarTypes $ M.insert ident typeG tVars
+    return $ Assign typeG ident expr
 
 
 -- | Type check Function
 evalFunc :: Type -> Ident -> [(Type, Ident)] -> BlockStmt -> CodeState TopLevel
 evalFunc typeG ident args (BlockStmt stmts) = do
     fTable <- use tlFuncDefs
-    cVars <- use tlConstVars
-    varTypes <- use tlConstVarTypes
+    varTypes <- use tlVarTypes
 
     -- Check function isn't already defined
     if ident `M.notMember` fTable
@@ -239,16 +194,11 @@ evalFunc typeG ident args (BlockStmt stmts) = do
             -- in the function definition
             let args' = M.fromList $ map swap args
 
-            -- Need to remove constants which contain
-            -- identifiers in the new function scope
-            let newCVars = M.filterWithKey (\k _ -> 
-                            k `notElem` (map snd args)) cVars
-
             -- Add current function to the function scope
             let newFTable = M.insert ident (typeG, map fst args) fTable
 
-            -- Type Check and reduce function
-            let newBlock = CodeBlock ident newFTable varTypes args' newCVars
+            -- Type Check function
+            let newBlock = CodeBlock ident newFTable varTypes args'
             funBlock <- lift $ runBlockCheck stmts newBlock
 
             -- Update Global function scope, and return reduced function
@@ -292,11 +242,9 @@ checkFunCall f@(FunCall name args) = do
     fTable <- use funcDefs
     oldVtable <- use prevVars
     vTable <- use curVars
-    cTable <- use constVars
     let scopeVars = vTable `M.union` oldVtable
-    reducedExprs <- lift $ mapM (reduceExpr scopeVars . injectConstants cTable) args
     _ <- lift $ getTypeExpr scopeVars fTable (ExpFunCall f)
-    return $ FunCall name reducedExprs
+    return $ FunCall name args
 
 
 -- |Type Check Assignment Statement
@@ -305,36 +253,29 @@ checkAssign (Assign gType ident expr) = do
     ftable <- use funcDefs
     oldVtable <- use prevVars
     vTable <- use curVars
-    cTable <- use constVars
     let scopeVars = vTable `M.union` oldVtable -- Gives all visible identifiers
-    reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
+    
     -- Check new identifier hasn't already been defined in the current
     -- scope
-    if ident `M.notMember` vTable then do
-        exprType <- lift $ getTypeExpr scopeVars ftable reducedExpr
+    redefineCheck vTable
 
-        if gType == exprType then do
-            -- Update Var table with new variable
-            assign curVars   $ M.insert ident gType vTable
-            -- Update Const Table
-            assign constVars $ case expr of
-                            (ExpLit l) -> M.insert ident l cTable
-                            _ -> M.delete ident cTable
-            return $ Assign gType ident reducedExpr
+    -- If expression is a method call, we implicitly lift the type
+    -- of the entire expression into the GPRM::Kernel
+    if isMethodCall expr then do
+        let gType' = castToKernel gType
+        assign curVars $ M.insert ident gType' vTable
+        return $ Assign gType' ident expr
 
-        -- If expression is a method call, we implicitly lift the type
-        -- of the entire expression into the GPRM::Kernel
-        else if isMethodCall reducedExpr then do
-            let gType' = castToKernel gType
-            assign curVars $ M.insert ident gType' vTable
-            return $ Assign gType' ident reducedExpr
+    else do 
+        exprType <- lift $ getTypeExpr scopeVars ftable expr
+        checkType gType exprType
+        -- Update Var table with new variable
+        assign curVars   $ M.insert ident gType vTable
+        return $ Assign gType ident expr
 
-        else typeMismatch gType exprType
-    else redefine
  where
-    redefine = lift $ Left $ "Error, cannot redefine " ++ show ident ++ " in current scope"
-    typeMismatch l r = lift $ Left $ show ident ++ " declared as type " ++ show l ++
-                            "but rhs evaluates to type " ++ show r
+    redefineCheck vTable = when (ident `M.member` vTable) $
+        lift $ Left $ "Error, cannot redefine " ++ show ident ++ " in current scope"
 
     isMethodCall e = case e of
         (ExpMethodCall (MethodCall{})) -> True
@@ -345,49 +286,32 @@ checkAssign (Assign gType ident expr) = do
 checkIf :: Expr -> Stmt -> BlockState Stmt
 checkIf expr stmt = do
     fTable <- use funcDefs
-    cTable <- use constVars
     scopeVars <- M.union <$> use curVars <*> use prevVars
     exprType <- lift $ getTypeExpr scopeVars fTable expr
-    reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
-    if exprType == boolType notKernel then do
-        reducedStmt <- evalStmt stmt
-        return $ If reducedExpr reducedStmt
-    else lift $ Left $ "Expression within if is expected to be a bool " ++
-        " but it evaluates to a " ++ show exprType
-
+    checkType (boolType notKernel) exprType
+    return stmt
 
 -- |Type Check If - Else Statement
 checkIfElse :: Expr -> Stmt -> Stmt -> BlockState Stmt
 checkIfElse expr thenStmt elseStmt = do
-    reducedIf <- checkIf expr thenStmt
-    reducedElse <- evalStmt elseStmt
-    case reducedIf of
-        (If expr1 stmt) ->
-            return $ IfElse expr1 stmt reducedElse
-        _ -> lift $ Left "Compiler error in checkIfElse"
+    _ <- checkIf expr thenStmt
+    return $ IfElse expr thenStmt elseStmt
 
 
 -- | Type check for loop
 checkForLoop :: Ident -> Expr -> Expr -> Expr -> BlockStmt -> BlockState Stmt
 checkForLoop ident startExpr stopExpr stepExpr blockStmt = do
-    cTable <- use constVars
     fTable <- use funcDefs
     scopeVars <- M.union <$> use curVars <*> use prevVars
 
-    startExpr' <- lift $ reduceExpr scopeVars $ injectConstants cTable startExpr
-    stopExpr'  <- lift $ reduceExpr scopeVars $ injectConstants cTable stopExpr
-    stepExpr'  <- lift $ reduceExpr scopeVars $ injectConstants cTable stepExpr
-
-    -- Check all expressions are constant (for loops are static)
     -- Check types of each expression are all integers
     -- Then type check the for block
-    let exprs = [startExpr', stopExpr', stepExpr']
-    mapM_ checkConstantExpr exprs
+    let exprs = [startExpr, stopExpr, stepExpr]
     types <- lift $ mapM (getTypeExpr scopeVars fTable) exprs
     mapM_ (checkType $ intType notKernel) types
 
-    reducedBlock <- checkBlock blockStmt (M.singleton ident (intType notKernel))
-    return $ ForLoop ident startExpr' stopExpr' stepExpr' reducedBlock
+    block <- checkBlock blockStmt (M.singleton ident (intType notKernel))
+    return $ ForLoop ident startExpr stopExpr stepExpr block
 
 
 -- | Type check inner block, add to current list of inner blocks
@@ -395,12 +319,11 @@ checkBlock :: BlockStmt -> VarTable -> BlockState BlockStmt
 checkBlock (BlockStmt stmts) innerTable = do
     fName <- use currentFun
     fTable <- use funcDefs
-    cTable <- use constVars
     scopeVars <- M.union <$> use curVars <*> use prevVars
 
     -- Create and type check new inner block, and add to current
     -- list of inner blocks if successful
-    let newBlock = CodeBlock fName fTable scopeVars innerTable cTable
+    let newBlock = CodeBlock fName fTable scopeVars innerTable
     lift $ runBlockCheck stmts newBlock
 
 
@@ -409,64 +332,41 @@ checkReturn :: Expr -> BlockState Stmt
 checkReturn expr = do
     fName <- use currentFun
     fTable <- use funcDefs
-    cTable <- use constVars
     scopeVars <- M.union <$> use curVars <*> use prevVars
-    reducedExpr <- lift $ reduceExpr scopeVars $ injectConstants cTable expr
 
     let notFound = "Error, function not found " ++ show fName
 
     (retType, _) <- lift $ note notFound $ M.lookup fName fTable
     exprType <- lift $ getTypeExpr scopeVars fTable expr
 
-    if retType == exprType then
-        return $ Return reducedExpr
-    else
-        lift $ Left $ "The return type of function " ++ show fName ++
-            "is " ++ show retType ++ "but return expression evaluates to" ++
-            "type " ++ show exprType
+    checkType retType exprType
+    return $ Return expr
 
 
 checkMethodCall :: MethodCall -> BlockState MethodCall
 checkMethodCall (MethodCall var method args) = do
     vTable <- M.union <$> use curVars <*> use prevVars
-    cTable <- use constVars
     fTable <- use funcDefs
     scopeVars <- M.union <$> use curVars <*> use prevVars
-    reducedExprs <- lift $ mapM (reduceExpr vTable . injectConstants cTable) args
     
     case var of
         (VarIdent i) -> do
             gType <- lift $ findType i vTable
-            if gType == objectType then 
-                return $ MethodCall var method reducedExprs                
-            else expectedObject i gType
+            checkType objectType gType
+            return $ MethodCall var method args           
             
         -- Check we're accessing an element of an array of objects,
         -- and that the element is an integer type
         (VarArrayElem i el) -> do
             gType <- lift $ findType i vTable
-            reducedElem <- lift $ reduceExpr vTable $ injectConstants cTable el
-            elemType <- lift $ getTypeExpr scopeVars fTable reducedElem
-            if elemType == intType False then
-                if gType == arrayObjType then 
-                    return $ MethodCall (VarArrayElem i reducedElem) 
-                                method reducedExprs 
-                else expectedObject i gType
-            else expectedInt elemType
+            elemType <- lift $ getTypeExpr scopeVars fTable el
+            checkType (intType False) elemType
+            checkType  arrayObjType gType
+            return $ MethodCall var method args
 
 
   where findType i vTable = note (notFound i) (M.lookup i vTable)
         notFound  obj = "Error, object not found " ++ show obj
-        expectedObject obj t = lift $ Left $ "Can only call methods on objects, " ++
-                            (show obj) ++ " is of type " ++  (show t)
-        expectedInt t = lift $ Left $ "Array indexing must use integer values" ++
-                            "found type " ++ show t
-
--- | Check that an expression is Constant
-checkConstantExpr :: Expr -> GenericBlockState a ()
-checkConstantExpr expr = case expr of
-    (ExpLit _) -> modify id
-    _ -> lift $ Left "expected constant expression"
 
 
 -- | Checks that 2 given types match
@@ -480,6 +380,14 @@ checkType' :: Type -> Type -> Either String ()
 checkType' expected actual =
     if expected == actual then Right () else
         Left $ show expected ++ " but expression evaluated to " ++ show actual
+
+
+-- | Given an identity and var table, if the identity is already
+-- part ofr the variable table, then returns a multiple instance error
+checkMultipleInstance :: Ident -> VarTable -> GenericBlockState a ()
+checkMultipleInstance ident@(Ident i) vTable = when (ident `M.member` vTable) $ 
+    lift $ Left $ i ++ " has already been defined in scope, cannot redefine it"
+
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
@@ -618,9 +526,15 @@ getPointerTypeBin bop leftType rightType
 --Get type of unary expression
 getTypeUnOp :: VarTable -> FunTable -> UnaryOps -> Expr -> Either String Type
 getTypeUnOp vtable ftable operation expr
-    | operation == BNot || operation == Neg = getTypeExpr vtable ftable expr >>=
+    | operation == BNot = getTypeExpr vtable ftable expr >>=
         \t -> case t of
             (NormalType kernel "int") -> return $ NormalType kernel "int"
+            e -> Left $ "Expected integer expression, but found" ++ show e
+
+    | operation == Neg = getTypeExpr vtable ftable expr >>=
+        \t -> case t of
+            (NormalType kernel "int") -> return $ NormalType kernel "int"
+            (NormalType kernel "double") -> return $ NormalType kernel "double"
             e -> Left $ "Expected integer expression, but found" ++ show e
 
     | operation == Not = getTypeExpr vtable ftable expr >>=
@@ -629,165 +543,3 @@ getTypeUnOp vtable ftable operation expr
             e -> Left $ "Expected boolean expression, but found " ++ show e
 
     | otherwise = Left "Compiler error during obtaining type of unary expression"
-
-
--- Replace all constant identifiers with their
--- constant value
-injectConstants :: ConstVarTable ->  Expr -> Expr
-injectConstants ctable expr = case expr of
-    (ExpBinOp b e1 e2) -> ExpBinOp b (injectConstants ctable e1) (injectConstants ctable e2)
-    (ExpUnaryOp u e) -> ExpUnaryOp u (injectConstants ctable e)
-    (ExpFunCall (FunCall s exps)) -> ExpFunCall (FunCall s (map (injectConstants ctable) exps))
-    (ExpMethodCall (MethodCall obj method args)) ->
-        case obj of
-            (VarArrayElem i el) -> 
-                ExpMethodCall (MethodCall (VarArrayElem i (injectConstants ctable el))
-                                method (map (injectConstants ctable) args))
-            (VarIdent _) ->    
-                 ExpMethodCall (MethodCall obj method (map (injectConstants ctable) args))
-
-    (ExpIdent i) -> case M.lookup i ctable of
-                                Just l ->   ExpLit l
-                                Nothing ->  ExpIdent i
-    (ExpLit l) -> ExpLit l
-    (ExpPointer p) -> ExpPointer p
-
-
-
--- | Attempts to reduce an expression as much as possible
--- | Returns an error string if evaluated expression
--- | is invalid or an identifier is not present in the given table
--- | otherwise returns the reduced expression
-reduceExpr :: VarTable -> Expr -> Either String Expr
-reduceExpr vtable expr = case expr of
-    (ExpBinOp b e1 e2) -> do
-        re1 <- reduceExpr vtable e1
-        re2 <- reduceExpr vtable e2
-        evaluateBinExpr b re1 re2
-
-    (ExpUnaryOp u e) -> do
-        reducedExpr <- reduceExpr vtable e
-        evaluateUnExpr u reducedExpr
-
-    (ExpFunCall (FunCall s exps)) -> do
-         rexps <- mapM (reduceExpr vtable) exps
-         return $ ExpFunCall (FunCall s rexps)
-
-    (ExpMethodCall (MethodCall obj method args)) -> do
-        rexps <- mapM (reduceExpr vtable) args
-        return $ ExpMethodCall (MethodCall obj method rexps)
-
-    (ExpIdent i) -> ExpIdent <$> if M.member i vtable
-                                    then Right i
-                                    else Left $ notFound i
-
-    (ExpLit l) -> return (ExpLit l)
-    (ExpPointer p) -> return (ExpPointer p)
- where notFound (Ident i) = "Identifier " ++ i ++ " not declared in scope"
-
-
--- | Attempts to evaluate a constant binary expression, checks the types as well
-evaluateBinExpr :: BinOps -> Expr -> Expr -> Either String Expr
--- Binary operations with literals
-evaluateBinExpr b (ExpLit l1) (ExpLit l2) = binOpTable b l1 l2
--- Binary Operation with pointers
-evaluateBinExpr Add (ExpPointer (Pointer ident n)) (ExpLit (Number (Left i))) =
-    Right $ ExpPointer $ Pointer ident (n + i)
-evaluateBinExpr Add e (ExpPointer p) = evaluateBinExpr Add (ExpPointer p) e
-evaluateBinExpr Sub (ExpPointer (Pointer ident n)) (ExpLit (Number (Left i))) =
-   Right $ ExpPointer $ Pointer ident (n - i)
-evaluateBinExpr Equals (ExpPointer p1) (ExpPointer p2) =
-   Right $  ExpLit $ Bl (p1 == p2)
-evaluateBinExpr  b e1 e2 = return $ ExpBinOp b e1 e2
-
-
--- | Obtain binary operation to use with literal values
-binOpTable :: BinOps -> Literal -> Literal -> Either String Expr
-binOpTable b = case b of
-    Add -> performBinNumOp (+)
-    Sub -> performBinNumOp (-)
-    Div -> performBinNumOp (/)
-    Mul -> performBinNumOp (*)
-
-
-    Mod -> performBinIntOp mod
-    BAnd -> performBinIntOp (.&.)
-    BOr -> performBinIntOp (.|.)
-    BXor -> performBinIntOp xor
-    ShiftL -> performBinIntOp (\x y ->  shift x $ fromIntegral y)
-    ShiftR -> performBinIntOp (\x y ->  shift x $ fromIntegral (-y))
-
-    Less -> performBinCompareOp (<)
-    LessEq -> performBinCompareOp (<=)
-    Greater -> performBinCompareOp (>)
-    GreaterEq -> performBinCompareOp (>=)
-    Equals -> performBinCompareOp (==)
-    NEquals -> performBinCompareOp (/=)
-
-    And -> performBinBoolOp (&&)
-    Or -> performBinBoolOp (||)
-
-
-performBinNumOp :: (Double  -> Double -> Double)  -> Literal -> Literal -> Either String Expr
-performBinNumOp operation (Number (Left n1)) (Number (Left n2)) = Right litExp
- where litExp = ExpLit $ Number $ Left $ truncate $ n1' `operation` n2'
-       n1' = fromIntegral n1
-       n2' = fromIntegral n2
-
-
-performBinNumOp operation (Number (Right n1))(Number (Right n2)) =
-    Right $ ExpLit $ Number $ Right $ n1 `operation` n2
-performBinNumOp _ _ _ = Left "Error expected a numeric value"
-
-
-performBinIntOp :: (Integer -> Integer -> Integer)  -> Literal -> Literal -> Either String Expr
-performBinIntOp operation (Number (Left n1)) (Number (Left n2)) =
-    Right $ ExpLit $ Number $ Left $ n1 `operation` n2
-performBinIntOp _ _ _ = Left "Error expected integer types"
-
-
-performBinCompareOp :: (Double -> Double -> Bool) -> Literal -> Literal -> Either String Expr
-performBinCompareOp operation (Number (Left n1)) (Number (Left n2)) =
-    Right $ ExpLit $ Bl $ n1' `operation` n2'
- where n1' = fromIntegral n1
-       n2' = fromIntegral n2
-
-
-performBinCompareOp operation (Number (Right n1)) (Number (Right n2)) =
-    Right $ ExpLit $ Bl $ n1 `operation` n2
-performBinCompareOp _ _ _ = Left "Error expected either 2 ints, or 2 doubles"
-
-
-performBinBoolOp :: (Bool -> Bool -> Bool) -> Literal -> Literal -> Either String Expr
-performBinBoolOp operation (Bl b1) (Bl b2) =
-    Right $ ExpLit $ Bl $ b1 `operation` b2
-performBinBoolOp _ _ _ = Left "Error expected boolean values"
-
-
--- |Attempts to evaluate a constant unary expression, check the types as
--- |well
-evaluateUnExpr :: UnaryOps -> Expr -> Either String Expr
-evaluateUnExpr unOp (ExpLit l) = unOpTable unOp l
-evaluateUnExpr _ e = Right e
-
--- | Function table of Unary operations on literals
-unOpTable u = case u of
-    Not -> performUnNotOp
-    Neg -> performUnNegOp
-    BNot -> performUnBNotOp
-
--- | Perform Boolean NOT operation on literal value
-performUnNotOp ::  Literal -> Either String Expr
-performUnNotOp (Bl b1) = Right $ ExpLit $ Bl $ not b1
-performUnNotOp _ = Left "Error expected boolean value"
-
--- | Perform Negation operation on literal value
-performUnNegOp :: Literal -> Either String Expr
-performUnNegOp (Number (Left i)) =  Right $ ExpLit $ Number $ Left  $ negate i
-performUnNegOp (Number (Right i)) = Right  $ ExpLit $ Number $ Right $ negate i
-performUnNegOp _ = Left "Error expected numeric type"
-
--- | Perform Bitwise NOT operation on literal value
-performUnBNotOp :: Literal -> Either String Expr
-performUnBNotOp (Number (Left i)) = Right $ ExpLit $ Number $ Left $ complement i
-performUnBNotOp _ = Left "Error expected integer value"

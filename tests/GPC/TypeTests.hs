@@ -93,7 +93,8 @@ pointerAssigns = map pointerProgramTempl
 
 expectedTCPointerAssigns = map pointerProgramTempl
     [[AssignStmt $ Assign (PointerType intTypeNK) (Ident "b")
-        (ExpBinOp Add (ExpIdent $ Ident "a") (intConst 7))
+        (ExpBinOp Add (ExpIdent $ Ident "a") 
+            (ExpBinOp Add (intConst 4) (intConst 3)))
      ]
     ]
 
@@ -280,10 +281,6 @@ typeTests :: TFA.Test
 typeTests = TFA.testGroup "Type/Scope Tests" $ (map (\(expected,expr) -> 
     validTest expected (getTypeExpr vars ftable expr)) (zip expectedTypes expressions)) ++
     (map (invalidTest . (getTypeExpr vars ftable) ) failExpressions) ++
-    (map (\(expected, expr) -> 
-        validInject expected (reduceExpr vars $ injectConstants ctable expr)) 
-        (zip expectedAfterInject injectExpressions)
-    ) ++ 
     (map validProgramTest validPrograms) ++
     (map invalidProgramTest $ invalidMethodUse ++ multipleDefInScope ++ 
                               checkConstructors ) ++

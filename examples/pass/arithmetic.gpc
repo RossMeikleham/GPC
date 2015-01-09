@@ -1,16 +1,16 @@
 GPRM::Kernel::Test obj;
 obj = GPRM::Kernel::Test::Test();
 
-int x = 4 << 3;
-bool y = x == x;
-double z = 5.03;
-char a = 'c';
-string s = "test";
-int b = x + x - x * x / x | x & x ^ x >> 2;
-bool c = b <= 5 && b >= 5 || b != 2;
-bool d = b != b;
 
 int arithmetic() {
+    int xx = 4 << 3;
+    bool yy = xx == xx;
+    double z = 5.03;
+    char ch = 'c';
+    string str = "test";
+    int bb = xx + xx - xx * xx / xx | xx & xx ^ xx >> 2;
+    bool cc = bb <= 5 && bb >= 5 || bb != 2;
+    bool dd = bb != bb;
     
     bool a = 5 < 4;
     bool b = 5 > 4;
@@ -29,9 +29,9 @@ int arithmetic() {
     bool m = l != k;
     bool n = m && l;
     double o = 0.5;
-    double p = -0.5;
+    double p = -0.5; 
 
-    bool q = !obj.m1();
+    bool q = obj.m1();
     
     int blah = g % e;
 
