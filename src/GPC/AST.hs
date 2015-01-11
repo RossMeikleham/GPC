@@ -1,3 +1,7 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+
+
 {- GPC abstract syntax tree -}
 module GPC.AST(    
       Program(..)
@@ -19,133 +23,142 @@ module GPC.AST(
     , ConstructObjs(..)
     , LibName
     , Pointer(..)
+    , SrcPos(..)
     ) where
 
-data Program = Program [TopLevel] deriving (Show,Eq)
+import Data.Function (on)
 
+data Program a = Program [TopLevel a] deriving (Show,Eq)
+
+data SrcPos = SrcPos Int Int deriving (Show, Eq)
 
 -- | Top Level Expressions
-data TopLevel =
-        Func Type Ident [(Type, Ident)] BlockStmt  -- ^ Return Type, Name, Arguments, Code
-      | TLObjs Objects -- ^ External objects
-      | TLConstructObjs ConstructObjs -- ^ External object constructor calls
-      | TLAssign Assign -- ^ Top level assignment
+data TopLevel a =
+        Func (Type a) (Ident a) [(Type a, Ident a)] (BlockStmt a)  -- ^ Return Type, Name, Arguments, Code
+      | TLObjs (Objects a) -- ^ External objects
+      | TLConstructObjs (ConstructObjs a) -- ^ External object constructor calls
+      | TLAssign (Assign a) -- ^ Top level assignment
        deriving (Show, Eq)
 
 -- | Objects
-data Objects = Objects {
-   nameSpace :: [Ident],
-   objVar ::Var 
+data Objects a = Objects {
+   nameSpace :: [Ident a],
+   objVar :: Var a 
 } deriving (Show, Eq)
 
 -- | Variable
-data Var = 
-          VarArrayElem Ident Expr -- ^ Element of Array
-        | VarIdent Ident -- ^ Ordinary identifier
+data Var a = 
+          VarArrayElem (Ident a) (Expr a) -- ^ Element of Array
+        | VarIdent (Ident a) -- ^ Ordinary identifier
          deriving (Show, Eq)
 
 -- | Constructing Objects
-data ConstructObjs = ConstructObjs [Ident]  Var [Expr] deriving (Show, Eq)
+data ConstructObjs a = ConstructObjs [Ident a] (Var a) [Expr a] deriving (Show, Eq)
 
 -- | Statement
-data Stmt = 
-        AssignStmt Assign -- ^ Type Name, assignment
-      | Seq BlockStmt -- ^ Evaluate statements in sequential order
-      | BStmt BlockStmt -- ^ Statements in enclosed block
-      | FunCallStmt FunCall -- ^ Call Funcion
-      | MethodStmt MethodCall -- ^ Call Object method
-      | If Expr Stmt  -- ^ If statement
-      | IfElse Expr Stmt Stmt -- ^ If Else statement
-      | Return Expr -- ^ Return value from current function
-      | ForLoop Ident Expr Expr Expr BlockStmt -- ^ Start, Stop, Step, statements, static for loops
+data Stmt a = 
+        AssignStmt (Assign a) -- ^ Type Name, assignment
+      | Seq (BlockStmt a) -- ^ Evaluate statements in sequential order
+      | BStmt (BlockStmt a) -- ^ Statements in enclosed block
+      | FunCallStmt (FunCall a) -- ^ Call Funcion
+      | MethodStmt (MethodCall a) -- ^ Call Object method
+      | If (Expr a) (Stmt a)  -- ^ If statement
+      | IfElse (Expr a) (Stmt a) (Stmt a) -- ^ If Else statement
+      | Return (Expr a) -- ^ Return value from current function
+      | ForLoop (Ident a) (Expr a) (Expr a) (Expr a) (BlockStmt a) -- ^ Start, Stop, Step, statements, static for loops
        deriving (Show, Eq)
 
-data Assign = Assign Type Ident Expr deriving (Show, Eq) -- ^ Variable assignment
-data FunCall = FunCall Ident [Expr] deriving (Show, Eq) -- ^ Function call layout
-data MethodCall = MethodCall { 
-      mVar :: Var, 
-      mName :: Ident, 
-      mArgs ::  [Expr] 
+data Assign a = Assign (Type a) (Ident a) (Expr a) deriving (Show, Eq) -- ^ Variable assignment
+data FunCall a = FunCall (Ident a) [Expr a] deriving (Show, Eq) -- ^ Function call layout
+data MethodCall a = MethodCall { 
+      mVar :: Var a, 
+      mName :: Ident a, 
+      mArgs ::  [Expr a] 
 } deriving (Show, Eq) -- ^ Method call layout
 
 -- | Expression
-data Expr =
-      ExpBinOp BinOps Expr Expr -- ^ Binary operation with 2 sub-expressions
-    | ExpUnaryOp UnaryOps Expr -- ^ Unary operation with sub-expression
-    | ExpFunCall FunCall -- ^ Function Call
-    | ExpMethodCall MethodCall -- ^ C++ Object method call
-    | ExpIdent Ident -- ^ Identifier  
-    | ExpLit Literal -- ^ Constant/Literal value
-    | ExpPointer Pointer -- ^ Pointer value
+data Expr a =
+      ExpBinOp (BinOps a) (Expr a) (Expr a) -- ^ Binary operation with 2 sub-expressions
+    | ExpUnaryOp (UnaryOps a) (Expr a) -- ^ Unary operation with sub-expression
+    | ExpFunCall (FunCall a) -- ^ Function Call
+    | ExpMethodCall (MethodCall a) -- ^ C++ Object method call
+    | ExpIdent (Ident a) -- ^ Identifier  
+    | ExpLit (Literal a) -- ^ Constant/Literal value
+    | ExpPointer (Pointer a) -- ^ Pointer value
      deriving (Show, Eq)
 
 
 -- | Binary Operators
-data BinOps =
-      Add -- ^ Addition
-    | Sub -- ^ Subtraction
-    | Mul -- ^ Multiplication
-    | Div -- ^ Division
-    | And -- ^ Boolean AND
-    | Or  -- ^ Boolean OR
-    | Mod -- ^ Modulo
-    | Less -- ^ Less than 
-    | LessEq -- ^ Less than or equal to
-    | Greater -- ^ Greater than
-    | GreaterEq -- ^ Greather than or equal to
-    | Equals -- ^ Equals
-    | NEquals -- ^ Not Equal
-    | ShiftL -- ^ Logical Shift Left
-    | ShiftR -- ^ Logical Shift Right
-    | BAnd -- ^ Bitwise AND
-    | BXor -- ^ Bitwise XOR
-    | BOr -- ^ Bitwise OR
+data BinOps a =
+      Add a -- ^ Addition
+    | Sub a -- ^ Subtraction
+    | Mul a -- ^ Multiplication
+    | Div a -- ^ Division
+    | And a -- ^ Boolean AND
+    | Or a  -- ^ Boolean OR
+    | Mod a -- ^ Modulo
+    | Less a -- ^ Less than 
+    | LessEq a -- ^ Less than or equal to
+    | Greater a -- ^ Greater than
+    | GreaterEq a -- ^ Greather than or equal to
+    | Equals a -- ^ Equals
+    | NEquals a -- ^ Not Equal
+    | ShiftL a -- ^ Logical Shift Left
+    | ShiftR a -- ^ Logical Shift Right
+    | BAnd a -- ^ Bitwise AND
+    | BXor a -- ^ Bitwise XOR
+    | BOr a -- ^ Bitwise OR
      deriving (Show, Eq)
 
 
 -- | Unary Operators
-data UnaryOps =
-      Not -- ^ Boolean NOT
-    | Neg -- ^ Number negation
-    | BNot -- ^ Bitwise NOT
+data UnaryOps a =
+      Not a -- ^ Boolean NOT
+    | Neg a -- ^ Number negation
+    | BNot a -- ^ Bitwise NOT
      deriving (Show, Eq)
 
 -- | Literal/Constants
-data Literal =
-      Str String -- ^ String
-    | Ch Char -- ^ Char
-    | Number (Either Integer Double) -- ^ Numbers, either Int/Double
-    | Bl Bool -- Boolean
+data Literal a =
+      Str a String -- ^ String
+    | Ch a Char -- ^ Char
+    | Number a (Either Integer Double) -- ^ Numbers, either Int/Double
+    | Bl a Bool -- Boolean
      deriving (Eq)
 
-instance Show Literal where
-    show (Str s) = s
-    show (Ch c) = show c
-    show (Number (Left i)) = show i
-    show (Number (Right d)) = show d
-    show (Bl b) = show b
+instance Show (Literal a) where
+    show (Str _ s) = s
+    show (Ch _ c) = show c
+    show (Number _ (Left i)) = show i
+    show (Number _ (Right d)) = show d
+    show (Bl _ b) = show b
 
 
 -- | C++ Library
-type LibName = Ident
+type LibName a = Ident a
 
 -- | C++ Class Name  
-type ClassName = Ident 
+type ClassName a = Ident a
 
 -- | Identifier
-data Ident = Ident String deriving (Eq, Ord)
-instance Show Ident where
-    show (Ident s) = s
+data Ident a = Ident a String 
 
-data Pointer = Pointer Ident Integer deriving (Show, Eq) -- |Pointer to array elem with offset
+instance Show (Ident a) where
+    show (Ident _ s) = s
+
+instance Ord (Ident a) where
+    (Ident _ s1) `compare` (Ident _ s2) = s1 `compare` s2
+
+instance Eq (Ident a) where
+    (Ident _ s1) == (Ident _ s2) = s1 == s2
+
+
+data Pointer a = Pointer (Ident a) Integer deriving (Show, Eq) -- |Pointer to array elem with offset
 
 -- | Types
-data Type = PointerType Type -- Pointer to a Type
-          | NormalType { 
-              isKernel :: Bool, -- ^ is base type in Kernel
-              typeName :: String -- ^ type name (e.g. int, bool)
-            }
+data Type a = PointerType (Type a) -- Pointer to a Type
+          | NormalType a Bool String 
           deriving (Show, Eq) 
 
 -- | Block of Statements
-data BlockStmt = BlockStmt [Stmt] deriving (Show, Eq)
+data BlockStmt a = BlockStmt [Stmt a] deriving (Show, Eq)
