@@ -30,7 +30,9 @@ import Data.Function (on)
 
 data Program a = Program [TopLevel a] deriving (Show,Eq)
 
-data SrcPos = SrcPos Int Int deriving (Show, Eq)
+data SrcPos = SrcPos Int Int deriving (Show)
+instance Eq SrcPos where
+    x == y = True
 
 -- | Top Level Expressions
 data TopLevel a =

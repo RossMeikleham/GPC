@@ -573,7 +573,7 @@ errorType (PointerType t) = errorType t
 errorType (NormalType sp _ _) = errorSrcPos sp
 
 stripAnnType :: Type a -> Type ()
-stripAnnType (PointerType t) = stripAnnType t
+stripAnnType (PointerType t) = PointerType $ stripAnnType t
 stripAnnType (NormalType _ a b) = NormalType () a b
 
 binOpPos :: BinOps SrcPos -> SrcPos

@@ -11,26 +11,35 @@ import Control.Monad
 import qualified Data.Map as M
 import Data.Either
 
-doubleConst a = ExpLit $ Number $ Right a
-intConst a = ExpLit $ Number $ Left a
-strConst = ExpLit . Str 
+doubleConst :: Double -> Expr SrcPos
+doubleConst a = ExpLit $ Number srcPos (Right a)
+
+intConst :: Integer -> Expr SrcPos
+intConst a = ExpLit $ Number srcPos (Left a)
+
+strConst :: String -> Expr SrcPos
+strConst s = ExpLit $ Str srcPos s 
+
 isRight' = either (const False) (const True)
 
-intTypeNK = NormalType False "int"
-intTypeK  = NormalType True  "int"
-boolTypeNK = NormalType False "bool"
+srcPos :: SrcPos
+srcPos = SrcPos 0 0
+
+intTypeNK = NormalType srcPos False "int"
+intTypeK  = NormalType srcPos True  "int"
+boolTypeNK = NormalType srcPos False "bool"
 --boolTypeK = NormalType True "bool"
 
 expressions = [intConst 20 -- ^ Check constant integer
-              ,(ExpBinOp Less (intConst 10) (ExpIdent $ Ident "a")) -- ^ Check binary expression
-              ,(ExpFunCall $ FunCall (Ident "fun1")  -- ^ Check Function call expression
-                [intConst 10, ExpBinOp Add (intConst 20) (ExpIdent $ Ident "a")]) 
+              ,(ExpBinOp (Less srcPos) (intConst 10) (ExpIdent $ Ident srcPos "a")) -- ^ Check binary expression
+              ,(ExpFunCall $ FunCall (Ident srcPos "fun1")  -- ^ Check Function call expression
+                [intConst 10, ExpBinOp (Add srcPos) (intConst 20) (ExpIdent $ Ident srcPos "a")]) 
               ,strConst "hi" -- ^ Check string literal
-              ,(ExpUnaryOp BNot (ExpIdent $ Ident "b")) -- ^ Check unary expression
+              ,(ExpUnaryOp (BNot srcPos) (ExpIdent $ Ident srcPos "b")) -- ^ Check unary expression
               ] 
 
 
-expectedTypes = map (NormalType False) ["int"
+expectedTypes = map (NormalType srcPos False) ["int"
                            ,"bool"
                            ,"int"
                            ,"string"
@@ -38,22 +47,22 @@ expectedTypes = map (NormalType False) ["int"
                            ]
 
 -- ^ Invalid expressions which are expected to give an error message
-failExpressions = [(ExpBinOp Less (intConst 10) (doubleConst 20.0))
+failExpressions = [(ExpBinOp (Less srcPos) (intConst 10) (doubleConst 20.0))
                   -- Check functions called with more args gives error
-                  ,(ExpFunCall $ (FunCall (Ident "fun1") 
+                  ,(ExpFunCall $ (FunCall (Ident srcPos "fun1") 
                     [(intConst 1), (intConst 1), (intConst 1)]))
-                  ,(ExpFunCall $ (FunCall (Ident "fun1") [(intConst 1)]))
+                  ,(ExpFunCall $ (FunCall (Ident srcPos "fun1") [(intConst 1)]))
                   ]
 
                      -- Test full reduction to constant
-injectExpressions = [(ExpBinOp Mul (ExpIdent (Ident "a")) (ExpLit (Number (Left 4))))
+injectExpressions = [(ExpBinOp (Mul srcPos) (ExpIdent (Ident srcPos "a")) (intConst 4))
                      -- Test partial reduction
-                    ,(ExpBinOp Less (ExpBinOp Add (ExpIdent $ Ident "a") (ExpIdent $ Ident "test"))  (
-                                    (ExpBinOp Mul (intConst 5) (intConst 4))))
+                    ,(ExpBinOp (Less srcPos) (ExpBinOp (Add srcPos) (ExpIdent $ Ident srcPos "a") (ExpIdent $ Ident srcPos "test"))  (
+                                    (ExpBinOp (Mul srcPos) (intConst 5) (intConst 4))))
                     ]
 
 expectedAfterInject = [intConst 24
-                      ,ExpBinOp Less (ExpBinOp Add (intConst 6) (ExpIdent $ Ident "test"))
+                      ,ExpBinOp (Less srcPos) (ExpBinOp (Add srcPos) (intConst 6) (ExpIdent $ Ident srcPos "test"))
                                      (intConst 20) 
                       ]
 
@@ -61,40 +70,40 @@ expectedAfterInject = [intConst 24
 -- into a kernel type
 
 programTempl stmts = Program 
-    [TLObjs $ Objects (map Ident ["GPRM","Kernel","A"]) (VarIdent $ Ident "obj")    
-    ,Func (intTypeNK) (Ident "test") [] $ BlockStmt stmts
+    [TLObjs $ Objects (map (Ident srcPos) ["GPRM","Kernel","A"]) (VarIdent $ Ident srcPos "obj")    
+    ,Func (intTypeNK) (Ident srcPos "test") [] $ BlockStmt stmts
     ]
 
 methodCalls = map programTempl 
-    [[AssignStmt $ Assign intTypeNK (Ident "i") 
-        (ExpMethodCall (MethodCall (VarIdent $ Ident "obj") (Ident "m1") [intConst 5]))
+    [[AssignStmt $ Assign intTypeNK (Ident srcPos "i") 
+        (ExpMethodCall (MethodCall (VarIdent $ Ident srcPos "obj") (Ident srcPos "m1") [intConst 5]))
 
-     ,MethodStmt $ MethodCall (VarIdent $ Ident "obj") (Ident "m1") [intConst 32]
+     ,MethodStmt $ MethodCall (VarIdent $ Ident srcPos "obj") (Ident srcPos "m1") [intConst 32]
      ]
     ]
 
 expectedTCMethodCalls = map programTempl 
-    [[AssignStmt $ Assign intTypeK (Ident "i") 
-        (ExpMethodCall (MethodCall (VarIdent $ Ident "obj") (Ident "m1") [intConst 5]))
+    [[AssignStmt $ Assign intTypeK (Ident srcPos "i") 
+        (ExpMethodCall (MethodCall (VarIdent $ Ident srcPos "obj") (Ident srcPos "m1") [intConst 5]))
 
-     ,MethodStmt $ MethodCall (VarIdent $ Ident "obj") (Ident "m1") [intConst 32]
+     ,MethodStmt $ MethodCall (VarIdent $ Ident srcPos "obj") (Ident srcPos "m1") [intConst 32]
      ]
     ]
 
 -- Check Pointers type checked correctly, and reduced
-pointerProgramTempl stmts = Program [Func (intTypeNK) (Ident "test") 
-                                [(PointerType intTypeNK, Ident "a")] $ BlockStmt stmts]
+pointerProgramTempl stmts = Program [Func (intTypeNK) (Ident srcPos "test") 
+                                [(PointerType intTypeNK, Ident srcPos "a")] $ BlockStmt stmts]
 pointerAssigns = map pointerProgramTempl
-    [[AssignStmt $ Assign (PointerType intTypeNK) (Ident "b")
-        (ExpBinOp Add (ExpIdent $ Ident "a") 
-            (ExpBinOp Add (intConst 4) (intConst 3)))
+    [[AssignStmt $ Assign (PointerType intTypeNK) (Ident srcPos "b")
+        (ExpBinOp (Add srcPos) (ExpIdent $ Ident srcPos "a") 
+            (ExpBinOp (Add srcPos) (intConst 4) (intConst 3)))
      ]
     ]
 
 expectedTCPointerAssigns = map pointerProgramTempl
-    [[AssignStmt $ Assign (PointerType intTypeNK) (Ident "b")
-        (ExpBinOp Add (ExpIdent $ Ident "a") 
-            (ExpBinOp Add (intConst 4) (intConst 3)))
+    [[AssignStmt $ Assign (PointerType intTypeNK) (Ident srcPos "b")
+        (ExpBinOp (Add srcPos) (ExpIdent $ Ident srcPos "a") 
+            (ExpBinOp (Add srcPos) (intConst 4) (intConst 3)))
      ]
     ]
 
@@ -102,31 +111,31 @@ expectedTCPointerAssigns = map pointerProgramTempl
 -- Check that after assigning a method call result to a variable, that
 -- that variable can't then be used in non-kernel ways 
 invalidMethodUse = map programTempl 
-                    [[(AssignStmt $ Assign intTypeNK (Ident "i") 
-                        (ExpMethodCall (MethodCall (VarIdent $ Ident "obj") (Ident "m1") []))),
-                      (AssignStmt $ Assign intTypeNK (Ident "j") (ExpIdent $ Ident "i"))]
+                    [[(AssignStmt $ Assign intTypeNK (Ident srcPos "i") 
+                        (ExpMethodCall (MethodCall (VarIdent $ Ident srcPos "obj") (Ident srcPos "m1") []))),
+                      (AssignStmt $ Assign intTypeNK (Ident srcPos "j") (ExpIdent $ Ident srcPos "i"))]
 
                     -- check kernel Boolean can't be used in if
-                    ,[(AssignStmt $ Assign boolTypeNK (Ident "i") 
-                        (ExpMethodCall (MethodCall (VarIdent $ Ident "obj") (Ident "m1") []))),
-                      (If (ExpIdent $ Ident "i") (BStmt $ BlockStmt []))]
+                    ,[(AssignStmt $ Assign boolTypeNK (Ident srcPos "i") 
+                        (ExpMethodCall (MethodCall (VarIdent $ Ident srcPos "obj") (Ident srcPos "m1") []))),
+                      (If (ExpIdent $ Ident srcPos "i") (BStmt $ BlockStmt []))]
                    ]
 
 
 -- Check multiple variables can't be declared in the same scope
 multipleDefInScope = 
     -- Check identifiers on top level scope not duplicated
-    [Program [TLAssign (Assign intTypeNK (Ident "i") (intConst 5))
-             ,TLAssign (Assign intTypeNK (Ident "i") (intConst 3))
+    [Program [TLAssign (Assign intTypeNK (Ident srcPos "i") (intConst 5))
+             ,TLAssign (Assign intTypeNK (Ident srcPos "i") (intConst 3))
              ]
      -- Check function arguments not duplicated    
-     ,Program [Func (intTypeNK) (Ident "mulArgsTest") 
-                [(intTypeNK, Ident "a"), (boolTypeNK, Ident "a")] $ BlockStmt []
+     ,Program [Func (intTypeNK) (Ident srcPos "mulArgsTest") 
+                [(intTypeNK, Ident srcPos "a"), (boolTypeNK, Ident srcPos "a")] $ BlockStmt []
               ]                
      -- Check function argument, not also present in main
      -- function block
-     ,Program [Func (intTypeNK) (Ident "argsFunDups") [(boolTypeNK, Ident "b")] $ BlockStmt
-                [AssignStmt $ Assign intTypeNK (Ident "b") (intConst 42)]
+     ,Program [Func (intTypeNK) (Ident srcPos "argsFunDups") [(boolTypeNK, Ident srcPos "b")] $ BlockStmt
+                [AssignStmt $ Assign intTypeNK (Ident srcPos "b") (intConst 42)]
               ]
      ]                  
 
@@ -135,107 +144,107 @@ checkConstructors =
   map objTempl  
     -- Check assigning an object not declared doesn't work
     [[TLConstructObjs $ ConstructObjs 
-        (map Ident ["GPRM", "Kernel", "A", "A"]) 
-        (VarIdent $ Ident "e") []
+        (map (Ident srcPos) ["GPRM", "Kernel", "A", "A"]) 
+        (VarIdent $ Ident srcPos "e") []
      ]   
    -- Check constructor syntax is correct
    ,[TLConstructObjs $ ConstructObjs 
-        (map Ident ["GPRM", "Kernel", "A", "C"]) 
-        (VarIdent $ Ident "o") []
+        (map (Ident srcPos) ["GPRM", "Kernel", "A", "C"]) 
+        (VarIdent $ Ident srcPos "o") []
     ]
     -- Check constructing array element for something not in an array
    ,[TLConstructObjs $ ConstructObjs 
-        (map Ident ["GPRM", "Kernel", "A", "A"]) 
-        (VarArrayElem (Ident "o") (intConst 0)) []]
+        (map (Ident srcPos) ["GPRM", "Kernel", "A", "A"]) 
+        (VarArrayElem (Ident srcPos "o") (intConst 0)) []]
 
    -- Check assigning an array element of an object not declared doesn't
    -- work
    ,[TLConstructObjs $ ConstructObjs 
-        (map Ident ["GPRM", "Kernel", "A", "D"]) 
-        (VarArrayElem (Ident "e") (intConst 0)) []
+        (map (Ident srcPos) ["GPRM", "Kernel", "A", "D"]) 
+        (VarArrayElem (Ident srcPos "e") (intConst 0)) []
     ]
    -- Check constructor syntax for array elements are correct
    ,[TLConstructObjs $ ConstructObjs 
-        (map Ident ["GPRM", "Kernel", "A", "C"]) 
-        (VarArrayElem (Ident "t") (intConst 0)) []
+        (map (Ident srcPos) ["GPRM", "Kernel", "A", "C"]) 
+        (VarArrayElem (Ident srcPos "t") (intConst 0)) []
     ]
     -- Check constructing object for an array
    ,[TLConstructObjs $ ConstructObjs 
-        (map Ident ["GPRM", "Kernel", "A", "D"]) 
-        (VarIdent $ Ident "t") []
+        (map (Ident srcPos) ["GPRM", "Kernel", "A", "D"]) 
+        (VarIdent $ Ident srcPos "t") []
     ]
    -- Check out of bounds array access
    ,[TLConstructObjs $ ConstructObjs 
-        (map Ident ["GPRM", "Kernel", "A", "D"]) 
-        (VarArrayElem (Ident "t") (intConst 2)) []
+        (map (Ident srcPos) ["GPRM", "Kernel", "A", "D"]) 
+        (VarArrayElem (Ident srcPos "t") (intConst 2)) []
     ]
    -- Check out of bounds array access (negative element)
    ,[TLConstructObjs $ ConstructObjs 
-        (map Ident ["GPRM", "Kernel", "A", "D"]) 
-        (VarArrayElem (Ident "t") (intConst (-1))) []
+        (map (Ident srcPos) ["GPRM", "Kernel", "A", "D"]) 
+        (VarArrayElem (Ident srcPos "t") (intConst (-1))) []
     ]
    ]
     where 
-        objTempl :: [TopLevel] -> Program
+        objTempl :: [TopLevel SrcPos] -> Program SrcPos
         objTempl stmts = Program (
-            [TLObjs $ Objects (map Ident ["GPRM", "Kernel", "A"]) 
-                              (VarIdent $ Ident "o")
+            [TLObjs $ Objects (map (Ident srcPos) ["GPRM", "Kernel", "A"]) 
+                              (VarIdent $ Ident srcPos "o")
                                            
-            ,TLObjs $ Objects (map Ident ["GPRM", "Kernel", "D"]) 
-                              (VarArrayElem (Ident "t") (intConst 2))]
+            ,TLObjs $ Objects (map (Ident srcPos) ["GPRM", "Kernel", "D"]) 
+                              (VarArrayElem (Ident srcPos "t") (intConst 2))]
             ++ stmts)
                 
 -- Programs which should pass type checking
-validPrograms = [Program [TLAssign (Assign intTypeNK (Ident "i") (intConst 5))
-                         ,TLAssign (Assign intTypeNK (Ident "j") (ExpIdent (Ident "i")))
+validPrograms = [Program [TLAssign (Assign intTypeNK (Ident srcPos "i") (intConst 5))
+                         ,TLAssign (Assign intTypeNK (Ident srcPos "j") (ExpIdent (Ident srcPos "i")))
                          ]
                 -- Check single object declarations and construction
-                ,Program [TLObjs $ Objects (map Ident ["GPRM", "Kernel", "A"]) 
-                                           (VarIdent $ Ident "o"),
+                ,Program [TLObjs $ Objects (map (Ident srcPos) ["GPRM", "Kernel", "A"]) 
+                                           (VarIdent $ Ident srcPos "o"),
                           TLConstructObjs $ ConstructObjs 
-                            (map Ident ["GPRM", "Kernel", "A", "A"]) 
-                            (VarIdent $ Ident "o")
+                            (map (Ident srcPos) ["GPRM", "Kernel", "A", "A"]) 
+                            (VarIdent $ Ident srcPos "o")
                             [intConst 72] 
                          ]
                 -- Check array object declarations and construction   
-                ,Program [TLObjs $ Objects (map Ident ["GPRM", "Kernel", "A"]) 
-                                           (VarArrayElem (Ident "o") (intConst 2)),
+                ,Program [TLObjs $ Objects (map (Ident srcPos) ["GPRM", "Kernel", "A"]) 
+                                           (VarArrayElem (Ident srcPos "o") (intConst 2)),
                           TLConstructObjs $ ConstructObjs 
-                            (map Ident ["GPRM", "Kernel", "A", "A"]) 
-                            (VarArrayElem (Ident "o") (intConst 1))
+                            (map (Ident srcPos) ["GPRM", "Kernel", "A", "A"]) 
+                            (VarArrayElem (Ident srcPos "o") (intConst 1))
                             [intConst 72],
                             
                           TLConstructObjs $ ConstructObjs 
-                            (map Ident ["GPRM", "Kernel", "A", "A"]) 
-                            (VarArrayElem (Ident "o") (intConst 0))
+                            (map (Ident srcPos) ["GPRM", "Kernel", "A", "A"]) 
+                            (VarArrayElem (Ident srcPos "o") (intConst 0))
                             [intConst 32] 
                            
                          ]
                 ]
 
 
-vars = M.fromList $ map (\(a,b) -> (Ident a, NormalType False b)) 
+vars = M.fromList $ map (\(a,b) -> (Ident srcPos a, NormalType srcPos False b)) 
               [("a", "int")
               ,("b", "int")
               ,("c", "double")
               ,("test", "int")
               ]
-ftable = M.fromList [(Ident "fun1", (NormalType False "int" , 
-            map (NormalType False) ["int", "int"]))
+ftable = M.fromList [(Ident srcPos "fun1", (NormalType srcPos False "int" , 
+            map (NormalType srcPos False) ["int", "int"]))
                      ]
-ctable = M.fromList [(Ident "a", Number (Left 6))
-                    ,(Ident "b", Bl True)
-                    ,(Ident "c", Number (Right 7.0))
+ctable = M.fromList [(Ident srcPos "a", Number srcPos (Left 6))
+                    ,(Ident srcPos "b", Bl srcPos True)
+                    ,(Ident srcPos "c", Number srcPos (Right 7.0))
                     ]
 
  
-validTest :: Type -> Either String Type -> TFA.Test
+validTest :: (Type SrcPos) -> Either String (Type SrcPos) -> TFA.Test
 validTest e a = testCase "type check passed test" (
  case a of
     Left err -> assertFailure err
     Right p -> assertEqual "" (show p) (show e))
 
-validProgramTest :: Program -> TFA.Test
+validProgramTest :: Program SrcPos -> TFA.Test
 validProgramTest p = testCase "Checking full programs" (
     case result  of
         Left err -> assertFailure err
@@ -247,7 +256,7 @@ validProgramTest p = testCase "Checking full programs" (
 -- type check and reduce the given program and assert the
 -- type checking is correct and the reduced program
 -- matches the expected reduced program
-typeCheckAndReduceTest :: Program -> Program -> TFA.Test
+typeCheckAndReduceTest :: Program SrcPos -> Program SrcPos -> TFA.Test
 typeCheckAndReduceTest inP expectedOutP = testCase "Checking type/scope and reduction" (
     case result of
         Left err -> assertFailure err
@@ -257,7 +266,7 @@ typeCheckAndReduceTest inP expectedOutP = testCase "Checking type/scope and redu
 
 -- Given a Program which should fail type checking
 -- assert that it does actually fail when type checking.
-invalidProgramTest :: Program -> TFA.Test
+invalidProgramTest :: Program SrcPos -> TFA.Test
 invalidProgramTest p = testCase "error catching test for full Program" (
     unless (isLeft result) $ 
     assertFailure $ "Program should have contained type/scope error" ++ show result)
@@ -265,13 +274,13 @@ invalidProgramTest p = testCase "error catching test for full Program" (
        result = runTypeChecker p
 
 
-validInject :: Expr -> Either String Expr -> TFA.Test
+validInject :: Expr SrcPos -> Either String (Expr SrcPos) -> TFA.Test
 validInject e a = testCase "injectingConstants" (
  case a of
     Left err -> assertFailure err
     Right p -> assertEqual "" (show p) (show e))
 
-invalidTest :: Either String Type -> TFA.Test
+invalidTest :: Either String (Type SrcPos) -> TFA.Test
 invalidTest a = testCase "Error catching test" (
     unless (isLeft a) $ 
     assertFailure "Expected test to fail")

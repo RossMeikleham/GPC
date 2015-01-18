@@ -2,8 +2,9 @@
 {- Generate GPIR code from Type/Scope checked AST -}
 
 
-module GPC.GenGPIR (genGPIR) where
+module GPC.GenGPIR() where --(genGPIR) where
 
+{-
 import           Control.Applicative      hiding (empty, many, optional, (<|>))
 import           Control.Error.Util
 import           Control.Lens
@@ -112,8 +113,9 @@ genTopLevelStmt tl = case tl of
       _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level " ++
                 "Assignments, Object Decls or non Entry functions"
 
+-}
 
-
+{-
 -- | Generate Object Constructors
 genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
 genTLConstructObjs (ConstructObjs ns var exprs) = do
@@ -376,3 +378,5 @@ checkConst :: Expr -> GenState Literal
 checkConst expr = case expr of
     (ExpLit l) -> return l
     _ -> lift $ Left "Expected constant expression"
+
+-}

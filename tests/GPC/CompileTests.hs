@@ -39,9 +39,9 @@ passTest file = testCase file ( do
         Right v ->  do 
             case runTypeChecker v of
                 Left err -> assertFailure err
-                Right reduced -> case genGPIR fileName reduced of
-                    Left err -> assertFailure err
-                    Right _ -> return ()
+                Right reduced -> return () -- case genGPIR fileName reduced of
+                   -- Left err -> assertFailure err
+                   -- Right _ -> return ()
     )
  where
     filePath = passDir ++ file 
@@ -61,9 +61,9 @@ failTest file = testCase file ( do
         Right v ->  do 
             case runTypeChecker v of
                 Left _ -> return ()
-                Right reduced -> case genGPIR fileName reduced of
-                    Left _ -> return ()
-                    Right _ -> assertFailure "Program shouldn't have compiled"
+                Right reduced -> assertFailure $ "Program shouldn't have type checked" ++ show reduced --case genGPIR fileName reduced of
+                   -- Left _ -> return ()
+                   -- Right _ -> assertFailure "Program shouldn't have compiled"
     )
  where
     filePath = failDir ++ file 

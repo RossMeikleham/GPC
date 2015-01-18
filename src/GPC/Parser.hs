@@ -5,7 +5,6 @@ module GPC.Parser(parseSource) where
 import Control.Applicative hiding ((<|>), many, optional, empty)
 import Text.ParserCombinators.Parsec
 import Text.Parsec.Expr
-import Text.Parsec.Prim hiding (try)
 import GPC.AST
 import GPC.Lexer
 import Control.Arrow
