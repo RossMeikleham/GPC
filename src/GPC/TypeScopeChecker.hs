@@ -495,7 +495,6 @@ getNormalTypeBin bop leftType rightType
             then return $ boolTypePos kernel opPos
             else Left "Expected equality of same types"
 
-   | otherwise = Left "Compiler error during obtaining type of binary expression"
   where
      numNumNumOp = [Add opPos, Sub opPos, Mul opPos, Div opPos]
      intIntIntOp = [Mod opPos, BAnd opPos, BOr opPos, BXor opPos, ShiftL opPos, ShiftR opPos]
