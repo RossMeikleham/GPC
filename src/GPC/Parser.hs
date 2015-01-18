@@ -217,11 +217,7 @@ parseType = do
     return $ foldr (\ ptr cur -> (ptr cur)) baseType ptrs
  where
     getPointer :: Parser (Type SrcPos -> Type SrcPos)
-    getPointer = do
-        whiteSpace
-        _ <- char '*'
-        return PointerType
-        --if c == '*' then return PointerType else mzero
+    getPointer = (char '*' >> whiteSpace >> return PointerType)
             
 
 -- | Parse number

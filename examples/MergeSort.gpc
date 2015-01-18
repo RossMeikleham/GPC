@@ -2,7 +2,7 @@
 GPRM::Kernel::Mergesort MS;
 
 
-void MergeSort(int* A, int* tmp, int size, int cutoff){
+int MergeSort(int* A, int* tmp, int size, int cutoff){
     int half = size/2;
     int* tmpA = tmp;
     int* B = A + half;
