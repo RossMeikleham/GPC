@@ -1,21 +1,37 @@
-{-# LANGUAGE GADTs, KindSignatures #-} --GADTSyntax #-}
+{-# LANGUAGE GADTs, KindSignatures #-} 
  
+{- Interpreter which runs through the GPC code
+ - and produces the appropriate td Kernel Calls to the GPRM -}
+module Interpreter (runProgram) where
 
-module Interpreter where
+--TODO temp, replace with GPIR AST Symbol Tree
 
-import Control.Monad.State.Lazy
+import           Control.Monad.State.Lazy
 import qualified Data.Map as M
 
 type ConstTable a = M.Map String a
+data SymbolTree = SymbolTree String 
+
 --type ConstVarTable = M.Map (Ident SrcPos) (Literal SrcPos)
 --type FunTable = M.Map (Ident SrcPos) (Type SrcPos, [Type SrcPos])
 --type ObjectTable = M.Map (Ident SrcPos) (Objects SrcPos)
+
+data TLStmt :: * -> * where
+    FuncDef   :: Ident -> [Stmt a] -> TLStmt () 
+    TLAssign  :: Expr a -> TLStmt ()
+       
+    TLStmtReturn :: a -> TLStmt a
+    TLStmtBind :: TLStmt a -> (a -> TLStmt b) -> TLStmt b    
+
+instance Monad TLStmt where
+    return = TLStmtReturn
+    (>>=)  = TLStmtBind
 
 
 data Stmt :: * -> * where
     
     StmtGetVar :: Ident -> Stmt Value
-    StmtSetVar :: Ident -> Value -> Stmt () -- ^ assignment
+    StmtSetVar :: Ident -> Value -> Stmt () -- ^ Assignment
     
     Seq :: [Stmt a] -> Stmt () -- ^ Evaluate statements in sequential order
     BStmt :: [Stmt a] -> Stmt () -- ^ Statements in enclosed block
@@ -26,7 +42,11 @@ data Stmt :: * -> * where
     For :: Expr a -> Expr Bool -> Expr b -> [Stmt c] -> Stmt () 
 
     StmtReturn :: a -> Stmt a
-    StmtBind :: Stmt a -> Stmt Bool -> Stmt b -> Stmt c -> Stmt ()    
+    StmtBind :: Stmt a -> (a -> Stmt b) -> Stmt b    
+
+instance Monad Stmt where
+    return = StmtReturn
+    (>>=)  = StmtBind
 
 data Expr :: * -> * where
     
@@ -63,15 +83,32 @@ data Expr :: * -> * where
     Neg  :: Num a => Expr a -> Expr a -- ^ Number negation
     BNot :: Expr Int -> Expr Int      -- ^ Bitwise NOT
 
-    
+    -- ^ Monad implementation
     ExprReturn :: a -> Expr a
-    ExprBind :: Expr a -> Expr Bool -> Expr b -> Expr c -> Expr ()    
+    ExprBind :: Expr a -> (a -> Expr b) -> Expr b     
+
+instance Monad Expr where
+    return = ExprReturn
+    (>>=)  = ExprBind
+
 
 data Value = Var Ident | GNum Int
 data Ident = Ident String
+type Vars = M.Map Ident Value
 
 
 
+runProgram :: [TLStmt a] -> State Vars [SymbolTree]
+runProgram tls = mapM runTLStmt tls
 
+runTLStmt :: TLStmt a -> State Vars SymbolTree 
+runTLStmt (FuncDef ident stmts) = error "TODO"
+runTLStmt _ = error "TODO"
 
-
+{-
+:: Ident -> [Stmt a] -> TLStmt () 
+    TLAssign  :: Expr a -> TLStmt ()
+       
+    TLStmtReturn :: a -> TLStmt a
+    TLStmtBind :: TLStmt a -> (a -> TLStmt b) -> TLStmt b    
+-}
