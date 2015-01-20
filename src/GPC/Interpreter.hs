@@ -2,7 +2,7 @@
  
 {- Interpreter which runs through the GPC code
  - and produces the appropriate td Kernel Calls to the GPRM -}
-module Interpreter (runProgram) where
+module GPC.Interpreter where
 
 --TODO temp, replace with GPIR AST Symbol Tree
 
@@ -19,6 +19,7 @@ data SymbolTree = SymbolTree String
 data TLStmt :: * -> * where
     FuncDef   :: Ident -> [Stmt a] -> TLStmt () 
     TLAssign  :: Expr a -> TLStmt ()
+    TLConstruct :: Ident -> [Expr a] -> TLStmt ()
        
     TLStmtReturn :: a -> TLStmt a
     TLStmtBind :: TLStmt a -> (a -> TLStmt b) -> TLStmt b    
@@ -95,6 +96,8 @@ instance Monad Expr where
 data Value = Var Ident | GNum Int
 data Ident = Ident String
 type Vars = M.Map Ident Value
+
+
 
 
 

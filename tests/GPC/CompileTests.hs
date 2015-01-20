@@ -16,8 +16,8 @@ import GPC.Parser
 import GPC.TypeScopeChecker
 import GPC.GenGPIR
 
-passDir =  "examples/pass/"
-failDir =  "examples/fail/"
+passDir =  "tests/examples/pass/"
+failDir =  "tests/examples/fail/"
 
 sourceFiles :: String -> IO [String]
 sourceFiles dir = do 
