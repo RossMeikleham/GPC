@@ -1,0 +1,117 @@
+module TypelessAST where
+
+
+data Program a = Program [TopLevel a] deriving (Show,Eq)
+
+
+-- | Top Level Expressions
+data TopLevel =
+        Func Ident [Ident] BlockStmt  -- ^ Return Type, Name, Arguments, Code
+      | TLConstructObjs ConstructObjs -- ^ External object constructor calls
+      | TLAssign Assign -- ^ Top level assignment
+       deriving (Show, Eq)
+
+-- | Objects
+data Objects = Objects {
+   nameSpace :: [Ident],
+   objVar :: Var 
+} deriving (Show, Eq)
+
+-- | Variable
+data Var = 
+          VarArrayElem Ident Expr  -- ^ Element of Array
+        | VarIdent Ident -- ^ Ordinary identifier
+         deriving (Show, Eq)
+
+-- | Constructing Objects
+data ConstructObjs a = ConstructObjs [Ident a] (Var a) [Expr a] deriving (Show, Eq)
+
+-- | Statement
+data Stmt = 
+        AssignStmt Assign-- ^ Type Name, assignment
+      | Seq BlockStmt -- ^ Evaluate statements in sequential order
+      | BStmt BlockStmt  -- ^ Statements in enclosed block
+      | FunCallStmt FunCall -- ^ Call Funcion
+      | MethodStmt MethodCall -- ^ Call Object method
+      | If Expr Stmt  -- ^ If statement
+      | IfElse Expr Stmt Stmt -- ^ If Else statement
+      | Return Expr -- ^ Return value from current function
+      | ForLoop Ident Expr Expr Expr BlockStmt -- ^ Start, Stop, Step, statements, static for loops
+       deriving (Show, Eq)
+
+data Assign = Assign Ident Expr  deriving (Show, Eq) -- ^ Variable assignment
+data FunCall = FunCall Ident Expr deriving (Show, Eq) -- ^ Function call layout
+data MethodCall a = MethodCall { 
+      mVar :: Var a, 
+      mName :: Ident a, 
+      mArgs ::  [Expr a] 
+} deriving (Show, Eq) -- ^ Method call layout
+
+-- | Expression
+data Expr =
+      ExpBinOp BinOps Expr Expr -- ^ Binary operation with 2 sub-expressions
+    | ExpUnaryOp UnaryOps Expr a -- ^ Unary operation with sub-expression
+    | ExpFunCall FunCall a -- ^ Function Call
+    | ExpMethodCall MethodCall -- ^ C++ Object method call
+    | ExpIdent Ident -- ^ Identifier  
+    | ExpLit Literal -- ^ Constant/Literal value
+     deriving (Show, Eq)
+
+
+-- | Binary Operators
+data BinOps =
+      Add  -- ^ Addition
+    | Sub  -- ^ Subtraction
+    | Mul  -- ^ Multiplication
+    | Div  -- ^ Division
+    | And  -- ^ Boolean AND
+    | Or   -- ^ Boolean OR
+    | Mod  -- ^ Modulo
+    | Less  -- ^ Less than 
+    | LessEq  -- ^ Less than or equal to
+    | Greater  -- ^ Greater than
+    | GreaterEq  -- ^ Greather than or equal to
+    | Equals  -- ^ Equals
+    | NEquals  -- ^ Not Equal
+    | ShiftL  -- ^ Logical Shift Left
+    | ShiftR  -- ^ Logical Shift Right
+    | BAnd  -- ^ Bitwise AND
+    | BXor  -- ^ Bitwise XOR
+    | BOr  -- ^ Bitwise OR
+     deriving (Show, Eq)
+
+
+-- | Unary Operators
+data UnaryOps =
+      Not -- ^ Boolean NOT
+    | Neg  -- ^ Number negation
+    | BNot -- ^ Bitwise NOT
+     deriving (Show, Eq)
+
+-- | Literal/Constants
+data Literal  =
+      Str String -- ^ String
+    | Ch Char -- ^ Char
+    | Num Number -- ^ Numbers, either Int/Double
+    | Bl Bool -- Boolean
+     deriving (Eq)
+
+instance Show (Literal a) where
+    show (Str _ s) = s
+    show (Ch _ c) = show c
+    show (Number _ (Left i)) = show i
+    show (Number _ (Right d)) = show d
+    show (Bl _ b) = show b
+
+
+-- | C++ Library
+type LibName a = Ident a
+
+-- | C++ Class Name  
+type ClassName a = Ident a
+
+-- | Identifier
+data Ident = Ident String 
+
+-- | Block of Statements
+data BlockStmt = BlockStmt deriving (Show, Eq)

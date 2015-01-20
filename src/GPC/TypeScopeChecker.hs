@@ -12,7 +12,6 @@ import           Data.Bits
 import           Data.Tuple
 import qualified Data.Map as M
 import           GPC.AST
-import qualified GPC.Interpreter as I
 
 type VarTable = M.Map (Ident SrcPos) (Type SrcPos)
 type ConstVarTable = M.Map (Ident SrcPos) (Literal SrcPos)
@@ -80,7 +79,7 @@ type BlockState a = GenericBlockState CodeBlock a
 
 -- | Perform Type/Scope checking, and simple expression reduction
 -- | Returns either an error message or the Reduced GPC AST
-runTypeChecker :: (Program SrcPos) -> Either String [I.TLStmt] 
+runTypeChecker :: (Program SrcPos) -> Either String (Program SrcPos)
 runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
  Left s -> Left s
  (Right (tl, _)) -> Right $ Program tl
@@ -88,12 +87,12 @@ runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
 
 
 -- | Type Check all top level statements
-evalTLStmts :: [TopLevel SrcPos] -> CodeState [I.TLStmt]
+evalTLStmts :: [TopLevel SrcPos] -> CodeState [TopLevel SrcPos]
 evalTLStmts = mapM evalTLStmt
 
 
 -- | Type check a given top level statement
-evalTLStmt :: TopLevel SrcPos -> CodeState I.TLStmt
+evalTLStmt :: TopLevel SrcPos -> CodeState (TopLevel SrcPos)
 evalTLStmt tl = case tl of
     (TLAssign a) -> TLAssign <$> evalTLAssign a
     (Func gType ident args stmts) -> evalFunc gType ident args stmts
@@ -101,17 +100,17 @@ evalTLStmt tl = case tl of
     (TLConstructObjs cObjs) -> TLConstructObjs <$> evalConstruct cObjs
 
 -- | Type check object initializations
-evalConstruct :: (ConstructObjs SrcPos) -> CodeState I.TLStmt
+evalConstruct :: (ConstructObjs SrcPos) -> CodeState (ConstructObjs SrcPos)
 evalConstruct (ConstructObjs ns var exprs) = do
     tVars <- use tlVarTypes
     objs <- use objects
-    exprs' <- lift $ mapM (getTypeExpr tVars M.empty) exprs
+    _ <- lift $ mapM (getTypeExpr tVars M.empty) exprs
 
     case var of
         (VarIdent ident) -> do
             v <- checkNameSpace ident objs
             case v of
-                (VarIdent _) -> return $ I.TLConstruct (I.Ident "test") exprs'
+                (VarIdent _) -> return $ ConstructObjs ns var exprs
                 (VarArrayElem i _) -> lift $ Left $ errorIdent i ++  show i ++ 
                     "is declared as a single object, not an array"
 
@@ -129,7 +128,7 @@ evalConstruct (ConstructObjs ns var exprs) = do
                    
                     exprType' <- lift $ getTypeExpr tVars M.empty expr'
                     checkType (intTypePos notKernel sp') exprType'
-                    return $ I.TLConstruct (I.Ident "test") exprs'
+                    return $ ConstructObjs ns var exprs
     
   where             
     notFound i =  errorIdent i ++ "object not found " ++ show i
@@ -147,7 +146,7 @@ evalConstruct (ConstructObjs ns var exprs) = do
 
 
 -- | Type check object declarations
-evalObjs :: Objects SrcPos -> CodeState I.TLStmt
+evalObjs :: Objects SrcPos -> CodeState (Objects SrcPos)
 evalObjs objs@(Objects _ var) = do
     
     tVars <- use tlVarTypes
