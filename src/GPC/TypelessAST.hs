@@ -1,7 +1,7 @@
-module TypelessAST where
+module GPC.TypelessAST where
 
 
-data Program a = Program [TopLevel a] deriving (Show,Eq)
+data Program = Program [TopLevel] deriving (Show,Eq)
 
 
 -- | Top Level Expressions
@@ -24,7 +24,7 @@ data Var =
          deriving (Show, Eq)
 
 -- | Constructing Objects
-data ConstructObjs a = ConstructObjs [Ident a] (Var a) [Expr a] deriving (Show, Eq)
+data ConstructObjs = ConstructObjs [Ident] Var [Expr] deriving (Show, Eq)
 
 -- | Statement
 data Stmt = 
@@ -40,18 +40,18 @@ data Stmt =
        deriving (Show, Eq)
 
 data Assign = Assign Ident Expr  deriving (Show, Eq) -- ^ Variable assignment
-data FunCall = FunCall Ident Expr deriving (Show, Eq) -- ^ Function call layout
-data MethodCall a = MethodCall { 
-      mVar :: Var a, 
-      mName :: Ident a, 
-      mArgs ::  [Expr a] 
+data FunCall = FunCall Ident [Expr] deriving (Show, Eq) -- ^ Function call layout
+data MethodCall = MethodCall { 
+      mVar :: Var, 
+      mName :: Ident, 
+      mArgs ::  [Expr] 
 } deriving (Show, Eq) -- ^ Method call layout
 
 -- | Expression
 data Expr =
       ExpBinOp BinOps Expr Expr -- ^ Binary operation with 2 sub-expressions
-    | ExpUnaryOp UnaryOps Expr a -- ^ Unary operation with sub-expression
-    | ExpFunCall FunCall a -- ^ Function Call
+    | ExpUnaryOp UnaryOps Expr -- ^ Unary operation with sub-expression
+    | ExpFunCall FunCall  -- ^ Function Call
     | ExpMethodCall MethodCall -- ^ C++ Object method call
     | ExpIdent Ident -- ^ Identifier  
     | ExpLit Literal -- ^ Constant/Literal value
@@ -92,26 +92,26 @@ data UnaryOps =
 data Literal  =
       Str String -- ^ String
     | Ch Char -- ^ Char
-    | Num Number -- ^ Numbers, either Int/Double
+    | Number (Either Integer Double) -- ^ Numbers, either Int/Double
     | Bl Bool -- Boolean
      deriving (Eq)
 
-instance Show (Literal a) where
-    show (Str _ s) = s
-    show (Ch _ c) = show c
-    show (Number _ (Left i)) = show i
-    show (Number _ (Right d)) = show d
-    show (Bl _ b) = show b
+instance Show Literal where
+    show (Str s) = s
+    show (Ch c) = show c
+    show (Number (Left i)) = show i
+    show (Number (Right d)) = show d
+    show (Bl b) = show b
 
 
 -- | C++ Library
-type LibName a = Ident a
+type LibName = Ident
 
 -- | C++ Class Name  
-type ClassName a = Ident a
+type ClassName = Ident
 
 -- | Identifier
-data Ident = Ident String 
+data Ident = Ident String deriving (Show, Eq)
 
 -- | Block of Statements
-data BlockStmt = BlockStmt deriving (Show, Eq)
+data BlockStmt = BlockStmt [Stmt] deriving (Show, Eq)

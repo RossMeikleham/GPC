@@ -7,6 +7,8 @@ import GPC.Parser
 --import GPC.GenGPIR
 import GPC.TypeScopeChecker
 import GPC.AST
+import GPC.SimplifyAST
+import qualified GPC.TypelessAST as S
 
 outputCode :: FilePath -> String -> IO()
 outputCode f s = writeFile f s --mapM_ putStrLn (lines s)

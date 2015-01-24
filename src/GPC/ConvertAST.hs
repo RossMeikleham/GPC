@@ -9,4 +9,5 @@ simplifyAST :: A.Program -> S.Program
 simplifyAST A.Program tls = S.Program $ map simplifyTLStmt tls
 
 simplifyTLStmt :: A.TopLevel -> S.TopLevel
+simplifyTLStmt 
 
