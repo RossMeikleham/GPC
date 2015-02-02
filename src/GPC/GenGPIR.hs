@@ -9,6 +9,7 @@ import           Control.Applicative      hiding (empty, many, optional, (<|>))
 import           Control.Error.Util
 import           Control.Lens
 import           Control.Monad.State.Lazy
+import           Data.Bits
 import qualified Data.Map                 as M
 import           GPC.TypelessAST
 import           GPC.GPIRAST
@@ -374,3 +375,153 @@ checkConst expr = case expr of
     _ -> lift $ Left "Expected constant expression"
 
 
+
+
+--- Replace all constant identifiers with their
+--- constant value
+injectConstants :: ConstVarTable ->  Expr -> Expr
+injectConstants ctable expr = case expr of
+    (ExpBinOp b e1 e2) -> ExpBinOp b (injectConstants ctable e1) (injectConstants ctable e2)
+    (ExpUnaryOp u e) -> ExpUnaryOp u (injectConstants ctable e)
+    (ExpFunCall (FunCall s exps)) -> ExpFunCall (FunCall s (map (injectConstants ctable) exps))
+    (ExpMethodCall (MethodCall obj method args)) ->
+        case obj of
+            (VarArrayElem i el) -> 
+                ExpMethodCall (MethodCall (VarArrayElem i (injectConstants ctable el))
+                                method (map (injectConstants ctable) args))
+            (VarIdent _) ->    
+                 ExpMethodCall (MethodCall obj method (map (injectConstants ctable) args))
+
+    (ExpIdent i) -> case M.lookup i ctable of
+                                Just l ->   ExpLit l
+                                Nothing ->  ExpIdent i
+    (ExpLit l) -> ExpLit l
+
+
+
+-- | Attempts to reduce an expression as much as possible
+-- | Returns an error string if evaluated expression
+-- | is invalid or an identifier is not present in the given table
+-- | otherwise returns the reduced expression
+reduceExpr :: Expr -> Either String Expr
+reduceExpr expr = case expr of
+    (ExpBinOp b e1 e2) -> do
+        re1 <- reduceExpr e1
+        re2 <- reduceExpr e2
+        evaluateBinExpr b re1 re2
+
+    (ExpUnaryOp u e) -> do
+        reducedExpr <- reduceExpr e
+        evaluateUnExpr u reducedExpr
+
+    (ExpFunCall (FunCall s exps)) -> do
+         rexps <- mapM reduceExpr exps
+         return $ ExpFunCall (FunCall s rexps)
+
+    (ExpMethodCall (MethodCall obj method args)) -> do
+        rexps <- mapM reduceExpr args
+        return $ ExpMethodCall (MethodCall obj method rexps)
+
+    (ExpIdent i) -> return $ ExpIdent i
+
+    (ExpLit l) -> return $ ExpLit l
+
+
+-- | Attempts to evaluate a constant binary expression
+evaluateBinExpr :: BinOps -> Expr -> Expr -> Either String Expr
+
+-- Binary operations with literals
+evaluateBinExpr b (ExpLit l1) (ExpLit l2) = binOpTable b l1 l2
+evaluateBinExpr  b e1 e2 = return $ ExpBinOp b e1 e2
+
+
+-- | Obtain binary operation to use with literal values
+binOpTable :: BinOps -> Literal -> Literal -> Either String Expr
+binOpTable b = case b of
+    Add -> performBinNumOp (+)
+    Sub -> performBinNumOp (-)
+    Div -> performBinNumOp (/)
+    Mul -> performBinNumOp (*)
+
+
+    Mod -> performBinIntOp mod
+    BAnd -> performBinIntOp (.&.)
+    BOr -> performBinIntOp (.|.)
+    BXor -> performBinIntOp xor
+    ShiftL -> performBinIntOp (\x y ->  shift x $ fromIntegral y)
+    ShiftR -> performBinIntOp (\x y ->  shift x $ fromIntegral (-y))
+
+    Less -> performBinCompareOp (<)
+    LessEq -> performBinCompareOp (<=)
+    Greater -> performBinCompareOp (>)
+    GreaterEq -> performBinCompareOp (>=)
+    Equals -> performBinCompareOp (==)
+    NEquals -> performBinCompareOp (/=)
+
+    And -> performBinBoolOp (&&)
+    Or -> performBinBoolOp (||)
+
+
+performBinNumOp :: (Double  -> Double -> Double)  -> Literal -> Literal -> Either String Expr
+performBinNumOp operation (Number (Left n1)) (Number (Left n2)) = Right litExp
+ where litExp = ExpLit $ Number $ Left $ truncate $ n1' `operation` n2'
+       n1' = fromIntegral n1
+       n2' = fromIntegral n2
+
+
+performBinNumOp operation (Number (Right n1))(Number (Right n2)) =
+    Right $ ExpLit $ Number $ Right $ n1 `operation` n2
+performBinNumOp _ _ _ = Left "Error expected a numeric value"
+
+
+performBinIntOp :: (Integer -> Integer -> Integer)  -> Literal -> Literal -> Either String Expr
+performBinIntOp operation (Number (Left n1)) (Number (Left n2)) =
+    Right $ ExpLit $ Number $ Left $ n1 `operation` n2
+performBinIntOp _ _ _ = Left "Error expected integer types"
+
+
+performBinCompareOp :: (Double -> Double -> Bool) -> Literal -> Literal -> Either String Expr
+performBinCompareOp operation (Number (Left n1)) (Number (Left n2)) =
+    Right $ ExpLit $ Bl $ n1' `operation` n2'
+ where n1' = fromIntegral n1
+       n2' = fromIntegral n2
+
+
+performBinCompareOp operation (Number (Right n1)) (Number (Right n2)) =
+    Right $ ExpLit $ Bl $ n1 `operation` n2
+performBinCompareOp _ _ _ = Left "Error expected either 2 ints, or 2 doubles"
+
+
+performBinBoolOp :: (Bool -> Bool -> Bool) -> Literal -> Literal -> Either String Expr
+performBinBoolOp operation (Bl b1) (Bl b2) =
+    Right $ ExpLit $ Bl $ b1 `operation` b2
+performBinBoolOp _ _ _ = Left "Error expected boolean values"
+
+
+-- |Attempts to evaluate a constant unary expression, check the types as
+-- |well
+evaluateUnExpr :: UnaryOps -> Expr -> Either String Expr
+evaluateUnExpr unOp (ExpLit l) = unOpTable unOp l
+evaluateUnExpr _ e = Right e
+
+-- | Function table of Unary operations on literals
+unOpTable u = case u of
+    Not -> performUnNotOp
+    Neg -> performUnNegOp
+    BNot -> performUnBNotOp
+
+-- | Perform Boolean NOT operation on literal value
+performUnNotOp ::  Literal -> Either String Expr
+performUnNotOp (Bl b1) = Right $ ExpLit $ Bl $ not b1
+performUnNotOp _ = Left "Error expected boolean value"
+
+-- | Perform Negation operation on literal value
+performUnNegOp :: Literal -> Either String Expr
+performUnNegOp (Number (Left i)) =  Right $ ExpLit $ Number $ Left  $ negate i
+performUnNegOp (Number (Right i)) = Right  $ ExpLit $ Number $ Right $ negate i
+performUnNegOp _ = Left "Error expected numeric type"
+
+-- | Perform Bitwise NOT operation on literal value
+performUnBNotOp :: Literal -> Either String Expr
+performUnBNotOp (Number (Left i)) = Right $ ExpLit $ Number $ Left $ complement i
+performUnBNotOp _ = Left "Error expected integer value"
