@@ -113,7 +113,10 @@ type LibName = Ident
 type ClassName = Ident
 
 -- | Identifier
-data Ident = Ident String deriving (Show, Eq, Ord)
+data Ident = Ident String deriving (Eq, Ord)
+
+instance Show (Ident) where
+    show (Ident s) = show s
 
 -- | Block of Statements
 data BlockStmt = BlockStmt [Stmt] deriving (Show, Eq)

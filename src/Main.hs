@@ -4,7 +4,7 @@ import Data.List.Split
 import System.Environment
 import GPC.Parser
 import GPC.CodeGen
-import GPC.GenGPIR
+import GPC.Interpreter
 import GPC.TypeScopeChecker
 import GPC.AST
 import GPC.SimplifyAST

@@ -15,12 +15,12 @@ void MergeSort2(int *A, int *tmp, int size, int cutoff) {
         MS.SeqSort(A, tmp, size);
     } else {
         MS.Merge(A, B, tmp, size, 
-            MergeSort(2*i, A, tmpA, half, cutoff/2),
-            MergeSort(2*i+1, B, tmpB, size-half, cutoff/2));
+            MergeSort2(A, tmpA, half, cutoff/2),
+            MergeSort2(B, tmpB, size-half, cutoff/2));
     }
 
 }
 
-void test(int* A, int* tmp){
+void MergeSort(int* A, int* tmp){
     MergeSort2(A, tmp, size, cutoff);
 }

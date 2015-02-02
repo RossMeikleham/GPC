@@ -14,7 +14,7 @@ import Data.List
 
 import GPC.Parser
 import GPC.TypeScopeChecker
-import GPC.GenGPIR
+import GPC.Interpreter
 
 passDir =  "tests/examples/pass/"
 failDir =  "tests/examples/fail/"
