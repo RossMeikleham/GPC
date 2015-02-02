@@ -15,6 +15,7 @@ import Data.List
 import GPC.Parser
 import GPC.TypeScopeChecker
 import GPC.Interpreter
+import GPC.SimplifyAST
 
 passDir =  "tests/examples/pass/"
 failDir =  "tests/examples/fail/"
@@ -39,9 +40,10 @@ passTest file = testCase file ( do
         Right v ->  do 
             case runTypeChecker v of
                 Left err -> assertFailure err
-                Right reduced -> return () -- case genGPIR fileName reduced of
-                   -- Left err -> assertFailure err
-                   -- Right _ -> return ()
+                Right reduced -> 
+                    case genGPIR fileName (simplifyAST reduced) of
+                        Left err -> assertFailure err
+                        Right _ -> return ()
     )
  where
     filePath = passDir ++ file 

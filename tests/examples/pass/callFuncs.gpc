@@ -34,9 +34,9 @@ int fun3(int a, int *b, char c, double d, bool e) {
 
 bool callFuncs(int *a, int *b, string *s, char *d) {
 
-    int c = fun2(a, b, s);
+    int e = fun2(a, b, s);
     char l = 'h';
     fun3(20, a, 'a', 0.5, false);
-    return fun1(20, c, "hey");
+    return fun1(20, e, "hey");
 
 }

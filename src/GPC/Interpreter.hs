@@ -513,10 +513,15 @@ performBinCompareOp operation (Number (Left n1)) (Number (Left n2)) =
  where n1' = fromIntegral n1
        n2' = fromIntegral n2
 
-
 performBinCompareOp operation (Number (Right n1)) (Number (Right n2)) =
     Right $ ExpLit $ Bl $ n1 `operation` n2
-performBinCompareOp _ _ _ = Left "Error expected either 2 ints, or 2 doubles"
+
+performBinCompareOp operation (Bl b1) (Bl b2) = 
+    Right $ ExpLit $ Bl $ (blToDouble b1) `operation` (blToDouble b2)
+  where blToDouble b = fromIntegral $ if b then 1 else 0    
+
+performBinCompareOp b e1 e2 = Left $ "Error expected either 2 ints, or 2 doubles, results were " ++ (show e1) ++ " " ++ (show e2)
+
 
 
 performBinBoolOp :: (Bool -> Bool -> Bool) -> Literal -> Literal -> Either String Expr
