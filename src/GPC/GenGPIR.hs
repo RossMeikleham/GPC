@@ -142,12 +142,24 @@ genStmt stmt = case stmt of
 
     -- When assigning a variable need to write it to a register
     AssignStmt (Assign name expr) -> do
-        let assignSymbol = Symbol $ GOpSymbol $
+        expr' <- reduceExpr expr
+        case expr' of
+            -- Values that evaluate to literals will not need to be written
+            -- to registers, wherever they are used can be directly
+            -- substituted during compliation
+            ExpLit l -> do 
+                constTable %= (M.insert name l)
+                return EmptyTree
+            -- Otherwise store the expression in a register
+            -- to be read from when used elsewhere
+            _ -> do
+
+                let assignSymbol = Symbol $ GOpSymbol $
                             MkOpSymbol False ("", 0) ["CoreServices", "reg", "write"]
-        expr' <- genExpr expr
-        reg <- updateRegs name
-        let regSymbol = Symbol $ ConstSymbol True (show reg)
-        return $ SymbolList False [assignSymbol, regSymbol,  expr']
+                expr' <- genExpr expr
+                reg <- updateRegs name
+                let regSymbol = Symbol $ ConstSymbol True (show reg)
+                return $ SymbolList False [assignSymbol, regSymbol,  expr']
 
     Seq (BlockStmt stmts) -> do
         let seqSymbol = Symbol $ GOpSymbol $
@@ -160,43 +172,73 @@ genStmt stmt = case stmt of
         return $ SymbolList False stmts'
 
     FunCallStmt (FunCall name exprs) -> do
-        (BlockStmt stmts) <- genInlineFunc name exprs
+        exprs' <- mapM reduceExpr exprs
+        (BlockStmt stmts) <- genInlineFunc name exprs'
         stmts' <- mapM genStmt stmts
         return $ SymbolList False stmts'
 
     MethodStmt (MethodCall cName method exprs) -> do
+        exprs' <- mapM reduceExpr exprs
         let call = Symbol $ GOpSymbol $
                     MkOpSymbol False ("Dummy", 0) ["temp", show cName, show method]
-        exprs' <- mapM genExpr exprs
-        return $ SymbolList False (call : exprs')
+        evalExprs <- mapM genExpr exprs'
+        return $ SymbolList False (call : evalExprs)
 
-    If expr stmt' -> do
-        let ifSymbol = Symbol $ GOpSymbol $
+    If expr stmt -> do
+        expr' <- reduceExpr expr
+        case expr' of
+            -- If Expression is a literal boolean we can evaluate the
+            -- branch at compile time
+            (ExpLit (Bl b)) -> 
+                if b then do
+                    stmt' <- genStmt stmt
+                    return stmt'
+                else 
+                    return EmptyTree
+
+            -- Otherwise generate code to evaluate at runtime
+            _ -> do
+                let ifSymbol = Symbol $ GOpSymbol $
                         MkOpSymbol False ("Dummy", 0) ["CoreServices", "IF", "if"]
-        cond <- genExpr expr
-        stmt'' <- genStmt stmt'
-        let dummyStmt = Symbol $ ConstSymbol True "0"
-        return $ SymbolList False [ifSymbol, cond, stmt'', dummyStmt]
+
+                cond <- genExpr expr'
+                evalStmt <- genStmt stmt
+                -- GPRM supports only if-then-else style, 
+                --  generate dummy statement to fill in the "else"
+                let dummyStmt = Symbol $ ConstSymbol True "0"
+                return $ SymbolList False [ifSymbol, cond, evalStmt, dummyStmt]
 
     IfElse expr stmt1 stmt2 -> do
-        let ifSymbol = Symbol $ GOpSymbol $
+        expr' <- reduceExpr expr
+        case expr' of
+            --Again like the If expression see if we can evaluate
+            -- which branch to take during compile time
+            (ExpLit (Bl b)) -> do
+                evalStmt <- if b 
+                             then genStmt stmt1
+                             else genStmt stmt2
+                return evalStmt
+
+            _ -> do
+                let ifSymbol = Symbol $ GOpSymbol $
                         MkOpSymbol False ("Dummy", 0) ["CoreServices", "IF", "if"]
-        cond <- genExpr expr
-        stmt1' <- genStmt stmt1
-        stmt2' <- genStmt stmt2
-        return $ SymbolList False [ifSymbol, cond, stmt1', stmt2']
+                cond <- genExpr expr'
+                evalStmt1 <- genStmt stmt1
+                evalStmt2 <- genStmt stmt2
+                return $ SymbolList False [ifSymbol, cond, evalStmt1, evalStmt2]
 
     Return expr -> do
+        expr' <- reduceExpr expr
         let returnSymbol = Symbol $ GOpSymbol $
                             MkOpSymbol False ("Dummy", 0) ["CoreServices", "RETURN", "return"]
-        expr' <- genExpr expr
-        return $ SymbolList False [returnSymbol, expr']
+        evalExpr <- genExpr expr'
+        return $ SymbolList False [returnSymbol, evalExpr]
 
     -- For now fully loop unroll
     ForLoop ident start stop step stmt' -> do
-       start' <- getInt start
-       stop'  <- getInt stop
-       step'  <- getInt step
+       start' <- getInt =<< reduceExpr start
+       stop'  <- getInt =<< reduceExpr stop 
+       step'  <- getInt =<< reduceExpr step
        if start' > stop' then lift $ Left "For loop error, start can't be greater than stop"
        else if step' == 0 || step' < 0 then lift $ Left "For loop error, infinite loop generated"
        else do
@@ -211,6 +253,7 @@ genStmt stmt = case stmt of
     getInt :: Expr -> GenState Integer
     getInt (ExpLit (Number (Left i))) = return i
     getInt _ = lift $ Left "Compiler error, expected integer value from expression"
+
 
 genExpr :: Expr -> GenState SymbolTree
 genExpr expr = case expr of
@@ -377,54 +420,36 @@ checkConst expr = case expr of
 
 
 
---- Replace all constant identifiers with their
---- constant value
-injectConstants :: ConstVarTable ->  Expr -> Expr
-injectConstants ctable expr = case expr of
-    (ExpBinOp b e1 e2) -> ExpBinOp b (injectConstants ctable e1) (injectConstants ctable e2)
-    (ExpUnaryOp u e) -> ExpUnaryOp u (injectConstants ctable e)
-    (ExpFunCall (FunCall s exps)) -> ExpFunCall (FunCall s (map (injectConstants ctable) exps))
-    (ExpMethodCall (MethodCall obj method args)) ->
-        case obj of
-            (VarArrayElem i el) -> 
-                ExpMethodCall (MethodCall (VarArrayElem i (injectConstants ctable el))
-                                method (map (injectConstants ctable) args))
-            (VarIdent _) ->    
-                 ExpMethodCall (MethodCall obj method (map (injectConstants ctable) args))
-
-    (ExpIdent i) -> case M.lookup i ctable of
-                                Just l ->   ExpLit l
-                                Nothing ->  ExpIdent i
-    (ExpLit l) -> ExpLit l
-
-
-
 -- | Attempts to reduce an expression as much as possible
 -- | Returns an error string if evaluated expression
 -- | is invalid or an identifier is not present in the given table
 -- | otherwise returns the reduced expression
-reduceExpr :: Expr -> Either String Expr
-reduceExpr expr = case expr of
-    (ExpBinOp b e1 e2) -> do
-        re1 <- reduceExpr e1
-        re2 <- reduceExpr e2
-        evaluateBinExpr b re1 re2
+reduceExpr :: Expr -> GenState Expr
+reduceExpr expr = do 
+    cTable <- use constTable
+    case expr of
+        (ExpBinOp b e1 e2) -> do
+            re1 <- reduceExpr e1
+            re2 <- reduceExpr e2
+            lift $ evaluateBinExpr b re1 re2
 
-    (ExpUnaryOp u e) -> do
-        reducedExpr <- reduceExpr e
-        evaluateUnExpr u reducedExpr
+        (ExpUnaryOp u e) -> do
+            reducedExpr <- reduceExpr e
+            lift $ evaluateUnExpr u reducedExpr
 
-    (ExpFunCall (FunCall s exps)) -> do
-         rexps <- mapM reduceExpr exps
-         return $ ExpFunCall (FunCall s rexps)
+        (ExpFunCall (FunCall s exps)) -> do
+             rexps <- mapM reduceExpr exps
+             return $ ExpFunCall (FunCall s rexps)
 
-    (ExpMethodCall (MethodCall obj method args)) -> do
-        rexps <- mapM reduceExpr args
-        return $ ExpMethodCall (MethodCall obj method rexps)
+        (ExpMethodCall (MethodCall obj method args)) -> do
+            rexps <- mapM reduceExpr args
+            return $ ExpMethodCall (MethodCall obj method rexps)
 
-    (ExpIdent i) -> return $ ExpIdent i
+        (ExpIdent i) -> return $ case M.lookup i cTable of
+                            Just l -> ExpLit l
+                            Nothing -> ExpIdent i
 
-    (ExpLit l) -> return $ ExpLit l
+        (ExpLit l) -> return $ ExpLit l
 
 
 -- | Attempts to evaluate a constant binary expression
