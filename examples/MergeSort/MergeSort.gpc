@@ -3,6 +3,7 @@ GPRM::Kernel::Mergesort MS;
 
 
 int cutoff = 1024;
+int size = 40;
 
 void MergeSort2(int *A, int *tmp, int size, int cutoff) {
     int half = size/2;
@@ -20,6 +21,6 @@ void MergeSort2(int *A, int *tmp, int size, int cutoff) {
 
 }
 
-void MergeSort(int* A, int* tmp, int size){
+void test(int* A, int* tmp){
     MergeSort2(A, tmp, size, cutoff);
 }

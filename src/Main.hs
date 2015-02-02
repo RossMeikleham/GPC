@@ -17,7 +17,7 @@ outputCode f s = writeFile f s --mapM_ putStrLn (lines s)
 parseResult :: String -> Either String (Program SrcPos) -> IO ()
 parseResult f p = case p of
     Left err -> print err
-    Right ast ->  do 
+    Right ast ->  do
         case runTypeChecker ast of
             Left err -> print err
             Right _ -> case genGPIR f (simplifyAST ast) of

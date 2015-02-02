@@ -256,9 +256,11 @@ genStmt s = case s of
 
 
 genExpr :: Expr -> GenState SymbolTree
-genExpr expr = case expr of
+genExpr e = do 
+    expr <- reduceExpr e
+    case expr of
 
-    ExpBinOp bOp lExpr rExpr -> do
+     ExpBinOp bOp lExpr rExpr -> do
         let method = case bOp of
                     Add -> "plus"
                     Sub -> "minus"
@@ -286,7 +288,7 @@ genExpr expr = case expr of
         rExpr' <- genExpr rExpr
         return $ SymbolList False [binSymbol, lExpr', rExpr']
 
-    ExpUnaryOp unOp expr' -> do
+     ExpUnaryOp unOp expr' -> do
         let method = case unOp of
                     Not -> "not"
                     Neg -> "neg"
@@ -297,27 +299,27 @@ genExpr expr = case expr of
         expr'' <- genExpr expr'
         return $ SymbolList False [unSymbol, expr'']
 
-    ExpFunCall (FunCall name exprs) -> do
+     ExpFunCall (FunCall name exprs) -> do
         (BlockStmt stmts) <- genInlineFunc name exprs
         stmts' <- mapM genStmt stmts
         return $ SymbolList False stmts'
 
-    ExpMethodCall (MethodCall cName method exprs) -> do
+     ExpMethodCall (MethodCall cName method exprs) -> do
         let call = Symbol $ GOpSymbol $
                     MkOpSymbol False ("Dummy", 0) ["temp", show cName, show method]
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
-    -- Encounterd a variable, need to read it from its register
-    ExpIdent ident -> do
+     -- Encountered a variable, need to read it from its register
+     ExpIdent ident -> do
         regTable <- use varRegTable
         reg <- lift $ note regNotFound $ M.lookup ident regTable
         let regSymbol = Symbol $ GOpSymbol $
                         MkOpSymbol False ("", 0) ["CoreServices", "Reg", "read"]
         return $ SymbolList False  [regSymbol, Symbol $ ConstSymbol True (show reg)]
-     where regNotFound = "Compiler error, register for ident " ++ show ident ++ "not found"
+      where regNotFound = "Compiler error, register for ident " ++ show ident ++ "not found"
 
-    ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
+     ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
 
 
 -- | Generate Inline Function by replacing all identifieres

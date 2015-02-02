@@ -293,12 +293,13 @@ checkIf expr stmt = do
     scopeVars <- M.union <$> use curVars <*> use prevVars
     exprType <- lift $ getTypeExpr scopeVars fTable expr
     checkType exprType (boolType notKernel)
-    return stmt
+    evalStmt stmt
 
 -- |Type Check If - Else Statement
 checkIfElse :: Expr SrcPos -> Stmt SrcPos -> Stmt SrcPos -> BlockState (Stmt SrcPos)
 checkIfElse expr thenStmt elseStmt = do
     _ <- checkIf expr thenStmt
+    evalStmt elseStmt
     return $ IfElse expr thenStmt elseStmt
 
 
@@ -354,7 +355,8 @@ checkMethodCall (MethodCall var method args) = do
     vTable <- M.union <$> use curVars <*> use prevVars
     fTable <- use funcDefs
     scopeVars <- M.union <$> use curVars <*> use prevVars
-    
+    argTypes <- lift $ sequence $ map (getTypeExpr scopeVars fTable) args
+
     case var of
         (VarIdent i) -> do
             gType <- lift $ findType i vTable
