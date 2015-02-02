@@ -4,10 +4,11 @@ import Data.List.Split
 import System.Environment
 import GPC.Parser
 --import GPC.CodeGen
---import GPC.GenGPIR
+import GPC.GenGPIR
 import GPC.TypeScopeChecker
 import GPC.AST
 import GPC.SimplifyAST
+import GPC.Interpreter
 import qualified GPC.TypelessAST as S
 
 outputCode :: FilePath -> String -> IO()

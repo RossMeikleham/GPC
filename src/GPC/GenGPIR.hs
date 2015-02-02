@@ -4,13 +4,13 @@
 
 module GPC.GenGPIR() where --(genGPIR) where
 
-{-
+
 import           Control.Applicative      hiding (empty, many, optional, (<|>))
 import           Control.Error.Util
 import           Control.Lens
 import           Control.Monad.State.Lazy
 import qualified Data.Map                 as M
-import           GPC.AST
+import           GPC.TypelessAST
 import           GPC.GPIRAST
 
 type ConstVarTable = M.Map Ident Literal
@@ -46,7 +46,7 @@ isFunc tl = case tl of
 
 isNonEntryFunc :: String -> TopLevel -> Bool
 isNonEntryFunc eName tl = case tl of
-    Func _ fName _ _ -> fName /= Ident eName
+    Func fName _ _ -> fName /= Ident eName
     _ -> False
 
 -- | Update the register table and counter
@@ -84,11 +84,10 @@ genTLAssigns :: [TopLevel] -> GenState ()
 genTLAssigns tls = mapM_ genTLAssign $ filter isAssign tls
 
 genTLAssign :: TopLevel -> GenState ()
-genTLAssign (TLAssign (Assign _ ident expr)) = case expr of
+genTLAssign (TLAssign (Assign ident expr)) = case expr of
     (ExpLit l) -> do
         cTable <- use constTable
         assign constTable $ M.insert ident l cTable
-    (ExpPointer _) -> return ()
     _ -> lift $ Left $ show expr --"Compiler error, in top level assignment code generation"
 genTLAssign _ = lift $ Left "Not top level Assignment statement"
 
@@ -98,9 +97,9 @@ genFuncs :: [TopLevel] -> GenState ()
 genFuncs tls = mapM_ genFunc $ filter isFunc tls
 
 genFunc :: TopLevel -> GenState ()
-genFunc (Func _ name args stmts) = do
+genFunc (Func name args stmts) = do
     fTable <- use funTable
-    assign funTable $ M.insert name (map snd args, stmts) fTable
+    assign funTable $ M.insert name (args, stmts) fTable
 
 genFunc a = lift $ Left $ "Not Function definition" ++ show a
 
@@ -109,13 +108,11 @@ genFunc a = lift $ Left $ "Not Function definition" ++ show a
 genTopLevelStmt :: TopLevel -> GenState SymbolTree
 genTopLevelStmt tl = case tl of
       (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
-      (Func _ _ args bStmt) -> genEntryFunc bStmt args
+      (Func _ args bStmt) -> genEntryFunc bStmt args
       _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level " ++
                 "Assignments, Object Decls or non Entry functions"
 
--}
 
-{-
 -- | Generate Object Constructors
 genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
 genTLConstructObjs (ConstructObjs ns var exprs) = do
@@ -133,9 +130,9 @@ genTLConstructObjs (ConstructObjs ns var exprs) = do
 
 
 -- | Generate Program
-genEntryFunc :: BlockStmt -> [(Type, Ident)] ->  GenState SymbolTree
+genEntryFunc :: BlockStmt -> [Ident] ->  GenState SymbolTree
 genEntryFunc (BlockStmt stmts) args = do
-    mapM_(updateRegs) (map snd args) -- Create placeholder for entry args 
+    mapM_ updateRegs args -- Create placeholder for entry args 
     SymbolList True <$> mapM genStmt stmts
 
 
@@ -143,7 +140,7 @@ genStmt :: Stmt -> GenState SymbolTree
 genStmt stmt = case stmt of
 
     -- When assigning a variable need to write it to a register
-    AssignStmt (Assign _ name expr) -> do
+    AssignStmt (Assign name expr) -> do
         let assignSymbol = Symbol $ GOpSymbol $
                             MkOpSymbol False ("", 0) ["CoreServices", "reg", "write"]
         expr' <- genExpr expr
@@ -278,7 +275,6 @@ genExpr expr = case expr of
 
     ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
 
-    ExpPointer _ -> return EmptyTree
 
 -- | Generate Inline Function by replacing all identifieres
 -- | in scope with supplied argument expressions
@@ -296,8 +292,8 @@ genInlineFunc name args = do
 genInlineStmt :: [(Ident, Expr)] -> Stmt -> Stmt
 genInlineStmt exprs stmt = case stmt of
 
-    AssignStmt (Assign gType name expr) ->
-        AssignStmt (Assign gType name $ replaceExprIdents exprs expr)
+    AssignStmt (Assign name expr) ->
+        AssignStmt (Assign name $ replaceExprIdents exprs expr)
 
     FunCallStmt (FunCall name args) ->
         FunCallStmt (FunCall name $ map (replaceExprIdents exprs) args)
@@ -320,7 +316,6 @@ genInlineStmt exprs stmt = case stmt of
                      (replaceExprIdents exprs step)
                      (BlockStmt $ genBlock stmts)
 
-
     Seq (BlockStmt stmts) -> Seq $ BlockStmt $ genBlock stmts
 
     BStmt (BlockStmt stmts) -> BStmt $ BlockStmt $ genBlock stmts
@@ -332,7 +327,7 @@ genInlineStmt exprs stmt = case stmt of
     genBlock :: [Stmt] -> [Stmt]
     genBlock stmts = mappedVals ++ drop (length mappedVals) stmts
       where mappedVals = incMapWhile inScope (genInlineStmt exprs) stmts
-    inScope (AssignStmt (Assign _ name _)) = name `notElem` idents
+    inScope (AssignStmt (Assign name _)) = name `notElem` idents
     inScope _ = True
     idents = map fst exprs
 
@@ -364,7 +359,6 @@ replaceExprIdent ident replaceExpr givenExpr = case givenExpr of
 
     ExpLit lit -> ExpLit lit
 
-    ExpPointer p -> ExpPointer p
 
 -- | inclusive MapWhile function, returns results which satisfy a condition
 -- | TODO stick in utilities module
@@ -379,4 +373,4 @@ checkConst expr = case expr of
     (ExpLit l) -> return l
     _ -> lift $ Left "Expected constant expression"
 
--}
+

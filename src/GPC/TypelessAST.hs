@@ -9,6 +9,8 @@ data TopLevel =
         Func Ident [Ident] BlockStmt  -- ^ Return Type, Name, Arguments, Code
       | TLConstructObjs ConstructObjs -- ^ External object constructor calls
       | TLAssign Assign -- ^ Top level assignment
+      | TLObjs Objects  -- ^ External objects
+
        deriving (Show, Eq)
 
 -- | Objects
@@ -111,7 +113,7 @@ type LibName = Ident
 type ClassName = Ident
 
 -- | Identifier
-data Ident = Ident String deriving (Show, Eq)
+data Ident = Ident String deriving (Show, Eq, Ord)
 
 -- | Block of Statements
 data BlockStmt = BlockStmt [Stmt] deriving (Show, Eq)

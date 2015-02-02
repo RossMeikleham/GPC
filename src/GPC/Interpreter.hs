@@ -1,117 +1,80 @@
-{-# LANGUAGE GADTs, KindSignatures #-} 
- 
-{- Interpreter which runs through the GPC code
- - and produces the appropriate td Kernel Calls to the GPRM -}
+{-# LANGUAGE TemplateHaskell #-}
+
 module GPC.Interpreter where
 
---TODO temp, replace with GPIR AST Symbol Tree
-
-import           Control.Monad.State.Lazy
 import qualified Data.Map as M
+import           Control.Applicative hiding (empty, many, optional, (<|>))
+import           Control.Lens
+import           Control.Monad.State.Lazy
+import           Control.Error.Util
 
-type ConstTable a = M.Map String a
-data SymbolTree = SymbolTree String 
-
---type ConstVarTable = M.Map (Ident SrcPos) (Literal SrcPos)
---type FunTable = M.Map (Ident SrcPos) (Type SrcPos, [Type SrcPos])
---type ObjectTable = M.Map (Ident SrcPos) (Objects SrcPos)
-
-data TLStmt :: * -> * where
-    FuncDef   :: Ident -> [Stmt a] -> TLStmt () 
-    TLAssign  :: Expr a -> TLStmt ()
-    TLConstruct :: Ident -> [Expr a] -> TLStmt ()
-       
-    TLStmtReturn :: a -> TLStmt a
-    TLStmtBind :: TLStmt a -> (a -> TLStmt b) -> TLStmt b    
-
-instance Monad TLStmt where
-    return = TLStmtReturn
-    (>>=)  = TLStmtBind
+import           GPC.TypelessAST         
 
 
-data Stmt :: * -> * where
-    
-    StmtGetVar :: Ident -> Stmt Value
-    StmtSetVar :: Ident -> Value -> Stmt () -- ^ Assignment
-    
-    Seq :: [Stmt a] -> Stmt () -- ^ Evaluate statements in sequential order
-    BStmt :: [Stmt a] -> Stmt () -- ^ Statements in enclosed block
-    FunCallStmt :: Ident -> [Value] -> [Stmt a] -> Stmt ()
-    If :: Expr Bool -> Stmt () -> Stmt () 
-    IfElse :: Expr Bool -> Stmt () -> Stmt () -> Stmt ()
-    GReturn :: Expr a -> Stmt () -- ^ Return value from current function
-    For :: Expr a -> Expr Bool -> Expr b -> [Stmt c] -> Stmt () 
+data Environment = Environment {
+    _exprTable :: M.Map String Expr
+}
 
-    StmtReturn :: a -> Stmt a
-    StmtBind :: Stmt a -> (a -> Stmt b) -> Stmt b    
+type EnvState a = StateT Environment (Either String) a
 
-instance Monad Stmt where
-    return = StmtReturn
-    (>>=)  = StmtBind
-
-data Expr :: * -> * where
-    
-    GetVar :: Ident -> Expr Value
-    SetVar :: Ident -> Value -> Expr ()
-    
-  --  ExpFunCall ::  (FunCall a)   -- ^ Function Call
-  --  ExpIdent :: Ident  (Ident a)           -- ^ Identifier  
-  --  ExpLit (Literal a)           -- ^ Constant/Literal value
-  --  ExpPointer (Pointer a)       -- ^ Pointer value
-
-    -- ^ Boolean Operations
-    Add  ::   Num a  => Expr a -> Expr a -> Expr a
-    Mul  ::   Num a  => Expr a -> Expr a -> Expr a
-    Sub  ::   Num a  => Expr a -> Expr a -> Expr a
-    Div  ::   Num a  => Expr a -> Expr a -> Expr a
-    Eqls ::   Eq a   => Expr a -> Expr a -> Expr Bool
-    NEq  ::   Eq a   => Expr a -> Expr a -> Expr Bool
-    Less ::   Ord a  => Expr a -> Expr a -> Expr Bool
-    LessEq :: Ord a  => Expr a -> Expr a -> Expr Bool
-    Gtr ::    Ord a  => Expr a -> Expr a -> Expr Bool
-    GtrEq ::  Ord a  => Expr a -> Expr a -> Expr Bool
-    And :: Expr Bool -> Expr Bool -> Expr Bool
-    Or  :: Expr Bool -> Expr Bool -> Expr Bool
-    Mod ::    Expr Int -> Expr Int -> Expr Int
-    ShiftL :: Expr Int -> Expr Int -> Expr Int
-    ShiftR :: Expr Int -> Expr Int -> Expr Int
-    BAnd ::   Expr Int -> Expr Int -> Expr Int
-    BOr  ::   Expr Int -> Expr Int -> Expr Int
-    BXor ::   Expr Int -> Expr Int -> Expr Int
-   
-    -- ^ Unary Operations  
-    Not  :: Expr Bool -> Expr Bool    -- ^ Boolean NOT
-    Neg  :: Num a => Expr a -> Expr a -- ^ Number negation
-    BNot :: Expr Int -> Expr Int      -- ^ Bitwise NOT
-
-    -- ^ Monad implementation
-    ExprReturn :: a -> Expr a
-    ExprBind :: Expr a -> (a -> Expr b) -> Expr b     
-
-instance Monad Expr where
-    return = ExprReturn
-    (>>=)  = ExprBind
-
-
-data Value = Var Ident | GNum Int
-data Ident = Ident String
-type Vars = M.Map Ident Value
+-- Create lenses to access Block fields easier
+makeLenses ''Environment
 
 
 
 
+getExpr :: String -> EnvState Expr
+getExpr s = do 
+    vars <- use exprTable 
+    lift $ note notFound $ M.lookup s vars
+  where notFound = "Identifier not found " ++ s 
 
-runProgram :: [TLStmt a] -> State Vars [SymbolTree]
-runProgram tls = mapM runTLStmt tls
 
-runTLStmt :: TLStmt a -> State Vars SymbolTree 
-runTLStmt (FuncDef ident stmts) = error "TODO"
-runTLStmt _ = error "TODO"
+setExpr :: String -> Expr -> EnvState ()
+setExpr s expr = do
+    vars <- use exprTable
+    assign exprTable $ M.insert s expr vars
 
-{-
-:: Ident -> [Stmt a] -> TLStmt () 
-    TLAssign  :: Expr a -> TLStmt ()
-       
-    TLStmtReturn :: a -> TLStmt a
-    TLStmtBind :: TLStmt a -> (a -> TLStmt b) -> TLStmt b    
--}
+reduceExpr :: Expr -> EnvState Expr
+reduceExpr expr = case expr of
+    ExpBinOp bOp e1 e2 -> do
+        e1' <- reduceExpr e1
+        e2' <- reduceExpr e2
+        evalBinOp bOp e1' e2'
+
+    ExpUnaryOp op e -> do
+        e' <- reduceExpr e
+        evalUnOp op e'
+
+    ExpFunCall fc -> reduceFunCall fc
+
+    ExpMethodCall mc -> reduceMethodCall mc
+
+    ExpIdent (Ident s) -> do
+    --TODO relook at
+        e <- getExpr s
+        reduceExpr e
+
+    ExpLit l -> return $ ExpLit l
+
+reduceFunCall :: FunCall -> EnvState Expr
+reduceFunCall (FunCall name exprs) = do
+    exprs' <- mapM reduceExpr exprs
+    return $ ExpFunCall $ FunCall name exprs'
+
+reduceMethodCall :: MethodCall -> EnvState Expr
+reduceMethodCall (MethodCall var name exprs) = do
+    exprs' <- mapM reduceExpr exprs
+    var' <- case var of
+            VarArrayElem name expr -> (VarArrayElem name) `fmap` (reduceExpr expr)
+            VarIdent name -> return $ VarIdent name
+    return $ ExpMethodCall $ MethodCall var' name exprs'
+
+evalBinOp :: BinOps -> Expr -> Expr -> EnvState Expr
+evalBinOp op e1 e2 = error "todo"
+
+
+evalUnOp :: UnaryOps -> Expr -> EnvState Expr
+evalUnOp op e1 = error "todo"
+
+
