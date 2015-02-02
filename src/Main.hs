@@ -3,12 +3,12 @@
 import Data.List.Split
 import System.Environment
 import GPC.Parser
---import GPC.CodeGen
+import GPC.CodeGen
 import GPC.GenGPIR
 import GPC.TypeScopeChecker
 import GPC.AST
 import GPC.SimplifyAST
-import GPC.Interpreter
+--import GPC.Interpreter
 import qualified GPC.TypelessAST as S
 
 outputCode :: FilePath -> String -> IO()
@@ -17,13 +17,13 @@ outputCode f s = writeFile f s --mapM_ putStrLn (lines s)
 parseResult :: String -> Either String (Program SrcPos) -> IO ()
 parseResult f p = case p of
     Left err -> print err
-    Right v ->  do 
-        case runTypeChecker v of
+    Right ast ->  do 
+        case runTypeChecker ast of
             Left err -> print err
-            Right reduced -> print reduced --case genGPIR f reduced of
-               -- Left err -> print err
-               -- Right gpir -> do 
-               --     outputCode (f ++ ".td") $ ";" ++ f ++ ".yml\n" ++ (genCode gpir)
+            Right _ -> case genGPIR f (simplifyAST ast) of
+               Left err -> print err
+               Right gpir -> do 
+                    outputCode (f ++ ".td") $ ";" ++ f ++ ".yml\n" ++ (genCode gpir)
     
 
 main = do

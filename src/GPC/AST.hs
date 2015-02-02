@@ -26,7 +26,6 @@ module GPC.AST(
     , SrcPos(..)
     ) where
 
-import Data.Function (on)
 
 data Program a = Program [TopLevel a] deriving (Show,Eq)
 

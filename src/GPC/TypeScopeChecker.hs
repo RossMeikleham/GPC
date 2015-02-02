@@ -8,13 +8,11 @@ import           Control.Applicative hiding (empty, many, optional, (<|>))
 import           Control.Error.Util
 import           Control.Lens
 import           Control.Monad.State.Lazy
-import           Data.Bits
 import           Data.Tuple
 import qualified Data.Map as M
 import           GPC.AST
 
 type VarTable = M.Map (Ident SrcPos) (Type SrcPos)
-type ConstVarTable = M.Map (Ident SrcPos) (Literal SrcPos)
 type FunTable = M.Map (Ident SrcPos) (Type SrcPos, [Type SrcPos])
 type ObjectTable = M.Map (Ident SrcPos) (Objects SrcPos)
 
@@ -22,9 +20,9 @@ boolType b = NormalType () b "bool"
 boolTypePos b s = NormalType s b "bool"
 intType b = NormalType () b "int"
 intTypePos b s = NormalType s b "int"
-strType b = NormalType () b "string"
+--strType b = NormalType () b "string"
 strTypePos b s = NormalType s b "string"
-chType b = NormalType () b "char"
+--chType b = NormalType () b "char"
 chTypePos b s = NormalType s b "char"
 doubleType b = NormalType () b "double"
 doubleTypePos b s = NormalType s b "double"
@@ -114,7 +112,7 @@ evalConstruct (ConstructObjs ns var exprs) = do
                 (VarArrayElem i _) -> lift $ Left $ errorIdent i ++  show i ++ 
                     "is declared as a single object, not an array"
 
-        (VarArrayElem ident@(Ident sp s) expr) -> do -- Check indexed expression
+        (VarArrayElem ident@(Ident sp _) expr) -> do -- Check indexed expression
             v <- checkNameSpace ident objs
       
             -- Check index is an integer value
@@ -124,7 +122,7 @@ evalConstruct (ConstructObjs ns var exprs) = do
             case v of 
                 (VarIdent i) -> lift $ Left $ errorIdent i ++ show i ++ "is declared as an array"
                     ++ "of objects, expecting assignment to a single element"
-                (VarArrayElem i@(Ident sp' s') expr') -> do
+                (VarArrayElem (Ident sp' _) expr') -> do
                    
                     exprType' <- lift $ getTypeExpr tVars M.empty expr'
                     checkType (intTypePos notKernel sp') exprType'
@@ -152,14 +150,14 @@ evalObjs objs@(Objects _ var) = do
     tVars <- use tlVarTypes
     case var of
         -- Single Object, check identifier isn't already in scope
-        (VarIdent ident@(Ident sp s)) -> do
+        (VarIdent ident@(Ident sp _)) -> do
             checkMultipleInstance ident tVars
             objects %= (M.insert ident objs) 
             assign tlVarTypes $ M.insert ident (NormalType sp inKernel "object") tVars
             return objs
 
         -- Static Array of Objects, check type of array size
-        (VarArrayElem ident@(Ident sp s) expr) -> do
+        (VarArrayElem ident@(Ident sp _) expr) -> do
             checkMultipleInstance ident tVars
             exprType <- lift $ getTypeExpr tVars M.empty expr
             checkType (intTypePos notKernel sp) exprType
@@ -308,7 +306,7 @@ checkIfElse expr thenStmt elseStmt = do
 checkForLoop :: Ident SrcPos -> Expr SrcPos -> Expr SrcPos 
                              -> Expr SrcPos -> BlockStmt SrcPos 
                              -> BlockState (Stmt SrcPos)
-checkForLoop ident@(Ident sp s) startExpr stopExpr stepExpr blockStmt = do
+checkForLoop ident@(Ident sp _) startExpr stopExpr stepExpr blockStmt = do
     fTable <- use funcDefs
     scopeVars <- M.union <$> use curVars <*> use prevVars
 
@@ -419,12 +417,12 @@ getTypeExpr vtable ftable expr = case expr of
         _ <- mapM (getTypeExpr vtable ftable) args
 
         case var of
-            (VarIdent i@(Ident sp s)) -> do
+            (VarIdent i@(Ident sp _)) -> do
                 objType <- note (notFound i) (M.lookup i vtable)
                 checkType' objType objectType
                 return $ NormalType sp inKernel "object"
             
-            (VarArrayElem i@(Ident sp s) el) -> do
+            (VarArrayElem i@(Ident sp _) el) -> do
                 objType <- note (notFound i) (M.lookup i vtable)
                 elemType <- getTypeExpr vtable ftable el
                 checkType' elemType (intType False)
@@ -533,7 +531,7 @@ getPointerTypeBin bop leftType rightType
     | otherwise =  Left $ "operation " ++ show bop ++ " not defined for pointer types"
   where
      intType' = intType kernel
-     boolType' = boolType kernel
+     --boolType' = boolType kernel
      kernel = isInKernel leftType
      opPos = binOpPos bop
 
@@ -599,13 +597,13 @@ binOpPos bop = case bop of
 errorBinOp :: BinOps SrcPos -> String
 errorBinOp = errorSrcPos . binOpPos 
 
-errorUnOp :: UnaryOps SrcPos -> String
-errorUnOp = errorSrcPos . unOpPos
+--errorUnOp :: UnaryOps SrcPos -> String
+--errorUnOp = errorSrcPos . unOpPos
 
-unOpPos :: UnaryOps SrcPos -> SrcPos
-unOpPos op = case op of
-    Not a -> a
-    Neg a -> a
-    BNot a -> a 
+--unOpPos :: UnaryOps SrcPos -> SrcPos
+--unOpPos p = case p of
+--    Not a -> a
+--    Neg a -> a
+--    BNot a -> a 
 
 

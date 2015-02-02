@@ -2,7 +2,7 @@
 {- Generate GPIR code from Type/Scope checked AST -}
 
 
-module GPC.GenGPIR() where --(genGPIR) where
+module GPC.GenGPIR(genGPIR) where 
 
 
 import           Control.Applicative      hiding (empty, many, optional, (<|>))
@@ -138,7 +138,7 @@ genEntryFunc (BlockStmt stmts) args = do
 
 
 genStmt :: Stmt -> GenState SymbolTree
-genStmt stmt = case stmt of
+genStmt s = case s of
 
     -- When assigning a variable need to write it to a register
     AssignStmt (Assign name expr) -> do
@@ -156,10 +156,10 @@ genStmt stmt = case stmt of
 
                 let assignSymbol = Symbol $ GOpSymbol $
                             MkOpSymbol False ("", 0) ["CoreServices", "reg", "write"]
-                expr' <- genExpr expr
+                evalExpr <- genExpr expr
                 reg <- updateRegs name
                 let regSymbol = Symbol $ ConstSymbol True (show reg)
-                return $ SymbolList False [assignSymbol, regSymbol,  expr']
+                return $ SymbolList False [assignSymbol, regSymbol,  evalExpr]
 
     Seq (BlockStmt stmts) -> do
         let seqSymbol = Symbol $ GOpSymbol $
