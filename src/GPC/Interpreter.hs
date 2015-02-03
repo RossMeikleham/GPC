@@ -109,7 +109,7 @@ genFunc a = lift $ Left $ "Not Function definition" ++ show a
 genTopLevelStmt :: TopLevel -> GenState SymbolTree
 genTopLevelStmt tl = case tl of
       (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
-      (Func _ args bStmt) -> genEntryFunc bStmt args
+      (Func _ args bStmt) -> genNest $ genEntryFunc bStmt args
       _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level " ++
                 "Assignments, Object Decls or non Entry functions"
 
@@ -136,6 +136,21 @@ genEntryFunc (BlockStmt stmts) args = do
     mapM_ updateRegs args -- Create placeholder for entry args 
     SymbolList True <$> mapM genStmt stmts
 
+-- | Function to deal with state and nesting
+--  we want to give a new context which constant variables are overwritten
+--  in the new scope when another is declared, or are erased when a non constant
+--  variable of the same name is declared. We also want to keep a running count of
+--  the registers used
+genNest :: GenState a -> GenState a
+genNest g = do
+    curEnv <- get
+    case (runStateT g curEnv) of
+        Left err -> lift $ Left err
+        Right (res, afterEnv) -> do
+            assign varId (_varId afterEnv)
+            return res
+
+
 
 genStmt :: Stmt -> GenState SymbolTree
 genStmt s = case s of
@@ -153,6 +168,9 @@ genStmt s = case s of
             -- Otherwise store the expression in a register
             -- to be read from when used elsewhere
             _ -> do
+                -- If variable non constant, if there exists an entry for a variable in the
+                --  above scope of the same name in the constant table, erase it
+                constTable %= (M.delete name)
 
                 let assignSymbol = Symbol $ GOpSymbol $
                             MkOpSymbol False ("", 0) ["CoreServices", "reg", "write"]
@@ -164,17 +182,19 @@ genStmt s = case s of
     Seq (BlockStmt stmts) -> do
         let seqSymbol = Symbol $ GOpSymbol $
                         MkOpSymbol False ("Dummy", 0) ["CoreServices", "Seq", "seq"]
-        stmts' <- mapM genStmt stmts
+        -- Entering a block, so need to nest 
+        stmts' <- genNest $ mapM genStmt stmts
         return $ SymbolList False (seqSymbol : stmts')
 
     BStmt (BlockStmt stmts) -> do
-        stmts' <- mapM genStmt stmts
+        -- Entering a block, need to nest
+        stmts' <- genNest $ mapM genStmt stmts
         return $ SymbolList False stmts'
 
     FunCallStmt (FunCall name exprs) -> do
         exprs' <- mapM reduceExpr exprs
         (BlockStmt stmts) <- genInlineFunc name exprs'
-        stmts' <- mapM genStmt stmts
+        stmts' <- genNest $ mapM genStmt stmts
         return $ SymbolList False stmts'
 
     MethodStmt (MethodCall cName method exprs) -> do
@@ -301,7 +321,7 @@ genExpr e = do
 
      ExpFunCall (FunCall name exprs) -> do
         (BlockStmt stmts) <- genInlineFunc name exprs
-        stmts' <- mapM genStmt stmts
+        stmts' <- genNest $ mapM genStmt stmts
         return $ SymbolList False stmts'
 
      ExpMethodCall (MethodCall cName method exprs) -> do
