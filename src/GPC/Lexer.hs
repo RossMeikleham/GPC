@@ -35,7 +35,8 @@ languageDef = emptyDef {
      , Token.commentEnd    = "*/"
      , Token.commentLine   = "//"
      , Token.nestedComments = True
-     , Token.identStart    = letter , Token.identLetter   = alphaNum <|> oneOf "'_"
+     , Token.identStart    = letter 
+     , Token.identLetter   = alphaNum <|> oneOf "'_"
      , Token.reservedNames =   otherReserved ++ reservedTypes
      , Token.reservedOpNames = []
                                

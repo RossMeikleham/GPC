@@ -1,6 +1,7 @@
 GPRM::Kernel::Test test;
 test = GPRM::Kernel::Test::Test();
 
+# test comment
 int m = 7;
 
 bool fun1(int a, int b, string c) {

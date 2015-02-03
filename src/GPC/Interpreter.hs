@@ -322,7 +322,7 @@ genExpr e = do
      ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
 
 
--- | Generate Inline Function by replacing all identifieres
+-- | Generate Inline Function by replacing all identifiers
 -- | in scope with supplied argument expressions
 genInlineFunc :: Ident -> [Expr] -> GenState BlockStmt
 genInlineFunc name args = do

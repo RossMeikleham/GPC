@@ -8,7 +8,7 @@ import Text.Parsec.Expr
 import GPC.AST
 import GPC.Lexer
 import Control.Arrow
-
+import Data.List
 
 {- Operator Tables -}
 
@@ -44,13 +44,20 @@ unaryOps pos unary = [[unary "-" (Neg pos), unary "!" (Not pos), unary "~" (BNot
 -- | Parse given source file, returns parse error string on
 -- | failure otherwise returns the AST for the source
 parseSource :: String -> Either String (Program SrcPos)
-parseSource = left show . parse program ""
+parseSource = left show . parse program "" . removeCPPPreprocessor
 
 
 -- | Parse entire source file
 program :: Parser (Program SrcPos)
 program = Program <$> (whiteSpace *> topLevels) 
 
+
+-- | Remove C++ preprocessor directives and replace with a blank line 
+--   The lexer doesn't support
+--   more than one set of characters to mark comments, and doesn't
+--   have any way to check the first character in each line
+removeCPPPreprocessor :: String -> String
+removeCPPPreprocessor s = unlines $ map (\n -> if isPrefixOf "#" n then "" else n) (lines s)
 
 -- | Parse top level statements/definitions
 topLevels :: Parser [TopLevel SrcPos] 
