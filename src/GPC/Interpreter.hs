@@ -475,9 +475,16 @@ reduceExpr expr = do
 evaluateBinExpr :: BinOps -> Expr -> Expr -> Either String Expr
 
 -- Binary operations with literals
-evaluateBinExpr b (ExpLit l1) (ExpLit l2) = binOpTable b l1 l2
-evaluateBinExpr  b e1 e2 = return $ ExpBinOp b e1 e2
+evaluateBinExpr b (ExpLit l1) (ExpLit l2) = 
+    case (b, l2) of
+        -- Check for division by 0
+        (Div, Number (Left 0)) -> divBy0Err 
+        (Div, Number (Right 0.0)) -> divBy0Err
+        _ -> binOpTable b l1 l2
+  where divBy0Err = Left $ "Error, attempted to divide by 0"
 
+evaluateBinExpr  b e1 e2 = return $ ExpBinOp b e1 e2
+ 
 
 -- | Obtain binary operation to use with literal values
 binOpTable :: BinOps -> Literal -> Literal -> Either String Expr
@@ -515,6 +522,7 @@ performBinNumOp operation (Number (Left n1)) (Number (Left n2)) = Right litExp
 
 performBinNumOp operation (Number (Right n1))(Number (Right n2)) =
     Right $ ExpLit $ Number $ Right $ n1 `operation` n2
+
 performBinNumOp _ _ _ = Left "Error expected a numeric value"
 
 

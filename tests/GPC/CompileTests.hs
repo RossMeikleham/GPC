@@ -60,15 +60,16 @@ failTest file = testCase file ( do
     source <- readFile filePath
     case parseSource source of
         Left _ -> return () 
-        Right v ->  do 
-            case runTypeChecker v of
+        Right ast ->  do 
+            case runTypeChecker ast of
                 Left _ -> return ()
-                Right reduced -> assertFailure $ "Program shouldn't have type checked" ++ show reduced --case genGPIR fileName reduced of
-                   -- Left _ -> return ()
-                   -- Right _ -> assertFailure "Program shouldn't have compiled"
+                Right _ -> case genGPIR fileName (simplifyAST ast) of
+                    Left _ -> return ()
+                    Right e -> assertFailure $ "Program shouldn't have compiled " ++ show e
     )
  where
     filePath = failDir ++ file 
+    fileName = reverse $ drop 4 $ reverse file
 
 compileTests =  
     TFA.testGroup "Compiler Tests" $ map TFA.buildTest [passTests, failTests]
