@@ -54,17 +54,6 @@ failExpressions = [(ExpBinOp (Less srcPos) (intConst 10) (doubleConst 20.0))
                   ,(ExpFunCall $ (FunCall (Ident srcPos "fun1") [(intConst 1)]))
                   ]
 
-                     -- Test full reduction to constant
-injectExpressions = [(ExpBinOp (Mul srcPos) (ExpIdent (Ident srcPos "a")) (intConst 4))
-                     -- Test partial reduction
-                    ,(ExpBinOp (Less srcPos) (ExpBinOp (Add srcPos) (ExpIdent $ Ident srcPos "a") (ExpIdent $ Ident srcPos "test"))  (
-                                    (ExpBinOp (Mul srcPos) (intConst 5) (intConst 4))))
-                    ]
-
-expectedAfterInject = [intConst 24
-                      ,ExpBinOp (Less srcPos) (ExpBinOp (Add srcPos) (intConst 6) (ExpIdent $ Ident srcPos "test"))
-                                     (intConst 20) 
-                      ]
 
 -- Check that method calls cast the return type implicitly at compiler time
 -- into a kernel type
@@ -232,10 +221,6 @@ vars = M.fromList $ map (\(a,b) -> (Ident srcPos a, NormalType srcPos False b))
 ftable = M.fromList [(Ident srcPos "fun1", (NormalType srcPos False "int" , 
             map (NormalType srcPos False) ["int", "int"]))
                      ]
-ctable = M.fromList [(Ident srcPos "a", Number srcPos (Left 6))
-                    ,(Ident srcPos "b", Bl srcPos True)
-                    ,(Ident srcPos "c", Number srcPos (Right 7.0))
-                    ]
 
  
 validTest :: (Type SrcPos) -> Either String (Type SrcPos) -> TFA.Test
@@ -273,12 +258,6 @@ invalidProgramTest p = testCase "error catching test for full Program" (
  where isLeft = null . rights . return
        result = runTypeChecker p
 
-
-validInject :: Expr SrcPos -> Either String (Expr SrcPos) -> TFA.Test
-validInject e a = testCase "injectingConstants" (
- case a of
-    Left err -> assertFailure err
-    Right p -> assertEqual "" (show p) (show e))
 
 invalidTest :: Either String (Type SrcPos) -> TFA.Test
 invalidTest a = testCase "Error catching test" (

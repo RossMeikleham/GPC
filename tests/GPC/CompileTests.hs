@@ -69,7 +69,6 @@ failTest file = testCase file ( do
     )
  where
     filePath = failDir ++ file 
-    fileName = reverse $ drop 4 $ reverse file
 
 compileTests =  
     TFA.testGroup "Compiler Tests" $ map TFA.buildTest [passTests, failTests]

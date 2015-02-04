@@ -144,8 +144,8 @@ genEntryFunc (BlockStmt stmts) args = do
 genNest :: GenState a -> GenState a
 genNest g = do
     curEnv <- get
-    case (runStateT g curEnv) of
-        Left err -> lift $ Left err
+    case runStateT g curEnv of
+        Left e -> lift $ Left e
         Right (res, afterEnv) -> do
             assign varId (_varId afterEnv)
             return res
@@ -163,14 +163,14 @@ genStmt s = case s of
             -- to registers, wherever they are used can be directly
             -- substituted during compliation
             ExpLit l -> do 
-                constTable %= (M.insert name l)
+                constTable %= M.insert name l
                 return EmptyTree
             -- Otherwise store the expression in a register
             -- to be read from when used elsewhere
             _ -> do
                 -- If variable non constant, if there exists an entry for a variable in the
                 --  above scope of the same name in the constant table, erase it
-                constTable %= (M.delete name)
+                constTable %= M.delete name
 
                 let assignSymbol = Symbol $ GOpSymbol $
                             MkOpSymbol False ("", 0) ["CoreServices", "reg", "write"]
@@ -210,11 +210,9 @@ genStmt s = case s of
             -- If Expression is a literal boolean we can evaluate the
             -- branch at compile time
             (ExpLit (Bl b)) -> 
-                if b then do
-                    stmt' <- genStmt stmt
-                    return stmt'
-                else 
-                    return EmptyTree
+                if b 
+                  then genStmt stmt                   
+                  else return EmptyTree
 
             -- Otherwise generate code to evaluate at runtime
             _ -> do
@@ -233,11 +231,10 @@ genStmt s = case s of
         case expr' of
             --Again like the If expression see if we can evaluate
             -- which branch to take during compile time
-            (ExpLit (Bl b)) -> do
-                evalStmt <- if b 
-                             then genStmt stmt1
-                             else genStmt stmt2
-                return evalStmt
+            (ExpLit (Bl b)) -> 
+                if b 
+                  then genStmt stmt1
+                  else genStmt stmt2
 
             _ -> do
                 let ifSymbol = Symbol $ GOpSymbol $
@@ -537,10 +534,10 @@ performBinCompareOp operation (Number (Right n1)) (Number (Right n2)) =
     Right $ ExpLit $ Bl $ n1 `operation` n2
 
 performBinCompareOp operation (Bl b1) (Bl b2) = 
-    Right $ ExpLit $ Bl $ (blToDouble b1) `operation` (blToDouble b2)
-  where blToDouble b = fromIntegral $ if b then 1 else 0    
+    Right $ ExpLit $ Bl $ blToDouble b1 `operation` blToDouble b2
+  where blToDouble b = fromIntegral (if b then 1 else 0 :: Integer)
 
-performBinCompareOp b e1 e2 = Left $ "Error expected either 2 ints, or 2 doubles, results were " ++ (show e1) ++ " " ++ (show e2)
+performBinCompareOp _ e1 e2 = Left $ "Error expected either 2 ints, or 2 doubles, results were " ++ show e1 ++ " " ++ show e2
 
 
 

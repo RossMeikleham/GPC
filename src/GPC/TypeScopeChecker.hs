@@ -55,7 +55,7 @@ data MainBlock = MainBlock {
 
 
 data CodeBlock = CodeBlock {
-    _currentFun :: (Ident SrcPos), -- ^ Name of Function block is in
+    _currentFun :: Ident SrcPos, -- ^ Name of Function block is in
     _funcDefs   :: FunTable, -- ^ Function names and return/argument types
     _prevVars   :: VarTable, -- ^ Identifiers visible in current scope with types
     _curVars    :: VarTable  -- ^ Identifiers declared in current scope
@@ -77,7 +77,7 @@ type BlockState a = GenericBlockState CodeBlock a
 
 -- | Perform Type/Scope checking, and simple expression reduction
 -- | Returns either an error message or the Reduced GPC AST
-runTypeChecker :: (Program SrcPos) -> Either String (Program SrcPos)
+runTypeChecker :: Program SrcPos -> Either String (Program SrcPos)
 runTypeChecker (Program tls) = case runStateT (evalTLStmts tls) initialBlock of
  Left s -> Left s
  (Right (tl, _)) -> Right $ Program tl
@@ -98,7 +98,7 @@ evalTLStmt tl = case tl of
     (TLConstructObjs cObjs) -> TLConstructObjs <$> evalConstruct cObjs
 
 -- | Type check object initializations
-evalConstruct :: (ConstructObjs SrcPos) -> CodeState (ConstructObjs SrcPos)
+evalConstruct :: ConstructObjs SrcPos -> CodeState (ConstructObjs SrcPos)
 evalConstruct (ConstructObjs ns var exprs) = do
     tVars <- use tlVarTypes
     objs <- use objects
@@ -152,7 +152,7 @@ evalObjs objs@(Objects _ var) = do
         -- Single Object, check identifier isn't already in scope
         (VarIdent ident@(Ident sp _)) -> do
             checkMultipleInstance ident tVars
-            objects %= (M.insert ident objs) 
+            objects %= M.insert ident objs 
             assign tlVarTypes $ M.insert ident (NormalType sp inKernel "object") tVars
             return objs
 
@@ -161,13 +161,13 @@ evalObjs objs@(Objects _ var) = do
             checkMultipleInstance ident tVars
             exprType <- lift $ getTypeExpr tVars M.empty expr
             checkType (intTypePos notKernel sp) exprType
-            objects %= (M.insert ident objs) 
+            objects %= M.insert ident objs 
             assign tlVarTypes $ M.insert ident (NormalType sp inKernel "objArray") tVars
             return $ objs {objVar = VarArrayElem ident expr}
 
 
 -- | Type Check top level assignment
-evalTLAssign :: (Assign SrcPos) -> CodeState (Assign SrcPos)
+evalTLAssign :: Assign SrcPos -> CodeState (Assign SrcPos)
 evalTLAssign (Assign typeG ident expr) = do
     tVars <- use tlVarTypes
     exprType <- lift $ getTypeExpr tVars M.empty expr
@@ -241,7 +241,7 @@ evalStmt stmt = case stmt of
 
 
 -- | Type check Function Call args
-checkFunCall :: (FunCall SrcPos) -> BlockState (FunCall SrcPos)
+checkFunCall :: FunCall SrcPos -> BlockState (FunCall SrcPos)
 checkFunCall f@(FunCall name args) = do    
     fTable <- use funcDefs
     oldVtable <- use prevVars
@@ -299,7 +299,7 @@ checkIf expr stmt = do
 checkIfElse :: Expr SrcPos -> Stmt SrcPos -> Stmt SrcPos -> BlockState (Stmt SrcPos)
 checkIfElse expr thenStmt elseStmt = do
     _ <- checkIf expr thenStmt
-    evalStmt elseStmt
+    _ <- evalStmt elseStmt
     return $ IfElse expr thenStmt elseStmt
 
 
@@ -355,7 +355,7 @@ checkMethodCall (MethodCall var method args) = do
     vTable <- M.union <$> use curVars <*> use prevVars
     fTable <- use funcDefs
     scopeVars <- M.union <$> use curVars <*> use prevVars
-    argTypes <- lift $ sequence $ map (getTypeExpr scopeVars fTable) args
+    _ <- lift $ mapM (getTypeExpr scopeVars fTable) args
 
     case var of
         (VarIdent i) -> do
@@ -433,10 +433,6 @@ getTypeExpr vtable ftable expr = case expr of
 
     (ExpIdent i) -> note (notFound i) (M.lookup i vtable)
 
-    (ExpPointer (Pointer ident@(Ident sp i) n)) ->
-        PointerType <$> note (notFound ident) (M.lookup catIdent vtable)
-          where catIdent = Ident sp (show n ++ i)
-
     (ExpLit l) -> return $ case l of
                 Str s _ -> strTypePos notKernel s
                 Ch s _ -> chTypePos notKernel s
@@ -495,6 +491,7 @@ getNormalTypeBin bop leftType rightType
             then return $ boolTypePos kernel opPos
             else Left "Expected equality of same types"
 
+   | otherwise = Left $ errorBinOp bop ++ "compiler error"
   where
      numNumNumOp = [Add opPos, Sub opPos, Mul opPos, Div opPos]
      intIntIntOp = [Mod opPos, BAnd opPos, BOr opPos, BXor opPos, ShiftL opPos, ShiftR opPos]
@@ -512,14 +509,14 @@ getNormalTypeBin bop leftType rightType
 getPointerTypeBin :: BinOps SrcPos -> Type SrcPos -> Type SrcPos -> Either String (Type SrcPos)
 getPointerTypeBin bop leftType rightType
     | bop == Add opPos =
-        if isPointer leftType && (stripAnnType rightType) == intType' then
+        if isPointer leftType && stripAnnType rightType == intType' then
             return leftType
-        else if isPointer rightType && (stripAnnType leftType) == intType' then
+        else if isPointer rightType && stripAnnType leftType == intType' then
             return rightType
         else Left "Can only add Pointers to Integers"
 
     | bop == Sub opPos =
-        if isPointer leftType && (stripAnnType rightType) == intType' then
+        if isPointer leftType && stripAnnType rightType == intType' then
         return leftType
         else Left "expected pointer type on lhs and integer type on rhs for pointer subtraction"
     | bop `elem` [Equals opPos, NEquals opPos] = case (leftType, rightType) of

@@ -18,11 +18,11 @@ exprOperators pos = operators pos (\n c -> (Prefix (reservedOp n >> return (ExpU
 
 -- |Unary operators have higher precedence than binary ones
 --
-operators pos un bin = (unaryOps pos un) ++ (binaryOps pos bin)
+operators pos un bin = unaryOps pos un ++ binaryOps pos bin
 
 
 -- |Binary operators from highest to lowest precedence
-binaryOps :: SrcPos -> ([Char] -> BinOps SrcPos -> Operator s u m a) -> [[Operator s u m a]]
+binaryOps :: SrcPos -> (String -> BinOps SrcPos -> Operator s u m a) -> [[Operator s u m a]]
 binaryOps pos binary =     
     [[binary "*"  (Mul pos) ,binary "/"  (Div pos), binary "%" (Mod pos)]
      ,[binary "+"  (Add pos), binary "-"  (Sub pos)]
@@ -38,7 +38,7 @@ binaryOps pos binary =
     ]
 
 -- |Unary operators from highest to lowest precedence
-unaryOps :: SrcPos -> ([Char] -> UnaryOps SrcPos -> Operator s u m a) -> [[Operator s u m a]]
+unaryOps :: SrcPos -> (String -> UnaryOps SrcPos -> Operator s u m a) -> [[Operator s u m a]]
 unaryOps pos unary = [[unary "-" (Neg pos), unary "!" (Not pos), unary "~" (BNot pos)]]
 
 -- | Parse given source file, returns parse error string on
@@ -57,7 +57,7 @@ program = Program <$> (whiteSpace *> topLevels)
 --   more than one set of characters to mark comments, and doesn't
 --   have any way to check the first character in each line
 removeCPPPreprocessor :: String -> String
-removeCPPPreprocessor s = unlines $ map (\n -> if isPrefixOf "#" n then "" else n) (lines s)
+removeCPPPreprocessor s = unlines $ map (\n -> if "#" `isPrefixOf` n then "" else n) (lines s)
 
 -- | Parse top level statements/definitions
 topLevels :: Parser [TopLevel SrcPos] 
@@ -141,7 +141,7 @@ stmt = try (Return <$> (reserved "return" *> (expr <* semi)))
 ifStmt :: Parser (Stmt SrcPos)
 ifStmt = try (IfElse <$> parseIf <*> stmt <*> (reserved "else" *> stmt))
      <|>      If     <$> parseIf <*> stmt
- where parseIf = (reserved "if" *> parens expr)
+ where parseIf = reserved "if" *> parens expr
 
 
 -- | Parse block to be executed sequentially
@@ -209,7 +209,7 @@ methodCall = do
 
 -- | Parse varaible
 parseVar :: Parser (Var SrcPos)
-parseVar = try (VarArrayElem <$> parseIdent <*> (brackets expr)) 
+parseVar = try (VarArrayElem <$> parseIdent <*> brackets expr) 
        <|> VarIdent <$> parseIdent
 
 -- | Parse identifier
@@ -217,6 +217,8 @@ parseIdent :: Parser (Ident SrcPos)
 parseIdent = Ident <$> getPos <*> ident
 
 -- | Parse types
+-- types can be either one of the basic types (int, bool, char, etc.)
+-- or a pointer to a type
 parseType :: Parser (Type SrcPos)
 parseType = do
     baseType <- NormalType <$> getPos <*> pure False <*> typeT
@@ -224,7 +226,7 @@ parseType = do
     return $ foldr (\ ptr cur -> (ptr cur)) baseType ptrs
  where
     getPointer :: Parser (Type SrcPos -> Type SrcPos)
-    getPointer = (char '*' >> whiteSpace >> return PointerType)
+    getPointer = char '*' >> whiteSpace >> return PointerType
             
 
 -- | Parse number
@@ -232,7 +234,7 @@ num :: Parser (Either Integer Double)
 num = Right <$> try float
   <|> Left  <$> int
 
-
+-- | Grab current source position
 getPos :: Parser SrcPos
 getPos = do
     sp <- getPosition

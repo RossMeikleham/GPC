@@ -4,16 +4,22 @@ test[0] = GPRM::Kernel::Test::Test(0);
 test[1] = GPRM::Kernel::Test::Test(1);
 
 
+bool test(bool a) {
+    return a == true;
+}
 
-int blocks() {
+int blocks(int *a) {
 
     seq {
         test[0].m1();
         test[1].m2(5);
     }
 
+    int k = 5;
+    test(true);
     {
         int j = 5;
+        bool k = k == 3;
     }
 
     par {

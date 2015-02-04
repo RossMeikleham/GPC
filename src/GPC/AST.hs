@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 
 
 {- GPC abstract syntax tree -}
@@ -31,7 +29,7 @@ data Program a = Program [TopLevel a] deriving (Show,Eq)
 
 data SrcPos = SrcPos Int Int deriving (Show)
 instance Eq SrcPos where
-    x == y = True
+    _ == _ = True
 
 -- | Top Level Expressions
 data TopLevel a =
@@ -85,7 +83,6 @@ data Expr a =
     | ExpMethodCall (MethodCall a) -- ^ C++ Object method call
     | ExpIdent (Ident a) -- ^ Identifier  
     | ExpLit (Literal a) -- ^ Constant/Literal value
-    | ExpPointer (Pointer a) -- ^ Pointer value
      deriving (Show, Eq)
 
 
