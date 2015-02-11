@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {- Generate GPIR code from Type/Scope checked AST -}
 
 
@@ -489,36 +490,33 @@ evaluateBinExpr  b e1 e2 = return $ ExpBinOp b e1 e2
 -- | Obtain binary operation to use with literal values
 binOpTable :: BinOps -> Literal -> Literal -> Either String Expr
 binOpTable b = case b of
-    Add -> performBinNumOp (+)
-    Sub -> performBinNumOp (-)
-    Div -> performBinNumOp (/)
+    Add -> performBinNumOp (+) 
+    Sub -> performBinNumOp (-) 
     Mul -> performBinNumOp (*)
 
+    Div -> performDivision 
 
     Mod -> performBinIntOp mod
-    BAnd -> performBinIntOp (.&.)
-    BOr -> performBinIntOp (.|.)
+    BAnd -> performBinIntOp (.&.) 
+    BOr -> performBinIntOp (.|.) 
     BXor -> performBinIntOp xor
     ShiftL -> performBinIntOp (\x y ->  shift x $ fromIntegral y)
-    ShiftR -> performBinIntOp (\x y ->  shift x $ fromIntegral (-y))
+    ShiftR -> performBinIntOp (\x y ->  shift x $ fromIntegral (-y)) 
 
-    Less -> performBinCompareOp (<)
-    LessEq -> performBinCompareOp (<=)
-    Greater -> performBinCompareOp (>)
-    GreaterEq -> performBinCompareOp (>=)
-    Equals -> performBinCompareOp (==)
-    NEquals -> performBinCompareOp (/=)
+    Less -> performBinCompareOp (<) 
+    LessEq -> performBinCompareOp (<=) 
+    Greater -> performBinCompareOp (>) 
+    GreaterEq -> performBinCompareOp (>=) 
+    Equals -> performBinCompareOp (==) 
+    NEquals -> performBinCompareOp (/=) 
 
-    And -> performBinBoolOp (&&)
-    Or -> performBinBoolOp (||)
+    And -> performBinBoolOp (&&) 
+    Or -> performBinBoolOp (||) 
 
 
-performBinNumOp :: (Double  -> Double -> Double)  -> Literal -> Literal -> Either String Expr
-performBinNumOp operation (Number (Left n1)) (Number (Left n2)) = Right litExp
- where litExp = ExpLit $ Number $ Left $ truncate $ n1' `operation` n2'
-       n1' = fromIntegral n1
-       n2' = fromIntegral n2
-
+performBinNumOp :: (forall a. Num a => (a -> a -> a))  -> Literal -> Literal -> Either String Expr
+performBinNumOp operation (Number (Left n1)) (Number (Left n2)) =
+    Right $ ExpLit $ Number $ Left $ n1 `operation` n2
 
 performBinNumOp operation (Number (Right n1))(Number (Right n2)) =
     Right $ ExpLit $ Number $ Right $ n1 `operation` n2
@@ -526,27 +524,20 @@ performBinNumOp operation (Number (Right n1))(Number (Right n2)) =
 performBinNumOp _ _ _ = Left "Error expected a numeric value"
 
 
+performDivision :: Literal -> Literal -> Either String Expr
+performDivision (Number (Left n1)) (Number (Left n2)) = Right $ ExpLit $ Number (Left $ n1 `div` n2)
+performDivision (Number (Right n1)) (Number (Right n2)) = Right $ ExpLit $ Number (Right $ n1 / n2)
+performDivision _ _ = Left "Error, expected to divide either 2 integers or 2 doubles"
+
 performBinIntOp :: (Integer -> Integer -> Integer)  -> Literal -> Literal -> Either String Expr
 performBinIntOp operation (Number (Left n1)) (Number (Left n2)) =
     Right $ ExpLit $ Number $ Left $ n1 `operation` n2
 performBinIntOp _ _ _ = Left "Error expected integer types"
 
 
-performBinCompareOp :: (Double -> Double -> Bool) -> Literal -> Literal -> Either String Expr
-performBinCompareOp operation (Number (Left n1)) (Number (Left n2)) =
-    Right $ ExpLit $ Bl $ n1' `operation` n2'
- where n1' = fromIntegral n1
-       n2' = fromIntegral n2
-
-performBinCompareOp operation (Number (Right n1)) (Number (Right n2)) =
-    Right $ ExpLit $ Bl $ n1 `operation` n2
-
-performBinCompareOp operation (Bl b1) (Bl b2) = 
-    Right $ ExpLit $ Bl $ blToDouble b1 `operation` blToDouble b2
-  where blToDouble b = fromIntegral (if b then 1 else 0 :: Integer)
-
-performBinCompareOp _ e1 e2 = Left $ "Error expected either 2 ints, or 2 doubles, results were " ++ show e1 ++ " " ++ show e2
-
+performBinCompareOp :: (Literal -> Literal -> Bool) -> Literal -> Literal -> Either String Expr
+performBinCompareOp operation l1 l2 =
+    Right $ ExpLit $ Bl $ l1 `operation` l2
 
 
 performBinBoolOp :: (Bool -> Bool -> Bool) -> Literal -> Literal -> Either String Expr

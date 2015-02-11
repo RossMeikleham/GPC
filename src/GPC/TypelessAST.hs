@@ -96,7 +96,7 @@ data Literal  =
     | Ch Char -- ^ Char
     | Number (Either Integer Double) -- ^ Numbers, either Int/Double
     | Bl Bool -- Boolean
-     deriving (Eq)
+     deriving (Eq, Ord)
 
 instance Show Literal where
     show (Str s) = s
@@ -104,7 +104,7 @@ instance Show Literal where
     show (Number (Left i)) = show i
     show (Number (Right d)) = show d
     show (Bl b) = show b
-
+ 
 
 -- | C++ Library
 type LibName = Ident

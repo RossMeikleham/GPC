@@ -2,6 +2,9 @@
 
 int ifElse(int i) {
     
+    string s = "hello";
+    char c = 'b';
+
     if (i < 5) {
         return 2;
     } else {
