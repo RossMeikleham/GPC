@@ -4,9 +4,8 @@
 About
 ===
 
-GPC is a front end language for the Glasgow Parallel Reduction Machine(GPRM) framework and is also my honours year project as a Student at the University of Glasgow. The compiler is written in pure Haskell.
+GPC is a front end language for the Glasgow Parallel Reduction Machine(GPRM) framework and is also my honours year project as a Student at the University of Glasgow. The language is a subset of C++ with two added keywords ("seq" and "par") to denote either sequential or parallel execution of code blocks. By default statements are evaluated in parallel. The compiler is written in Haskell.
 
-GPC statements are evaluated in parallel by default.
 
 The GPRM is a research project at the University Of Glasgow, more information on it can be found [here]( http://arxiv.org/pdf/1312.2703v1.pdf)
 
