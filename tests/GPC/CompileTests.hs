@@ -19,6 +19,7 @@ import GPC.SimplifyAST
 
 passDir =  "tests/examples/pass/"
 failDir =  "tests/examples/fail/"
+threads = 1
 
 sourceFiles :: String -> IO [String]
 sourceFiles dir = do 
@@ -41,7 +42,7 @@ passTest file = testCase file ( do
             case runTypeChecker v of
                 Left err -> assertFailure err
                 Right reduced -> 
-                    case genGPIR fileName (simplifyAST reduced) of
+                    case genGPIR fileName (simplifyAST reduced) threads of
                         Left err -> assertFailure err
                         Right _ -> return ()
     )
@@ -63,7 +64,7 @@ failTest file = testCase file ( do
         Right ast ->  do 
             case runTypeChecker ast of
                 Left _ -> return ()
-                Right _ -> case genGPIR fileName (simplifyAST ast) of
+                Right _ -> case genGPIR fileName (simplifyAST ast) threads of
                     Left _ -> return ()
                     Right e -> assertFailure $ "Program shouldn't have compiled " ++ show e
     )

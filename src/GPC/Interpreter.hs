@@ -23,7 +23,9 @@ data CodeGen = CodeGen {
    _funTable    :: FunTable,  -- ^ Store symbol tree for functions
    _constTable  :: ConstVarTable,
    _varId       :: Integer, -- ^ Current variable id for mapping to registers
-   _varRegTable :: VarRegTable -- ^ maps variable identifier
+   _varRegTable :: VarRegTable, -- ^ maps variable identifier
+   _threadCount :: Integer, -- ^ Current thread number to map
+   _maxThreads  :: Integer  -- ^ Maximum number of threads
 }
 
 -- Create lenses to access Block fields easier
@@ -62,11 +64,20 @@ updateRegs ident = do
     assign varRegTable $ M.insert ident newVarId vRegTable
     return $ Ident (show newVarId)
 
-genGPIR :: String -> Program -> Either String SymbolTree
-genGPIR name (Program tls) = case runStateT (genTopLevel name tls) initial of
+-- | Obtain the current thread
+--   and increment the thread counter modulo the max no of threads
+getThread :: GenState Integer
+getThread = do
+    threadNo <- use threadCount
+    max <- use maxThreads
+    assign threadCount $ (threadNo + 1) `mod` max
+    return threadNo 
+
+genGPIR :: String -> Program -> Integer -> Either String SymbolTree
+genGPIR name (Program tls) threads = case runStateT (genTopLevel name tls) initial of
     Left s -> Left s
     (Right (tl, _)) -> Right tl
- where initial = CodeGen M.empty M.empty 0 M.empty
+ where initial = CodeGen M.empty M.empty 0 M.empty 0 threads
 
 
 genTopLevel :: String -> [TopLevel] -> GenState SymbolTree
