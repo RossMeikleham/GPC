@@ -1,0 +1,39 @@
+
+--- # Core Services Configuration
+System:
+  Version: 3.0
+  Libraries: [Fib, CoreServices]
+  NServiceNodes: 63 # excluding gateway; this is actually the number of threads
+  ServiceNodes:
+    ctrl: [ 1, [CoreServices.SEQ ] ]
+    control: [ 1, [CoreServices.BEGIN] ]
+    io: [ 2, [CoreServices.IO] ]
+    ifs: [ 1, [CoreServices.IF] ]
+    a: [ 2, [CoreServices.ALU] ]
+    reg: [ 2, [CoreServices.REG ] ]
+    fibo: [2, [Fib.Fib] ]
+
+  Aliases:
+  # Alias Name (case sensitive): FQN
+    begin: control.CoreServices.BEGIN.begin
+    par: ctrl.CoreServices.BEGIN.begin
+    seq: ctrl.CoreServices.SEQ.seq
+    display: io.CoreServices.IO.display
+    if: ifs.CoreServices.IF.if
+    'reg.write': reg.CoreServices.REG.write
+    'reg.read': reg.CoreServices.REG.read
+    'reg.inc': reg.CoreServices.REG.inc
+    fib: fibo.Fib.Fib.fib
+    'fib_iter': fibo.Fib.Fib.fib_iter
+    timer: fibo.Fib.Fib.timer
+#    lambda: 
+# These used to be "ALU_names"  
+    '+': a.CoreServices.ALU.plus
+    '-': a.CoreServices.ALU.minus
+    '*': a.CoreServices.ALU.times
+#    '/': d.CoreServices.ALU.over
+#    '<': a.CoreServices.ALU.lt
+#    '>': a.CoreServices.ALU.gt
+#    '==': a.CoreServices.ALU.eq
+#    '!': a.CoreServices.ALU.not
+

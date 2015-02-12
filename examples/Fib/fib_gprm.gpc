@@ -1,0 +1,30 @@
+// Fibonacci implementation in GPC
+
+//C++ info, ignored by GPCC
+#include "src/GPRM/Kernel/Fib.h"
+#define seq
+#define par
+
+// The original source attempts to calculate fib(n) + 2fib(n-1) + ... + 2fib(2) + fib(1)
+int n = 35;
+
+GPRM::Kernel::Fib f;
+
+int get_fib(int n) {
+    if (n > 1) {
+        int fst = f.fib(n);
+        int snd = f.fib(n - 1);
+        return fst + snd + f.fib(n-1);
+    } else {
+        return 1;
+    }
+}
+
+void fib_gprm() {
+    seq {
+        int res = get_fib(n);
+        f.timer(res);
+    }
+}
+
+

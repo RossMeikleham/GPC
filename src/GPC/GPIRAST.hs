@@ -20,7 +20,7 @@ data GannetSymbol =
 
 data OpSymbol = MkOpSymbol {
                         quoted  :: Quoted, -- ^ Whether symbol is quoted or not
-                        node    :: (String, Int), -- ^ Node to run on
+                        node    :: (String, Integer), -- ^ Node to run on
                         method :: [String] -- ^ Namespace + method
                     } deriving (Eq,Ord, Show)
 

@@ -86,10 +86,11 @@ genTopLevel name tls = do
     genFuncs tls
     let tls' = filter (\x -> not (isAssign x || isObject x || isNonEntryFunc name x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
-    return $ SymbolList False $ seqSymbol : symbolTrees
+    thread <- getThread
+    return $ SymbolList False $ (seqSymbol thread) : symbolTrees
  where
-    seqSymbol = Symbol $ GOpSymbol $
-                MkOpSymbol False ("", 0) ["CoreServices", "Begin", "begin"]
+    seqSymbol t = Symbol $ GOpSymbol $
+                MkOpSymbol False ("", t) ["CoreServices", "Begin", "begin"]
 
 
 -- | Generate all Top Level Assignments
