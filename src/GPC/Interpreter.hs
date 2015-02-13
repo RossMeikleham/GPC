@@ -90,7 +90,7 @@ genTopLevel name tls = do
     return $ SymbolList False $ (seqSymbol thread) : symbolTrees
  where
     seqSymbol t = Symbol $ GOpSymbol $
-                MkOpSymbol False ("", t) ["CoreServices", "Begin", "begin"]
+                MkOpSymbol False ("", t) ["begin"]
 
 
 -- | Generate all Top Level Assignments
@@ -186,7 +186,7 @@ genStmt s = case s of
                 constTable %= M.delete name
 
                 let assignSymbol = Symbol $ GOpSymbol $
-                            MkOpSymbol False ("", 0) ["CoreServices", "reg", "write"]
+                            MkOpSymbol False ("", 0) ["CoreServices", "Reg", "write"]
                 evalExpr <- genExpr expr
                 reg <- updateRegs name
                 let regSymbol = Symbol $ ConstSymbol True (filter (/='"') (show reg))
@@ -194,7 +194,7 @@ genStmt s = case s of
 
     Seq (BlockStmt stmts) -> do
         let seqSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "Seq", "seq"]
+                        MkOpSymbol False ("Dummy", 0) ["seq"]
         -- Entering a block, so need to nest 
         stmts' <- genNest $ mapM genStmt stmts
         return $ SymbolList False (seqSymbol : stmts')
@@ -213,7 +213,7 @@ genStmt s = case s of
     MethodStmt (MethodCall cName method exprs) -> do
         exprs' <- mapM reduceExpr exprs
         let call = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) ["temp", show cName, show method]
+                    MkOpSymbol False ("Dummy", 0) [show cName, filter (/='"') $ show method]
         evalExprs <- mapM genExpr exprs'
         return $ SymbolList False (call : evalExprs)
 
@@ -230,7 +230,7 @@ genStmt s = case s of
             -- Otherwise generate code to evaluate at runtime
             _ -> do
                 let ifSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "IF", "if"]
+                        MkOpSymbol False ("Dummy", 0) ["if"]
 
                 cond <- genExpr expr'
                 evalStmt <- genStmt stmt
@@ -251,7 +251,7 @@ genStmt s = case s of
 
             _ -> do
                 let ifSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "IF", "if"]
+                        MkOpSymbol False ("Dummy", 0) ["", "", "if"]
                 cond <- genExpr expr'
                 evalStmt1 <- genStmt stmt1
                 evalStmt2 <- genStmt stmt2
@@ -260,7 +260,7 @@ genStmt s = case s of
     Return expr -> do
         expr' <- reduceExpr expr
         let returnSymbol = Symbol $ GOpSymbol $
-                            MkOpSymbol False ("Dummy", 0) ["CoreServices", "RETURN", "return"]
+                            MkOpSymbol False ("Dummy", 0) ["", "", "return"]
         evalExpr <- genExpr expr'
         return $ SymbolList False [returnSymbol, evalExpr]
 
@@ -292,27 +292,27 @@ genExpr e = do
 
      ExpBinOp bOp lExpr rExpr -> do
         let method = case bOp of
-                    Add -> "plus"
-                    Sub -> "minus"
-                    Mul -> "times"
-                    Div -> "over"
-                    And -> "and"
-                    Or -> "or"
-                    Mod -> "mod"
-                    Less -> "lt"
-                    LessEq -> "lteq"
-                    Greater -> "gt"
-                    GreaterEq -> "gteq"
-                    Equals -> "eq"
-                    NEquals -> "neq"
-                    ShiftL -> "shl"
-                    ShiftR -> "shr"
-                    BAnd -> "band"
-                    BXor -> "bxor"
-                    BOr -> "bor"
+                    Add -> "+"
+                    Sub -> "-"
+                    Mul -> "*"
+                    Div -> "/"
+                    And -> "&&"
+                    Or -> "||"
+                    Mod -> "%"
+                    Less -> "<"
+                    LessEq -> "<="
+                    Greater -> ">"
+                    GreaterEq -> ">="
+                    Equals -> "=="
+                    NEquals -> "!="
+                    ShiftL -> "<<"
+                    ShiftR -> ">>"
+                    BAnd -> "&"
+                    BXor -> "^"
+                    BOr -> "|"
 
         let binSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "ALU", method]
+                        MkOpSymbol False ("Dummy", 0) [method]
 
         lExpr' <- genExpr lExpr
         rExpr' <- genExpr rExpr
@@ -320,12 +320,12 @@ genExpr e = do
 
      ExpUnaryOp unOp expr' -> do
         let method = case unOp of
-                    Not -> "not"
-                    Neg -> "neg"
-                    BNot -> "bnot"
+                    Not -> "!"
+                    Neg -> "-"
+                    BNot -> "~"
 
         let unSymbol = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) ["CoreSevices", "ALU", method]
+                    MkOpSymbol False ("Dummy", 0) [method]
         expr'' <- genExpr expr'
         return $ SymbolList False [unSymbol, expr'']
 
@@ -336,7 +336,7 @@ genExpr e = do
 
      ExpMethodCall (MethodCall cName method exprs) -> do
         let call = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) ["temp", show cName, show method]
+                    MkOpSymbol False ("Dummy", 0) [show cName, filter (/='"') $ show method]
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 

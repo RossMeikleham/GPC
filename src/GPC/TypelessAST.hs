@@ -23,7 +23,11 @@ data Objects = Objects {
 data Var = 
           VarArrayElem Ident Expr  -- ^ Element of Array
         | VarIdent Ident -- ^ Ordinary identifier
-         deriving (Show, Eq)
+         deriving (Eq)
+
+instance Show Var where
+    show (VarArrayElem (Ident i) expr) = i ++ (show expr)
+    show (VarIdent (Ident i)) = i
 
 -- | Constructing Objects
 data ConstructObjs = ConstructObjs [Ident] Var [Expr] deriving (Show, Eq)
