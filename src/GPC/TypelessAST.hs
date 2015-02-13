@@ -45,6 +45,10 @@ data Stmt =
       | ForLoop Ident Expr Expr Expr BlockStmt -- ^ Start, Stop, Step, statements, static for loops
        deriving (Show, Eq)
 
+isReturn :: Stmt -> Bool
+isReturn (Return e) = True
+isReturn _ = False
+
 data Assign = Assign Ident Expr  deriving (Show, Eq) -- ^ Variable assignment
 data FunCall = FunCall Ident [Expr] deriving (Show, Eq) -- ^ Function call layout
 data MethodCall = MethodCall { 
