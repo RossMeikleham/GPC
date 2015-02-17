@@ -2,8 +2,8 @@
 GPRM::Kernel::Mergesort MS;
 
 
-int cutoff = 1024;
-int size = 40;
+int cutoff = 2;
+int size = 20;
 
 void MergeSort2(int *A, int *tmp, int size, int cutoff) {
     int half = size/2;

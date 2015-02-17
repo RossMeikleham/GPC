@@ -23,7 +23,11 @@ data Objects = Objects {
 data Var = 
           VarArrayElem Ident Expr  -- ^ Element of Array
         | VarIdent Ident -- ^ Ordinary identifier
-         deriving (Show, Eq)
+         deriving (Eq)
+
+instance Show Var where
+    show (VarArrayElem (Ident i) expr) = i ++ (show expr)
+    show (VarIdent (Ident i)) = i
 
 -- | Constructing Objects
 data ConstructObjs = ConstructObjs [Ident] Var [Expr] deriving (Show, Eq)
@@ -40,6 +44,10 @@ data Stmt =
       | Return Expr -- ^ Return value from current function
       | ForLoop Ident Expr Expr Expr BlockStmt -- ^ Start, Stop, Step, statements, static for loops
        deriving (Show, Eq)
+
+isReturn :: Stmt -> Bool
+isReturn (Return e) = True
+isReturn _ = False
 
 data Assign = Assign Ident Expr  deriving (Show, Eq) -- ^ Variable assignment
 data FunCall = FunCall Ident [Expr] deriving (Show, Eq) -- ^ Function call layout

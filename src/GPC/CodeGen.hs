@@ -15,8 +15,8 @@ genCode' (Symbol gSymbol) carryQuote = case gSymbol of
     ConstSymbol quoted str -> text (strQuoted ++ str)
      where strQuoted = if quoted || carryQuote then "'"  else ""
 
-    GOpSymbol (MkOpSymbol quoted _ method) ->
-        text $ strQuoted ++ method' method
+    GOpSymbol (MkOpSymbol quoted thread method) ->
+        text $ strQuoted ++ (method' method) ++ "[" ++ (show $ snd thread) ++ "]"
      where strQuoted = if quoted || carryQuote then "'" else ""
            method' = foldl1 (\a b -> a ++ "." ++ b)
 

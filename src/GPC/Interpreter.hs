@@ -69,8 +69,8 @@ updateRegs ident = do
 getThread :: GenState Integer
 getThread = do
     threadNo <- use threadCount
-    max <- use maxThreads
-    assign threadCount $ (threadNo + 1) `mod` max
+    maxT <- use maxThreads
+    assign threadCount $ (threadNo + 1) `mod` maxT
     return threadNo 
 
 genGPIR :: String -> Program -> Integer -> Either String SymbolTree
@@ -86,11 +86,9 @@ genTopLevel name tls = do
     genFuncs tls
     let tls' = filter (\x -> not (isAssign x || isObject x || isNonEntryFunc name x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
-    thread <- getThread
-    return $ SymbolList False $ (seqSymbol thread) : symbolTrees
+    return $ SymbolList False $ seqSymbol : symbolTrees
  where
-    seqSymbol t = Symbol $ GOpSymbol $
-                MkOpSymbol False ("", t) ["CoreServices", "Begin", "begin"]
+    seqSymbol = Symbol $ ConstSymbol False "begin"
 
 
 -- | Generate all Top Level Assignments
@@ -147,7 +145,8 @@ genTLConstructObjs (ConstructObjs ns var exprs) = do
 genEntryFunc :: BlockStmt -> [Ident] ->  GenState SymbolTree
 genEntryFunc (BlockStmt stmts) args = do
     mapM_ updateRegs args -- Create placeholder for entry args 
-    SymbolList True <$> mapM genStmt stmts
+    SymbolList True <$> mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
+
 
 -- | Function to deal with state and nesting
 --  we want to give a new context which constant variables are overwritten
@@ -186,7 +185,7 @@ genStmt s = case s of
                 constTable %= M.delete name
 
                 let assignSymbol = Symbol $ GOpSymbol $
-                            MkOpSymbol False ("", 0) ["CoreServices", "reg", "write"]
+                            MkOpSymbol False ("", 0) ["CoreServices", "Reg", "write"]
                 evalExpr <- genExpr expr
                 reg <- updateRegs name
                 let regSymbol = Symbol $ ConstSymbol True (filter (/='"') (show reg))
@@ -194,26 +193,26 @@ genStmt s = case s of
 
     Seq (BlockStmt stmts) -> do
         let seqSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "Seq", "seq"]
+                        MkOpSymbol False ("Dummy", 0) ["seq"]
         -- Entering a block, so need to nest 
-        stmts' <- genNest $ mapM genStmt stmts
+        stmts' <- genNest $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
         return $ SymbolList False (seqSymbol : stmts')
 
     BStmt (BlockStmt stmts) -> do
         -- Entering a block, need to nest
-        stmts' <- genNest $ mapM genStmt stmts
+        stmts' <- genNest $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
         return $ SymbolList False stmts'
 
     FunCallStmt (FunCall name exprs) -> do
         exprs' <- mapM reduceExpr exprs
         (BlockStmt stmts) <- genInlineFunc name exprs'
-        stmts' <- genNest $ mapM genStmt stmts
+        stmts' <- genNest $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
         return $ SymbolList False stmts'
 
     MethodStmt (MethodCall cName method exprs) -> do
         exprs' <- mapM reduceExpr exprs
         let call = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) ["temp", show cName, show method]
+                    MkOpSymbol False ("Dummy", 0) [show cName, filter (/='"') $ show method]
         evalExprs <- mapM genExpr exprs'
         return $ SymbolList False (call : evalExprs)
 
@@ -230,7 +229,7 @@ genStmt s = case s of
             -- Otherwise generate code to evaluate at runtime
             _ -> do
                 let ifSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "IF", "if"]
+                        MkOpSymbol False ("Dummy", 0) ["if"]
 
                 cond <- genExpr expr'
                 evalStmt <- genStmt stmt
@@ -251,7 +250,7 @@ genStmt s = case s of
 
             _ -> do
                 let ifSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "IF", "if"]
+                        MkOpSymbol False ("Dummy", 0) ["if"]
                 cond <- genExpr expr'
                 evalStmt1 <- genStmt stmt1
                 evalStmt2 <- genStmt stmt2
@@ -259,10 +258,8 @@ genStmt s = case s of
 
     Return expr -> do
         expr' <- reduceExpr expr
-        let returnSymbol = Symbol $ GOpSymbol $
-                            MkOpSymbol False ("Dummy", 0) ["CoreServices", "RETURN", "return"]
         evalExpr <- genExpr expr'
-        return $ SymbolList False [returnSymbol, evalExpr]
+        return $ SymbolList False [evalExpr]
 
     -- For now fully loop unroll
     ForLoop ident start stop step stmt' -> do
@@ -275,7 +272,7 @@ genStmt s = case s of
            let unrolledStmts = map (\i ->
                                 genInlineStmt [(ident, ExpLit (Number (Left i)))] (BStmt stmt'))
                                     [start', start' + step' .. stop' - 1]
-           unrolledStmts' <- mapM genStmt unrolledStmts
+           unrolledStmts' <- mapM genStmt (takeWhileInclusive (not . isReturn) unrolledStmts)
            return $ SymbolList False unrolledStmts'
 
 
@@ -292,27 +289,27 @@ genExpr e = do
 
      ExpBinOp bOp lExpr rExpr -> do
         let method = case bOp of
-                    Add -> "plus"
-                    Sub -> "minus"
-                    Mul -> "times"
-                    Div -> "over"
-                    And -> "and"
-                    Or -> "or"
-                    Mod -> "mod"
-                    Less -> "lt"
-                    LessEq -> "lteq"
-                    Greater -> "gt"
-                    GreaterEq -> "gteq"
-                    Equals -> "eq"
-                    NEquals -> "neq"
-                    ShiftL -> "shl"
-                    ShiftR -> "shr"
-                    BAnd -> "band"
-                    BXor -> "bxor"
-                    BOr -> "bor"
+                    Add -> "+"
+                    Sub -> "-"
+                    Mul -> "*"
+                    Div -> "/"
+                    And -> "&&"
+                    Or -> "||"
+                    Mod -> "%"
+                    Less -> "<"
+                    LessEq -> "<="
+                    Greater -> ">"
+                    GreaterEq -> ">="
+                    Equals -> "=="
+                    NEquals -> "!="
+                    ShiftL -> "<<"
+                    ShiftR -> ">>"
+                    BAnd -> "&"
+                    BXor -> "^"
+                    BOr -> "|"
 
         let binSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) ["CoreServices", "ALU", method]
+                        MkOpSymbol False ("Dummy", 0) [method]
 
         lExpr' <- genExpr lExpr
         rExpr' <- genExpr rExpr
@@ -320,23 +317,23 @@ genExpr e = do
 
      ExpUnaryOp unOp expr' -> do
         let method = case unOp of
-                    Not -> "not"
-                    Neg -> "neg"
-                    BNot -> "bnot"
+                    Not -> "!"
+                    Neg -> "-"
+                    BNot -> "~"
 
         let unSymbol = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) ["CoreSevices", "ALU", method]
+                    MkOpSymbol False ("Dummy", 0) [method]
         expr'' <- genExpr expr'
         return $ SymbolList False [unSymbol, expr'']
 
      ExpFunCall (FunCall name exprs) -> do
         (BlockStmt stmts) <- genInlineFunc name exprs
-        stmts' <- genNest $ mapM genStmt stmts
+        stmts' <- genNest $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
         return $ SymbolList False stmts'
 
      ExpMethodCall (MethodCall cName method exprs) -> do
         let call = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) ["temp", show cName, show method]
+                    MkOpSymbol False ("Dummy", 0) [show cName, filter (/='"') $ show method]
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
@@ -413,7 +410,7 @@ replaceExprIdents replaceExprs givenExpr =
     foldl (\gExpr (ident, rExpr) -> replaceExprIdent ident rExpr gExpr) givenExpr replaceExprs
 
 -- | Replace all instances of an identity in an expression
--- | with a given sub-expression TODO place into expression module
+-- | with a given sub-expression 
 replaceExprIdent :: Ident -> Expr -> Expr -> Expr
 replaceExprIdent ident replaceExpr givenExpr = case givenExpr of
 
@@ -437,7 +434,6 @@ replaceExprIdent ident replaceExpr givenExpr = case givenExpr of
 
 
 -- | inclusive MapWhile function, returns results which satisfy a condition
--- | TODO stick in utilities module
 incMapWhile :: (b -> Bool) -> (a -> b) -> [a] -> [b]
 incMapWhile cond f (x:xs) = if cond res then res : incMapWhile cond f xs else [res]
  where res = f x
@@ -487,7 +483,7 @@ reduceExpr expr = do
 -- | Attempts to evaluate a constant binary expression
 evaluateBinExpr :: BinOps -> Expr -> Expr -> Either String Expr
 
--- Binary operations with literals
+-- | Binary operations with literals
 evaluateBinExpr b (ExpLit l1) (ExpLit l2) = 
     case (b, l2) of
         -- Check for division by 0
@@ -585,3 +581,10 @@ performUnNegOp _ = Left "Error expected numeric type"
 performUnBNotOp :: Literal -> Either String Expr
 performUnBNotOp (Number (Left i)) = Right $ ExpLit $ Number $ Left $ complement i
 performUnBNotOp _ = Left "Error expected integer value"
+
+
+
+takeWhileInclusive :: (a -> Bool) -> [a] -> [a]
+takeWhileInclusive _ [] = []
+takeWhileInclusive p (x:xs) = x : if p x then takeWhileInclusive p xs
+                                         else []
