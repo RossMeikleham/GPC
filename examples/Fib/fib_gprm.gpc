@@ -5,25 +5,27 @@
 #define seq
 #define par
 
-// The original source attempts to calculate fib(n) + 2fib(n-1) + ... + 2fib(2) + fib(1)
-int n = 35;
+// Calculate nth Fibonacci number
+int n = 10;
 
 GPRM::Kernel::Fib f;
 
 int get_fib(int n) {
-    if (n > 1) {
-        int fst = f.fib(n);
-        int snd = f.fib(n - 1);
-        return fst + snd + f.fib(n-1);
+    
+    if (n >= 2) {
+        int a = get_fib(n - 1);
+        int b = get_fib(n - 2);
+        return a + b;
     } else {
-        return 1;
-    }
+        return n;
+    } 
 }
 
 void fib_gprm() {
     seq {
-        int res = get_fib(n);
-        f.timer(res);
+        f.start_timer();
+        int a = get_fib(n);
+        f.timer(a);
     }
 }
 

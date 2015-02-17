@@ -5,6 +5,12 @@
 timeval t;
 long start;
 
+
+void GPRM::Kernel::Fib::add(int *a, int b) {
+    *a += b;
+}
+
+
 int GPRM::Kernel::Fib::fib(int n) {
 	int x,y;
 	 if (n<2) return n;
@@ -12,21 +18,7 @@ int GPRM::Kernel::Fib::fib(int n) {
 	 y = fib(n-2);
 	 return x+y;
  }
-
- int GPRM::Kernel::Fib::fib_iter(int n) {
-	if (n < 2) return n;
-    	int prevPrev = 0;
-   	int prev = 1;
-    	int result = 0;
-
-    	for (int i = 2; i <= n; i++)
-    	{
-        	result = prev + prevPrev;
-        	prevPrev = prev;
-        	prev = result;
-    	}
-    	return result;
-}
+ 
  int GPRM::Kernel::Fib::start_timer() {
     gettimeofday(&t, NULL);
     start = (t.tv_sec * 1000) + (t.tv_usec / 1000);

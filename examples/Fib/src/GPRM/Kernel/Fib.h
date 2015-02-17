@@ -13,8 +13,8 @@ class Fib {
 	public:
 		int fib(int);
 		int timer(int nothing);
-		int fib_iter(int);
         int start_timer();
+        void add(int *a, int b);
 };
 
 }
