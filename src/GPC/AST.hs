@@ -155,8 +155,15 @@ data Pointer a = Pointer (Ident a) Integer deriving (Show, Eq) -- |Pointer to ar
 
 -- | Types
 data Type a = PointerType (Type a) -- Pointer to a Type
-          | NormalType a Bool String 
-          deriving (Show, Eq) 
+          | NormalType a Bool String  -- ^ Type with annotation, True/False is type is a Kernel Type, and Type name
+          deriving (Eq) 
+
+instance Show (Type a) where
+    show (PointerType p) = "\"" ++ (filter (/= '"') (show p ++ "*")) ++ "\""
+    show (NormalType _ True s) = show $ "Kernel " ++ s 
+    show (NormalType _ False s) = show s
+
+
 
 -- | Block of Statements
 data BlockStmt a = BlockStmt [Stmt a] deriving (Show, Eq)

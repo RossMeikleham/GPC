@@ -216,12 +216,18 @@ parseVar = try (VarArrayElem <$> parseIdent <*> brackets expr)
 parseIdent :: Parser (Ident SrcPos)
 parseIdent = Ident <$> getPos <*> ident
 
+
 -- | Parse types
 -- types can be either one of the basic types (int, bool, char, etc.)
 -- or a pointer to a type
 parseType :: Parser (Type SrcPos)
 parseType = do
-    baseType <- NormalType <$> getPos <*> pure False <*> typeT
+    try ((reserved "__kernel") *> parseType' True) 
+      <|> parseType' False
+
+parseType' :: Bool -> Parser (Type SrcPos)
+parseType' inKernel = do
+    baseType <- NormalType <$> getPos <*> pure inKernel <*> typeT
     ptrs <- many getPointer 
     return $ foldr (\ ptr cur -> (ptr cur)) baseType ptrs
  where

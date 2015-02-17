@@ -16,12 +16,12 @@ outputCode f s = writeFile f s --mapM_ putStrLn (lines s)
 
 parseResult :: String -> Integer -> Either String (Program SrcPos) -> IO ()
 parseResult f threads p = case p of
-    Left err -> print err
+    Left err -> putStrLn err
     Right ast ->  do
         case runTypeChecker ast of
-            Left err -> print err
+            Left err -> putStrLn err
             Right _ -> case genGPIR f (simplifyAST ast) threads of
-               Left err -> print err
+               Left err -> putStrLn  err
                Right gpir -> do 
                     outputCode (f ++ ".td") $ ";" ++ f ++ ".yml\n" ++ (genCode gpir)
     

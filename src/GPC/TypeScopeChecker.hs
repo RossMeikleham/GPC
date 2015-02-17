@@ -109,8 +109,8 @@ evalConstruct (ConstructObjs ns var exprs) = do
             v <- checkNameSpace ident objs
             case v of
                 (VarIdent _) -> return $ ConstructObjs ns var exprs
-                (VarArrayElem i _) -> lift $ Left $ errorIdent i ++  show i ++ 
-                    "is declared as a single object, not an array"
+                (VarArrayElem i _) -> lift $ Left $ errorIdent i ++ "\"" ++ show i ++ "\"" ++
+                    " is declared as a single object, not an array"
 
         (VarArrayElem ident@(Ident sp _) expr) -> do -- Check indexed expression
             v <- checkNameSpace ident objs
@@ -120,8 +120,8 @@ evalConstruct (ConstructObjs ns var exprs) = do
             checkType (intTypePos notKernel sp) exprType
 
             case v of 
-                (VarIdent i) -> lift $ Left $ errorIdent i ++ show i ++ "is declared as an array"
-                    ++ "of objects, expecting assignment to a single element"
+                (VarIdent i) -> lift $ Left $ errorIdent i ++ "\"" ++ show i ++ "\"" ++ 
+                    "is declared as an array of objects, expecting assignment to a single element"
                 (VarArrayElem (Ident sp' _) expr') -> do
                    
                     exprType' <- lift $ getTypeExpr tVars M.empty expr'
@@ -129,15 +129,15 @@ evalConstruct (ConstructObjs ns var exprs) = do
                     return $ ConstructObjs ns var exprs
     
   where             
-    notFound i =  errorIdent i ++ "object not found " ++ show i
+    notFound i =  errorIdent i ++ "object " ++ "\"" ++ show i ++ "\"" ++ " not found."
     checkNameSpace i objs = do {
     (Objects objNs oVar) <- lift $ note (notFound i) (M.lookup i objs);
     if objNs /= init ns then
-         lift $ Left $ "No Object(s) declared with namespace " ++
-            show (init ns) ++ "perhaps you meant " ++ show objNs ++ "?"
+         lift $ Left $ "No Object(s) declared with namespace \"" ++
+            show (init ns) ++ "\" perhaps you meant " ++ show objNs ++ "?"
     else if last ns /= last (init ns) then
-         lift $ Left $ "Expected object constructor " ++
-            show (init ns ++ [last ns]) ++ " but found " ++ show ns
+         lift $ Left $ "Expected object constructor \"" ++
+            show (init ns ++ [last ns]) ++ "\" but found \"" ++ show ns ++ "\""
     else return oVar
     }
 
@@ -191,7 +191,7 @@ evalFunc typeG ident args (BlockStmt stmts) = do
         -- Check argument identifiers only occur once each
         case hasDuplicate (map snd args) of
             Just argId -> lift $ Left $ errorIdent argId ++
-                  "Function " ++ show ident ++ "contains duplicate argument names " ++ show argId
+                  "Function \"" ++ show ident ++ "\" contains duplicate argument names: \"" ++ show argId ++ "\""
             Nothing -> do
 
              -- Create a new variable scope based on the identifiers
@@ -210,7 +210,7 @@ evalFunc typeG ident args (BlockStmt stmts) = do
              assign tlFuncDefs newFTable
              return $ Func typeG ident args funBlock
 
-    else lift $ Left $ errorIdent ident ++  "Function " ++ show ident ++ "occurs more than once"
+    else lift $ Left $ errorIdent ident ++  "Function \"" ++ show ident ++ "\" is declared more than once."
   where hasDuplicate (x:xs) = if x `elem` xs then Just x else hasDuplicate xs
         hasDuplicate _ = Nothing
 
@@ -374,15 +374,15 @@ checkMethodCall (MethodCall var method args) = do
 
 
   where findType i vTable = note (notFound i) (M.lookup i vTable)
-        notFound  obj = "Error, object not found " ++ show obj
+        notFound  obj = "Error, object not found \"" ++ show obj ++ "\""
 
 
 -- | Checks that 2 given types match
 checkType :: (Show a) =>  Type SrcPos -> Type a -> GenericBlockState b ()
 checkType expected actual =
     if stripAnnType expected == stripAnnType actual then modify id else
-        lift $ Left $ errorType expected ++ show expected ++ 
-            " but expression evaluated to " ++ show actual
+        lift $ Left $ errorType expected ++ "Expected type " ++ show expected ++ 
+            " but expression evaluated to type " ++ show actual ++ "."
 
 
 checkType' :: (Show a) => Type SrcPos -> Type a -> Either String ()
@@ -395,7 +395,7 @@ checkType' expected actual =
 -- part ofr the variable table, then returns a multiple instance error
 checkMultipleInstance :: Ident SrcPos -> VarTable -> GenericBlockState a ()
 checkMultipleInstance ident vTable = when (ident `M.member` vTable) $ 
-    lift $ Left $ errorIdent ident ++ show ident ++ 
+    lift $ Left $ errorIdent ident ++ "\"" ++ show ident ++ "\"" ++
     " has already been defined in scope, cannot redefine it"
 
 
@@ -409,7 +409,7 @@ getTypeExpr vtable ftable expr = case expr of
         argTypes <- mapM (getTypeExpr vtable ftable) exps
         (retT, ts) <- note (notFound s) (M.lookup s ftable)
         if length argTypes /= length ts
-            then Left $ errorIdent s ++ "Function " ++ show s ++  " expects " ++ show (length ts) ++
+            then Left $ errorIdent s ++ "Function \"" ++ show s ++  "\" expects " ++ show (length ts) ++
                       " arguments but was given " ++ show (length argTypes)
             else if argTypes /= ts
                 then Left $ errorIdent s ++ "Arguments don't evaluate to given types"
@@ -442,7 +442,7 @@ getTypeExpr vtable ftable expr = case expr of
 
  where
     notFound :: Ident SrcPos -> String 
-    notFound i = errorIdent i ++ "Identifier " ++ show i ++ " not declared in scope"
+    notFound i = errorIdent i ++ "Identifier \"" ++ show i ++ "\" not declared in scope"
 
 
 -- Get Type of a Binary Expression
@@ -468,28 +468,28 @@ getNormalTypeBin bop leftType rightType
            Left $ errorBinOp bop ++ "Both expressions expected to be the same type"
        else if stripAnnType leftType == intType' then return $ intTypePos kernel opPos
        else if stripAnnType leftType == doubleType' then return $ doubleTypePos kernel opPos
-       else Left "Expected integer or double type"
+       else Left $ errorBinOp bop ++ "Expected integer or double type"
 
    | bop `elem` intIntIntOp =
        if (stripAnnType leftType, stripAnnType rightType) == (intType', intType')
            then return $ intTypePos kernel opPos
-           else Left "Expected integer values on both sides"
+           else Left $ errorBinOp bop ++ "Expected integer values on both sides"
 
    | bop `elem` compareOp =
        if (stripAnnType leftType, stripAnnType rightType) `elem` 
             [(intType', intType'), (doubleType', doubleType')]
            then return $ boolTypePos kernel opPos
-           else Left "Expected numeric values of the same type"
+           else Left $ errorBinOp bop ++ "Expected numeric values of the same type"
 
    | bop `elem` boolOp =
        if (stripAnnType leftType, stripAnnType rightType) == (boolType', boolType')
            then return $ boolTypePos kernel opPos
-           else Left "Expected boolean values"
+           else Left $ errorBinOp bop ++ "Expected boolean values"
 
    | bop `elem` eqOp = 
         if leftType == rightType 
             then return $ boolTypePos kernel opPos
-            else Left "Expected equality of same types"
+            else Left $ errorBinOp bop ++ "Expected equality of same types"
 
    | otherwise = Left $ errorBinOp bop ++ "compiler error"
   where
@@ -542,13 +542,13 @@ getTypeUnOp vtable ftable operation expr = case operation of
     BNot p -> getTypeExpr vtable ftable expr >>=
         \t -> case t of
             (NormalType _ kernel "int") -> return $ NormalType p kernel "int"
-            e -> Left $ errorType t ++ "Expected integer expression, but found" ++ show e
+            e -> Left $ errorType t ++ "Expected integer expression, but found " ++ show e
 
     Neg p -> getTypeExpr vtable ftable expr >>=
         \t -> case t of
             (NormalType _ kernel "int") -> return $ NormalType p kernel "int"
             (NormalType _ kernel "double") -> return $ NormalType p kernel "double"
-            e -> Left $ errorType t ++ "Expected integer expression, but found" ++ show e
+            e -> Left $ errorType t ++ "Expected integer expression, but found " ++ show e
 
     Not p -> getTypeExpr vtable ftable expr >>=
         \t -> case t of
@@ -558,7 +558,7 @@ getTypeUnOp vtable ftable operation expr = case operation of
 
 
 errorSrcPos :: SrcPos -> String
-errorSrcPos (SrcPos line col) = "Error " ++ show line ++ ":" ++ show col ++ "\n"
+errorSrcPos (SrcPos line col) = "Error line:" ++ show line ++ " column:" ++ show col ++ "\n"
 
 errorIdent :: Ident SrcPos -> String
 errorIdent (Ident sp _) = errorSrcPos sp
