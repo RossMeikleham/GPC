@@ -8,7 +8,7 @@ module GPC.GPIRAST (
  )
 where
 
-data SymbolTree = Symbol GannetSymbol | SymbolList Quoted [SymbolTree] | EmptyTree deriving Show
+data SymbolTree = Symbol GannetSymbol | SymbolList Quoted [SymbolTree] | EmptyTree deriving (Show, Eq)
 
 -- (label LABEL ( ... ))    
 data GannetSymbol = 
@@ -16,7 +16,7 @@ data GannetSymbol =
     | GOpSymbol OpSymbol 
 --    | LabelKeywordSymbol Quoted String
 --    | LabelSymbol Quoted String
-    deriving Show
+    deriving (Show, Eq)
 
 data OpSymbol = MkOpSymbol {
                         quoted  :: Quoted, -- ^ Whether symbol is quoted or not

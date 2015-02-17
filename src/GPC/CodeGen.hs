@@ -21,7 +21,7 @@ genCode' (Symbol gSymbol) carryQuote = case gSymbol of
            method' = foldl1 (\a b -> a ++ "." ++ b)
 
 -- | Generate Source Code for Symbol Tree
-genCode' (SymbolList quoted symbolTree) carryQuote = case symbolTree of
+genCode' (SymbolList quoted symbolTree) carryQuote = case filter (/= EmptyTree) symbolTree of
     [] -> text ""
     ([x]) -> genCode' x quoted -- If tree contains 1 element, carry the quote over
     xs -> parens'(quoted || carryQuote) $
