@@ -25,7 +25,8 @@ data CodeGen = CodeGen {
    _varId       :: Integer, -- ^ Current variable id for mapping to registers
    _varRegTable :: VarRegTable, -- ^ maps variable identifier
    _threadCount :: Integer, -- ^ Current thread number to map
-   _maxThreads  :: Integer  -- ^ Maximum number of threads
+   _maxThreads  :: Integer,  -- ^ Maximum number of threads
+   _seqBlock    :: Bool -- ^ Whether ot not current block is sequential
 }
 
 -- Create lenses to access Block fields easier
@@ -77,7 +78,7 @@ genGPIR :: String -> Program -> Integer -> Either String SymbolTree
 genGPIR name (Program tls) threads = case runStateT (genTopLevel name tls) initial of
     Left s -> Left s
     (Right (tl, _)) -> Right tl
- where initial = CodeGen M.empty M.empty 0 M.empty 0 threads
+ where initial = CodeGen M.empty M.empty 0 M.empty 0 threads False
 
 
 genTopLevel :: String -> [TopLevel] -> GenState SymbolTree
@@ -86,9 +87,9 @@ genTopLevel name tls = do
     genFuncs tls
     let tls' = filter (\x -> not (isAssign x || isObject x || isNonEntryFunc name x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
-    return $ SymbolList False $ seqSymbol : symbolTrees
- where
-    seqSymbol = Symbol $ ConstSymbol False "begin"
+    return $ SymbolList False $ symbolTrees
+-- where
+   -- seqSymbol = Symbol $ ConstSymbol False "begin"
 
 
 -- | Generate all Top Level Assignments
@@ -120,7 +121,7 @@ genFunc a = lift $ Left $ "Not Function definition" ++ show a
 genTopLevelStmt :: TopLevel -> GenState SymbolTree
 genTopLevelStmt tl = case tl of
       (TLConstructObjs cObjs) -> genTLConstructObjs cObjs
-      (Func _ args bStmt) -> genNest $ genEntryFunc bStmt args
+      (Func _ args bStmt) -> genNest False $ genEntryFunc bStmt args
       _ -> lift $ Left $ "Compiler error, shouldn't contain Top Level " ++
                 "Assignments, Object Decls or non Entry functions"
 
@@ -145,7 +146,7 @@ genTLConstructObjs (ConstructObjs ns var exprs) = do
 genEntryFunc :: BlockStmt -> [Ident] ->  GenState SymbolTree
 genEntryFunc (BlockStmt stmts) args = do
     mapM_ updateRegs args -- Create placeholder for entry args 
-    SymbolList True <$> mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
+    SymbolList False <$> mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
 
 
 -- | Function to deal with state and nesting
@@ -153,10 +154,10 @@ genEntryFunc (BlockStmt stmts) args = do
 --  in the new scope when another is declared, or are erased when a non constant
 --  variable of the same name is declared. We also want to keep a running count of
 --  the registers used
-genNest :: GenState a -> GenState a
-genNest g = do
+genNest :: Bool -> GenState a -> GenState a
+genNest sequential g = do
     curEnv <- get
-    case runStateT g curEnv of
+    case runStateT g curEnv{_seqBlock = sequential}  of
         Left e -> lift $ Left e
         Right (res, afterEnv) -> do
             assign varId (_varId afterEnv)
@@ -165,7 +166,10 @@ genNest g = do
 
 
 genStmt :: Stmt -> GenState SymbolTree
-genStmt s = case s of
+genStmt s = do
+ 
+   quoted <- use seqBlock
+   case s of
 
     -- When assigning a variable need to write it to a register
     AssignStmt (Assign name expr) -> do
@@ -189,32 +193,31 @@ genStmt s = case s of
                 evalExpr <- genExpr expr
                 reg <- updateRegs name
                 let regSymbol = Symbol $ ConstSymbol True (filter (/='"') (show reg))
-                return $ SymbolList False [assignSymbol, regSymbol,  evalExpr]
+                return $ SymbolList quoted [assignSymbol, regSymbol,  evalExpr]
 
     Seq (BlockStmt stmts) -> do
-        let seqSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) ["seq"]
+        let  seqSymbol = Symbol $ ConstSymbol False "seq"
         -- Entering a block, so need to nest 
-        stmts' <- genNest $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-        return $ SymbolList False (seqSymbol : stmts')
+        stmts' <- genNest True $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
+        return $ SymbolList quoted (seqSymbol : stmts')
 
     BStmt (BlockStmt stmts) -> do
         -- Entering a block, need to nest
-        stmts' <- genNest $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-        return $ SymbolList False stmts'
+        stmts' <- genNest False $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
+        return $ SymbolList quoted stmts'
 
     FunCallStmt (FunCall name exprs) -> do
         exprs' <- mapM reduceExpr exprs
         (BlockStmt stmts) <- genInlineFunc name exprs'
-        stmts' <- genNest $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-        return $ SymbolList False stmts'
+        stmts' <- genNest False $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
+        return $ SymbolList quoted stmts'
 
     MethodStmt (MethodCall cName method exprs) -> do
         exprs' <- mapM reduceExpr exprs
         let call = Symbol $ GOpSymbol $
                     MkOpSymbol False ("Dummy", 0) [show cName, filter (/='"') $ show method]
         evalExprs <- mapM genExpr exprs'
-        return $ SymbolList False (call : evalExprs)
+        return $ SymbolList quoted (call : evalExprs)
 
     If expr stmt -> do
         expr' <- reduceExpr expr
@@ -236,7 +239,7 @@ genStmt s = case s of
                 -- GPRM supports only if-then-else style, 
                 --  generate dummy statement to fill in the "else"
                 let dummyStmt = Symbol $ ConstSymbol True "0"
-                return $ SymbolList False [ifSymbol, cond, evalStmt, dummyStmt]
+                return $ SymbolList quoted [ifSymbol, cond, evalStmt, dummyStmt]
 
     IfElse expr stmt1 stmt2 -> do
         expr' <- reduceExpr expr
@@ -254,12 +257,12 @@ genStmt s = case s of
                 cond <- genExpr expr'
                 evalStmt1 <- genStmt stmt1
                 evalStmt2 <- genStmt stmt2
-                return $ SymbolList False [ifSymbol, cond, evalStmt1, evalStmt2]
+                return $ SymbolList quoted [ifSymbol, cond, evalStmt1, evalStmt2]
 
     Return expr -> do
         expr' <- reduceExpr expr
         evalExpr <- genExpr expr'
-        return $ SymbolList False [evalExpr]
+        return $ SymbolList quoted [evalExpr]
 
     -- For now fully loop unroll
     ForLoop ident start stop step stmt' -> do
@@ -273,7 +276,7 @@ genStmt s = case s of
                                 genInlineStmt [(ident, ExpLit (Number (Left i)))] (BStmt stmt'))
                                     [start', start' + step' .. stop' - 1]
            unrolledStmts' <- mapM genStmt (takeWhileInclusive (not . isReturn) unrolledStmts)
-           return $ SymbolList False unrolledStmts'
+           return $ SymbolList quoted unrolledStmts'
 
 
  where
@@ -328,7 +331,7 @@ genExpr e = do
 
      ExpFunCall (FunCall name exprs) -> do
         (BlockStmt stmts) <- genInlineFunc name exprs
-        stmts' <- genNest $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
+        stmts' <- genNest False $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
         return $ SymbolList False stmts'
 
      ExpMethodCall (MethodCall cName method exprs) -> do
