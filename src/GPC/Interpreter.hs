@@ -297,20 +297,21 @@ genStmt s = do
                                         $ iterate (+ step') start'
 
            -- Obtain number of statements until end condition met
-           noStmts <- lengthInBounds ((iterate (+step') start') :: [Int]) ident stop'
+           noStmts <- lengthInBounds ((iterate (+step') start')) ident stop'
            
            unrolledStmts' <- mapM genStmt (takeWhileInclusive (not . isReturn) (take noStmts unrolledStmts))
            return $ SymbolList quoted unrolledStmts'
 
-             where isInBounds :: Int -> Ident -> Expr -> GenState Bool
-                   isInBounds val ident stop = getBool =<< reduceExpr $ replaceExprIdent ident (ExpLit (Number (Left val))) stop
+             where isInBounds :: Integer -> Ident -> Expr -> GenState Bool
+                   isInBounds val ident stop = getBool =<< (reduceExpr $ replaceExprIdent ident (ExpLit (Number (Left val))) stop)
 
-                   lengthInBounds :: [Int] -> Ident -> Expr -> GenState Int
-                   lengthInBounds (x:xs) ident stop = 
-                        if isInBounds x ident stop 
+                   lengthInBounds :: [Integer] -> Ident -> Expr -> GenState Int
+                   lengthInBounds (x:xs) ident stop = do
+                        inBounds <- isInBounds x ident stop
+                        if inBounds
                             then do
                                 next <- lengthInBounds xs ident stop
-                                return next + 1
+                                return $ next + 1
                             else return 0
 
                    lengthInBounds [] _ _ = return 0
