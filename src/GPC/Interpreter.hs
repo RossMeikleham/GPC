@@ -137,7 +137,7 @@ genTLConstructObjs (ConstructObjs ns var exprs) = do
 
     curThread <- getThread
     let constructor = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("", curThread) (map show ns)
+                    MkOpSymbol False ("", curThread) (map ((filter (/='"')) . show) ns)
     args <- mapM checkConst exprs
     let args' = map (Symbol . ConstSymbol True . show) args
 
