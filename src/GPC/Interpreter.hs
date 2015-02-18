@@ -287,22 +287,42 @@ genStmt s = do
         -- For now fully loop unroll
         ForLoop ident start stop step stmt' -> do
            start' <- getInt =<< reduceExpr start
-           stop'  <- getInt =<< reduceExpr stop 
+           stop'  <- reduceExpr stop 
            step'  <- getInt =<< reduceExpr step
-           if start' > stop' then lift $ Left "For loop error, start can't be greater than stop"
-           else if step' == 0 || step' < 0 then lift $ Left "For loop error, infinite loop generated"
-           else do
-               let unrolledStmts = map (\i ->
-                                    genInlineStmt [(ident, ExpLit (Number (Left i)))] (BStmt stmt'))
-                                        [start', start' + step' .. stop' - 1]
-               unrolledStmts' <- mapM genStmt (takeWhileInclusive (not . isReturn) unrolledStmts)
-               return $ SymbolList quoted unrolledStmts'
 
+          
+           -- Generate an infinite loop of unrolled statements, iterating through
+           let unrolledStmts = map (\i ->
+                                    genInlineStmt [(ident, ExpLit (Number (Left i)))] (BStmt stmt'))
+                                        $ iterate (+ step') start'
+
+           -- Obtain number of statements until end condition met
+           noStmts <- lengthInBounds ((iterate (+step') start') :: [Int]) ident stop'
+           
+           unrolledStmts' <- mapM genStmt (takeWhileInclusive (not . isReturn) (take noStmts unrolledStmts))
+           return $ SymbolList quoted unrolledStmts'
+
+             where isInBounds :: Int -> Ident -> Expr -> GenState Bool
+                   isInBounds val ident stop = getBool =<< reduceExpr $ replaceExprIdent ident (ExpLit (Number (Left val))) stop
+
+                   lengthInBounds :: [Int] -> Ident -> Expr -> GenState Int
+                   lengthInBounds (x:xs) ident stop = 
+                        if isInBounds x ident stop 
+                            then do
+                                next <- lengthInBounds xs ident stop
+                                return next + 1
+                            else return 0
+
+                   lengthInBounds [] _ _ = return 0
 
  where
     getInt :: Expr -> GenState Integer
     getInt (ExpLit (Number (Left i))) = return i
-    getInt _ = lift $ Left "Compiler error, expected integer value from expression"
+    getInt er = lift $ Left $ "Compiler error, expected integer value from expression, got:" ++ show er
+
+    getBool :: Expr -> GenState Bool
+    getBool (ExpLit (Bl b)) = return b
+    getBool er = lift $ Left $ "Compiler error, expected boolean value from expression, got:" ++ show er
 
 
 genExpr :: Expr -> GenState SymbolTree
