@@ -10,6 +10,7 @@ nestLevel = 4 -- |Number of spaces to nest
 genCode :: SymbolTree -> String
 genCode st = show $ genCode' st False
 
+
 genCode' :: SymbolTree -> Quoted -> Doc
 genCode' (Symbol gSymbol) carryQuote = case gSymbol of
     ConstSymbol quoted str -> text (strQuoted ++ str)
@@ -24,9 +25,13 @@ genCode' (Symbol gSymbol) carryQuote = case gSymbol of
 genCode' (SymbolList quoted symbolTree) carryQuote = case filter (/= EmptyTree) symbolTree of
     [] -> text ""
     ([x]) -> genCode' x quoted -- If tree contains 1 element, carry the quote over
-    xs -> parens'(quoted || carryQuote) $
-            foldl1 (<+>) (map (`genCode'` False) xs)
-
+    xs -> if (onlyContainsLists xs)
+                then foldl1 (<+>) (map (`genCode'` (quoted || carryQuote)) xs)
+                else parens' (quoted || carryQuote) $
+                        foldl1 (<+>) (map (`genCode'` False) xs)
+     where
+        onlyContainsLists :: [SymbolTree] -> Bool
+        onlyContainsLists xs = xs == (filter (isList) xs)
 
 genCode' EmptyTree _ = text ""
 
@@ -36,3 +41,7 @@ parens' q x = nest' nestLevel $ quoteText <> parens x
 
 nest' :: Int -> Doc -> Doc
 nest' n d = text "" <$> nest n d
+
+isList :: SymbolTree -> Bool
+isList (SymbolList _ xs) = (length xs) > 1
+isList _ = False

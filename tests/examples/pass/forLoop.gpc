@@ -5,6 +5,7 @@ int forLoop(int i) {
 
     for(int i = 2; i < 10; i += 1) {
         test.m1(i);
+        test.m2(i + 1);
     }
 
     return 1;

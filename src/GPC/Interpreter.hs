@@ -168,6 +168,7 @@ genNest sequential isTopScopeFun g = do
         Left e -> lift $ Left e
         Right (res, afterEnv) -> do
             assign varId (_varId afterEnv)
+            assign threadCount (_threadCount afterEnv)
             -- If Returning, and the current scope isn't at the top level
             -- of a function then we continue returning
             when ((_isReturning afterEnv) && (not isTopScopeFun)) (assign isReturning True)
@@ -229,8 +230,8 @@ genStmt s = do
             return $ SymbolList quoted stmts'
 
         MethodStmt (MethodCall cName method exprs) -> do
-            exprs' <- mapM reduceExpr exprs
             curThread <- getThread
+            exprs' <- mapM reduceExpr exprs
             let call = Symbol $ GOpSymbol $
                         MkOpSymbol False ("", curThread) [show cName, filter (/='"') $ show method]
             evalExprs <- mapM genExpr exprs'
