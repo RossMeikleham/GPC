@@ -11,6 +11,7 @@ import           Control.Monad.State.Lazy
 import           Data.Tuple
 import qualified Data.Map as M
 import           GPC.AST
+import System.IO.Unsafe
 
 type VarTable = M.Map (Ident SrcPos) (Type SrcPos)
 type FunTable = M.Map (Ident SrcPos) (Type SrcPos, [Type SrcPos])
@@ -309,6 +310,11 @@ checkForLoop :: Ident SrcPos -> Expr SrcPos -> Expr SrcPos
                              -> BlockState (Stmt SrcPos)
 checkForLoop ident@(Ident sp _) startExpr stopExpr stepExpr blockStmt = do
     fTable <- use funcDefs
+    cVars <- use curVars
+    --  Need to temporarily add loop variable to
+    --  current variable list, as it's not in scope yet
+    --  to type check
+    assign curVars $ M.insert ident (intTypePos notKernel sp) cVars 
     scopeVars <- M.union <$> use curVars <*> use prevVars
 
     -- Check types of each expression are all integers
@@ -318,6 +324,7 @@ checkForLoop ident@(Ident sp _) startExpr stopExpr stepExpr blockStmt = do
     checkType (types !! 0) $ intType notKernel 
     checkType (types !! 1) $ boolType notKernel
     checkType (types !! 2) $ intType notKernel
+    assign curVars cVars
 
     block <- checkBlock blockStmt (M.singleton ident (intTypePos notKernel sp))
     return $ ForLoop ident startExpr stopExpr stepExpr block

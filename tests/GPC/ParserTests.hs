@@ -318,8 +318,8 @@ forLoopCheck = [forCheck]
   where
     forCheck = (Program [fun [ 
               (ForLoop (identPos "a") (ExpUnaryOp (Neg srcPos) (ExpLit $ Number srcPos $ Left 17)) 
-                (ExpIdent $ identPos "b") (ExpLit $ Number srcPos $ Left 1) (BlockStmt []))]] 
-              , parseSource $ funStr ++ "for (int a = -17; b; 1) {}" ++ "}") 
+                (ExpBinOp (LessEq srcPos) (ExpIdent $ identPos "a") (ExpLit $ Number srcPos $ Left 16)) (ExpLit $ Number srcPos $ Left 1) (BlockStmt []))]] 
+              , parseSource $ funStr ++ "for (int a = -17; a <= 16; a+=1) {}" ++ "}") 
 
     fun xs = Func (NormalType srcPos False "tes") (identPos "test") [] (BlockStmt xs)
     funStr = "tes test() {"
