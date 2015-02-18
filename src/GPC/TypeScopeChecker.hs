@@ -315,7 +315,9 @@ checkForLoop ident@(Ident sp _) startExpr stopExpr stepExpr blockStmt = do
     -- Then type check the for block
     let exprs = [startExpr, stopExpr, stepExpr]
     types <- lift $ mapM (getTypeExpr scopeVars fTable) exprs
-    mapM_ (flip checkType $ intType notKernel) types
+    checkType (types !! 0) $ intType notKernel 
+    checkType (types !! 1) $ intType notKernel
+    checkType (types !! 2) $ intType notKernel
 
     block <- checkBlock blockStmt (M.singleton ident (intTypePos notKernel sp))
     return $ ForLoop ident startExpr stopExpr stepExpr block

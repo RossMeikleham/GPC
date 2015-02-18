@@ -183,13 +183,19 @@ literal = Ch     <$> getPos <*> ch
 
 -- | Parse for loop
 forLoop :: Parser (Stmt SrcPos)
-forLoop = 
-    ForLoop <$> (reserved "for" *> reservedOp "(" *> reserved "int" *>  parseIdent) -- Identifier to use
-            <*> (reservedOp "=" *> expr) -- Start
-            <*> (semi *> expr)  -- Stop
-            <*> (semi *> expr <* reservedOp ")") -- Step
-            <*> block
-   
+forLoop = do
+    varName <- reserved "for" *> reservedOp "(" *> reserved "int" *>  parseIdent -- Identifier to use   
+    start <- reservedOp "=" *> expr
+    stop  <- (semi *> expr)  -- Stop
+
+    let getPlus =  reservedOp "+=" *> expr
+        getMinus = reservedOp "-=" *> (ExpUnaryOp <$> (Neg <$> getPos) <*> expr)
+    step  <- (semi *> reserved (show varName) *> (try getPlus <|> getMinus) <* reservedOp ")")
+
+    inner <-  block
+    return $ ForLoop varName start stop step inner
+     
+
 -- | Parse function call
 funCall :: Parser (FunCall SrcPos)
 funCall = FunCall <$> parseIdent <*> args'
