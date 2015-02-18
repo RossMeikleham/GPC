@@ -26,7 +26,7 @@ data CodeGen = CodeGen {
    _varRegTable :: VarRegTable, -- ^ maps variable identifier
    _threadCount :: Integer, -- ^ Current thread number to map
    _maxThreads  :: Integer,  -- ^ Maximum number of threads
-   _seqBlock    :: Bool, -- ^ Whether ot not current block is sequential
+   _seqBlock    :: Bool, -- ^ Whether or not current block is sequential
    _isReturning :: Bool -- ^ Whether the state of the current block is in a return
 }
 
@@ -56,7 +56,7 @@ isNonEntryFunc eName tl = case tl of
     _ -> False
 
 -- | Update the register table and counter
--- | return the next available register
+--   return the next available register
 updateRegs :: Ident -> GenState Ident
 updateRegs ident = do
     vId <- use varId
@@ -66,13 +66,17 @@ updateRegs ident = do
     assign varRegTable $ M.insert ident newVarId vRegTable
     return $ Ident (show newVarId)
 
--- | Obtain the current thread
---   and increment the thread counter modulo the max no of threads
+-- | Obtain the current thread. If the current Block isn't in a seq block
+--   then increment the thread counter modulo the max no of threads
+--   otherwise keep the thread count the same, as all tasks in the seq block
+--   must be run sequentially on the same thread.
 getThread :: GenState Integer
 getThread = do
     threadNo <- use threadCount
     maxT <- use maxThreads
-    assign threadCount $ (threadNo + 1) `mod` maxT
+    sequential <- use seqBlock
+    let newThreadNo = if sequential then threadNo else threadNo + 1
+    assign threadCount $ newThreadNo `mod` maxT
     return threadNo 
 
 genGPIR :: String -> Program -> Integer -> Either String SymbolTree
@@ -130,8 +134,10 @@ genTopLevelStmt tl = case tl of
 -- | Generate Object Constructors
 genTLConstructObjs :: ConstructObjs -> GenState SymbolTree
 genTLConstructObjs (ConstructObjs ns var exprs) = do
+
+    curThread <- getThread
     let constructor = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("", 0) (map show ns)
+                    MkOpSymbol False ("", curThread) (map show ns)
     args <- mapM checkConst exprs
     let args' = map (Symbol . ConstSymbol True . show) args
 
@@ -197,9 +203,9 @@ genStmt s = do
                     -- If variable non constant, if there exists an entry for a variable in the
                     --  above scope of the same name in the constant table, erase it
                     constTable %= M.delete name
-
+                    curThread <- getThread
                     let assignSymbol = Symbol $ GOpSymbol $
-                                MkOpSymbol False ("", 0) ["CoreServices", "Reg", "write"]
+                                MkOpSymbol False ("", curThread) ["CoreServices", "Reg", "write"]
                     evalExpr <- genExpr expr
                     reg <- updateRegs name
                     let regSymbol = Symbol $ ConstSymbol True (filter (/='"') (show reg))
@@ -224,8 +230,9 @@ genStmt s = do
 
         MethodStmt (MethodCall cName method exprs) -> do
             exprs' <- mapM reduceExpr exprs
+            curThread <- getThread
             let call = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("", 0) [show cName, filter (/='"') $ show method]
+                        MkOpSymbol False ("", curThread) [show cName, filter (/='"') $ show method]
             evalExprs <- mapM genExpr exprs'
             return $ SymbolList quoted (call : evalExprs)
 
@@ -241,8 +248,9 @@ genStmt s = do
 
              -- Otherwise generate code to evaluate at runtime
              _ -> do
+                curThread <- getThread
                 let ifSymbol = Symbol $ GOpSymbol $
-                     MkOpSymbol False ("Dummy", 0) ["if"]
+                     MkOpSymbol False ("", curThread) ["if"]
 
                 cond <- genExpr expr'
                 evalStmt <- genStmt stmt
@@ -262,8 +270,9 @@ genStmt s = do
                       else genStmt stmt2
 
                 _ -> do
+                    curThread <- getThread
                     let ifSymbol = Symbol $ GOpSymbol $
-                            MkOpSymbol False ("Dummy", 0) ["if"]
+                            MkOpSymbol False ("", curThread) ["if"]
                     cond <- genExpr expr'
                     evalStmt1 <- genStmt stmt1
                     evalStmt2 <- genStmt stmt2
@@ -302,6 +311,7 @@ genExpr e = do
     case expr of
 
      ExpBinOp bOp lExpr rExpr -> do
+        curThread <- getThread
         let method = case bOp of
                     Add -> "+"
                     Sub -> "-"
@@ -323,20 +333,21 @@ genExpr e = do
                     BOr -> "|"
 
         let binSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("Dummy", 0) [method]
+                        MkOpSymbol False ("", curThread) [method]
 
         lExpr' <- genExpr lExpr
         rExpr' <- genExpr rExpr
         return $ SymbolList False [binSymbol, lExpr', rExpr']
 
      ExpUnaryOp unOp expr' -> do
+        curThread <- getThread
         let method = case unOp of
                     Not -> "!"
                     Neg -> "-"
                     BNot -> "~"
 
         let unSymbol = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) [method]
+                    MkOpSymbol False ("", curThread) [method]
         expr'' <- genExpr expr'
         return $ SymbolList False [unSymbol, expr'']
 
@@ -346,17 +357,19 @@ genExpr e = do
         return $ SymbolList False stmts'
 
      ExpMethodCall (MethodCall cName method exprs) -> do
+        curThread <- getThread
         let call = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("Dummy", 0) [show cName, filter (/='"') $ show method]
+                    MkOpSymbol False ("", curThread) [show cName, filter (/='"') $ show method]
         exprs' <- mapM genExpr exprs
         return $ SymbolList False (call : exprs')
 
      -- Encountered a variable, need to read it from its register
      ExpIdent ident -> do
+        curThread <- getThread
         regTable <- use varRegTable
         reg <- lift $ note regNotFound $ M.lookup ident regTable
         let regSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("", 0) ["CoreServices", "Reg", "read"]
+                        MkOpSymbol False ("", curThread) ["CoreServices", "Reg", "read"]
         return $ SymbolList False  [regSymbol, Symbol $ ConstSymbol True (show reg)]
       where regNotFound = "Compiler error, register for ident " ++ show ident ++ "not found"
 
