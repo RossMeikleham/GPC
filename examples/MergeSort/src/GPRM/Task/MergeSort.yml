@@ -2,32 +2,33 @@
 --- # Core Services Configuration
 System:
   Version: 3.0
-  Libraries: [Fib, CoreServices]
-  NServiceNodes: 4
+  Libraries: [MergeSort, CoreServices]
+  NServiceNodes: 241 # excluding gateway; this is actually the number of threads
   ServiceNodes:
+    ctrl: [ 1, [CoreServices.SEQ ] ]
+    control: [ 1, [CoreServices.BEGIN] ]
+    io: [ 1, [CoreServices.IO] ]
     a: [ 2, [CoreServices.ALU] ]
-    reg: [ 1, [CoreServices.REG ] ]
-    f: [2, [Fib.Fib] ]
+    reg: [ 2, [CoreServices.REG ] ]
+    MS: [2, [MergeSort.MergeSort] ]
 
   Aliases:
   # Alias Name (case sensitive): FQN
     begin: control.CoreServices.BEGIN.begin
     par: ctrl.CoreServices.BEGIN.begin
     seq: ctrl.CoreServices.SEQ.seq
-    if: ifs.CoreServices.IF.if
+    display: io.CoreServices.IO.display
     'reg.write': reg.CoreServices.REG.write
     'reg.read': reg.CoreServices.REG.read
     'reg.inc': reg.CoreServices.REG.inc
-    'f.fib': f.Fib.Fib.fib
-    'fib_iter': f.Fib.Fib.fib_iter
-    'f.timer': f.Fib.Fib.timer
-    'f.start_timer': f.Fib.Fib.start_timer
-
-#    '+': fibo.Fib.Fib.add
+    'MS.array': MS.MergeSort.MergeSort.array
+    'MS.serial_ms': MS.MergeSort.MergeSort.serial_ms
+    'MS.merge_two': MS.MergeSort.MergeSort.merge_two
+    show: mgso.MergeSort.MergeSort.show
 #    lambda: 
 # These used to be "ALU_names"  
     '+': a.CoreServices.ALU.plus
-    '-': a.CoreServices.ALU.minus
+#    '-': a.CoreServices.ALU.minus
     '*': a.CoreServices.ALU.times
 #    '/': d.CoreServices.ALU.over
 #    '<': a.CoreServices.ALU.lt

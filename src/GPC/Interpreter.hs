@@ -206,7 +206,7 @@ genStmt s = do
                     constTable %= M.delete name
                     curThread <- getThread
                     let assignSymbol = Symbol $ GOpSymbol $
-                                MkOpSymbol False ("", curThread) ["CoreServices", "Reg", "write"]
+                                MkOpSymbol False ("", curThread) ["reg", "write"]
                     evalExpr <- genExpr expr
                     reg <- updateRegs name
                     let regSymbol = Symbol $ ConstSymbol True (filter (/='"') (show reg))
@@ -221,13 +221,15 @@ genStmt s = do
         BStmt (BlockStmt stmts) -> do
             -- Entering a block, need to nest
             stmts' <- genNest False False $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-            return $ SymbolList quoted stmts'
+            let parSymbol = Symbol $ ConstSymbol False "par"
+            return $ SymbolList quoted (parSymbol : stmts')
 
         FunCallStmt (FunCall name exprs) -> do
             exprs' <- mapM reduceExpr exprs
             (BlockStmt stmts) <- genInlineFunc name exprs'
             stmts' <- genNest False True $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-            return $ SymbolList quoted stmts'
+            let parSymbol = Symbol $ ConstSymbol False "par"
+            return $ SymbolList quoted (parSymbol : stmts')
 
         MethodStmt (MethodCall cName method exprs) -> do
             curThread <- getThread
@@ -376,7 +378,8 @@ genExpr e = do
      ExpFunCall (FunCall name exprs) -> do
         (BlockStmt stmts) <- genInlineFunc name exprs
         stmts' <- genNest False True $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-        return $ SymbolList False stmts'
+        let parSymbol = Symbol $ ConstSymbol False "par"
+        return $ SymbolList False (parSymbol : stmts')
 
      ExpMethodCall (MethodCall cName method exprs) -> do
         curThread <- getThread
@@ -391,7 +394,7 @@ genExpr e = do
         regTable <- use varRegTable
         reg <- lift $ note regNotFound $ M.lookup ident regTable
         let regSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("", curThread) ["CoreServices", "Reg", "read"]
+                        MkOpSymbol False ("", curThread) ["reg", "read"]
         return $ SymbolList False  [regSymbol, Symbol $ ConstSymbol True (show reg)]
       where regNotFound = "Compiler error, register for ident " ++ show ident ++ "not found"
 

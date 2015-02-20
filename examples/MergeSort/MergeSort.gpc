@@ -1,26 +1,13 @@
-
 GPRM::Kernel::Mergesort MS;
 
+int size = 20000000;
 
-int cutoff = 2;
-int size = 20;
-
-void MergeSort2(int *A, int *tmp, int size, int cutoff) {
-    int half = size/2;
-    int* tmpA = tmp;
-    int* B = A + half;
-    int* tmpB = tmpA + half;
-    
-    if (cutoff == 1) {
-        MS.SeqSort(A, tmp, size);
-    } else {
-        MS.Merge(A, B, tmp, size, 
-            MergeSort2(A, tmpA, half, cutoff/2),
-            MergeSort2(B, tmpB, size-half, cutoff/2));
+void MergeSort() {
+    seq {
+        MS.array(size);
+        MS.merge_two(size, 
+            MS.merge_two(size/2, MS.serial_ms(0, size/4), MS.serial_ms(5, size/4)),
+            MS.merge_two(size/2, MS.serial_ms(10, size/4), MS.serial_ms(15, size/4))
+        );  
     }
-
-}
-
-void MergeSort(int* A, int* tmp){
-    MergeSort2(A, tmp, size, cutoff);
 }

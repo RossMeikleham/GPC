@@ -11,7 +11,6 @@ import           Control.Monad.State.Lazy
 import           Data.Tuple
 import qualified Data.Map as M
 import           GPC.AST
-import System.IO.Unsafe
 
 type VarTable = M.Map (Ident SrcPos) (Type SrcPos)
 type FunTable = M.Map (Ident SrcPos) (Type SrcPos, [Type SrcPos])
