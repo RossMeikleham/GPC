@@ -1,6 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{- Generate GPIR code from Type/Scope checked AST -}
+{- Generate GPIR AST from Type/Scope checked AST
+ - Step 1: Generate AST from top level statements
+ - Step 2: Interpret code execution from entry function
+ -         excluding method calls. -}
 
 
 module GPC.Interpreter(genGPIR) where 
@@ -19,9 +21,10 @@ type ConstVarTable = M.Map Ident Literal
 type FunTable = M.Map Ident ([Ident], BlockStmt)
 type VarRegTable = M.Map Ident Integer
 
+-- ^ Current State of the Block we are currently in
 data CodeGen = CodeGen {
    _funTable    :: FunTable,  -- ^ Store symbol tree for functions
-   _constTable  :: ConstVarTable,
+   _constTable  :: ConstVarTable, -- ^ Store constants in scope
    _varId       :: Integer, -- ^ Current variable id for mapping to registers
    _varRegTable :: VarRegTable, -- ^ maps variable identifier
    _threadCount :: Integer, -- ^ Current thread number to map
@@ -35,21 +38,31 @@ makeLenses ''CodeGen
 
 type GenState a = StateT CodeGen (Either String) a
 
+-- | Check if a Top Level statement is an assignment,
+--   returns True if it is, False otherwise
 isAssign :: TopLevel -> Bool
 isAssign tl = case tl of
     TLAssign _ -> True
     _ -> False
 
+-- | Check if a Top Level statement is an Object declaration,
+--  returns True if it is, False otherwise
 isObject :: TopLevel -> Bool
 isObject tl = case tl of
     TLObjs _ -> True
     _ -> False
 
+
+-- | Check if a Top Level statement is an function declaration,
+--  returns True if it is, False otherwise
 isFunc :: TopLevel -> Bool
 isFunc tl = case tl of
     Func{} -> True
     _ -> False
 
+-- | Given the name of the entry function (currently the filename of the
+--   gpc source is used), and a Top Level statement, checks if the 
+--   given Top Level statement is the entry function
 isNonEntryFunc :: String -> TopLevel -> Bool
 isNonEntryFunc eName tl = case tl of
     Func fName _ _ -> fName /= Ident eName
@@ -79,6 +92,10 @@ getThread = do
     assign threadCount $ newThreadNo `mod` maxT
     return threadNo 
 
+
+-- | Given the Program name, a Type Checked GPC AST, and the number of
+-- total threads in the system, attempts to generate a SymbolTree for the
+-- Task Description file, returns an error string if unsuccessful
 genGPIR :: String -> Program -> Integer -> Either String SymbolTree
 genGPIR name (Program tls) threads = case runStateT (genTopLevel name tls) initial of
     Left s -> Left s
@@ -86,40 +103,46 @@ genGPIR name (Program tls) threads = case runStateT (genTopLevel name tls) initi
  where initial = CodeGen M.empty M.empty 0 M.empty 0 threads False False
 
 
+-- | Transform all TopLevel statements into a SymbolTree
 genTopLevel :: String -> [TopLevel] -> GenState SymbolTree
 genTopLevel name tls = do
     genTLAssigns tls
     genFuncs tls
+    -- Assignments, Object declarations, and Functions which are non entrt
+    -- functions aren't transformed. This is due to top level assignment
+    -- statements having to be constants. Non entry functions are
+    -- transformed when they are interpreted from the entry function. 
+    -- Object declarations are taken care of in config files.
     let tls' = filter (\x -> not (isAssign x || isObject x || isNonEntryFunc name x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
     return $ SymbolList False $ symbolTrees
--- where
-   -- seqSymbol = Symbol $ ConstSymbol False "begin"
 
 
 -- | Generate all Top Level Assignments
 genTLAssigns :: [TopLevel] -> GenState ()
 genTLAssigns tls = mapM_ genTLAssign $ filter isAssign tls
+  where 
+        genTLAssign :: TopLevel -> GenState ()
+        genTLAssign (TLAssign (Assign ident expr)) = case expr of
+            (ExpLit l) -> do
+                cTable <- use constTable
+                assign constTable $ M.insert ident l cTable
+            _ -> lift $ Left $ (show expr) ++ "Compiler error, in top level assignment code generation"
 
-genTLAssign :: TopLevel -> GenState ()
-genTLAssign (TLAssign (Assign ident expr)) = case expr of
-    (ExpLit l) -> do
-        cTable <- use constTable
-        assign constTable $ M.insert ident l cTable
-    _ -> lift $ Left $ show expr --"Compiler error, in top level assignment code generation"
-genTLAssign _ = lift $ Left "Not top level Assignment statement"
+        genTLAssign _ = lift $ Left "Not top level Assignment statement"
 
 
 -- | Store all functions, to be evaluated later
+-- if called during interpreting
 genFuncs :: [TopLevel] -> GenState ()
 genFuncs tls = mapM_ genFunc $ filter isFunc tls
+  where
+        genFunc :: TopLevel -> GenState ()
+        genFunc (Func name args stmts) = do
+            fTable <- use funTable
+            assign funTable $ M.insert name (args, stmts) fTable
 
-genFunc :: TopLevel -> GenState ()
-genFunc (Func name args stmts) = do
-    fTable <- use funTable
-    assign funTable $ M.insert name (args, stmts) fTable
-
-genFunc a = lift $ Left $ "Not Function definition" ++ show a
+        genFunc a = lift $ Left $ "Not Function definition" ++ show a
 
 
 -- | Generate GPIR from Top Level statements
@@ -149,7 +172,7 @@ genTLConstructObjs (ConstructObjs ns var exprs) = do
     return $ SymbolList True (constructor : args')
 
 
--- | Generate Program
+-- | Interpret Program starting from Entry Function
 genEntryFunc :: BlockStmt -> [Ident] ->  GenState SymbolTree
 genEntryFunc (BlockStmt stmts) args = do
     mapM_ updateRegs args -- Create placeholder for entry args 
@@ -160,7 +183,9 @@ genEntryFunc (BlockStmt stmts) args = do
 --  we want to give a new context which constant variables are overwritten
 --  in the new scope when another is declared, or are erased when a non constant
 --  variable of the same name is declared. We also want to keep a running count of
---  the registers used
+--  the registers used. As well we need to check if a return is made that
+--  we exit to the calling function of the current function. We may be
+--  several blocks in a function.
 genNest :: Bool -> Bool -> GenState a -> GenState a
 genNest sequential isTopScopeFun g = do
     curEnv <- get
@@ -175,12 +200,11 @@ genNest sequential isTopScopeFun g = do
             return res
 
 
-
+-- | Generate Statement
 genStmt :: Stmt -> GenState SymbolTree
 genStmt s = do
    
    returning <- use isReturning
-
    if returning 
      then return EmptyTree 
      else do
@@ -188,145 +212,170 @@ genStmt s = do
        quoted <- use seqBlock
        case s of
 
-        -- When assigning a variable need to write it to a register
-        AssignStmt (Assign name expr) -> do
-            expr' <- reduceExpr expr
-            case expr' of
-                -- Values that evaluate to literals will not need to be written
-                -- to registers, wherever they are used can be directly
-                -- substituted during compliation
-                ExpLit l -> do 
-                    constTable %= M.insert name l
-                    return EmptyTree
-                -- Otherwise store the expression in a register
-                -- to be read from when used elsewhere
-                _ -> do
-                    -- If variable non constant, if there exists an entry for a variable in the
-                    --  above scope of the same name in the constant table, erase it
-                    constTable %= M.delete name
-                    curThread <- getThread
-                    let assignSymbol = Symbol $ GOpSymbol $
-                                MkOpSymbol False ("", curThread) ["reg", "write"]
-                    evalExpr <- genExpr expr
-                    reg <- updateRegs name
-                    let regSymbol = Symbol $ ConstSymbol True (filter (/='"') (show reg))
-                    return $ SymbolList quoted [assignSymbol, regSymbol,  evalExpr]
+        AssignStmt a -> genAssignStmt a quoted
+        Seq b -> genSeqBlock b quoted        
+        BStmt b -> genParBlock b quoted
+        FunCallStmt f -> genFunCall f quoted
+        MethodStmt m -> genMethodCall m quoted
+        If expr stmt -> genIfStmt expr stmt quoted
+        IfElse expr stmt1 stmt2 -> genIfElseStmt expr stmt1 stmt2 quoted
+        Return expr -> genReturnStmt expr quoted
+        ForLoop ident start stop step stmt' -> genForLoop ident start stop step stmt' quoted
 
-        Seq (BlockStmt stmts) -> do
-            let  seqSymbol = Symbol $ ConstSymbol False "seq"
-            -- Entering a block, so need to nest 
-            stmts' <- genNest True False $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-            return $ SymbolList quoted (seqSymbol : stmts')
 
-        BStmt (BlockStmt stmts) -> do
-            -- Entering a block, need to nest
-            stmts' <- genNest False False $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-            let parSymbol = Symbol $ ConstSymbol False "par"
-            return $ SymbolList quoted (parSymbol : stmts')
 
-        FunCallStmt (FunCall name exprs) -> do
-            exprs' <- mapM reduceExpr exprs
-            (BlockStmt stmts) <- genInlineFunc name exprs'
-            stmts' <- genNest False True $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-            let parSymbol = Symbol $ ConstSymbol False "par"
-            return $ SymbolList quoted (parSymbol : stmts')
-
-        MethodStmt (MethodCall cName method exprs) -> do
+genAssignStmt :: Assign -> Bool -> GenState SymbolTree
+genAssignStmt (Assign name expr) quoted = do
+    expr' <- reduceExpr expr
+    case expr' of
+        -- Values that evaluate to literals will not need to be written
+        -- to registers, wherever they are used can be directly
+        -- substituted during compliation
+        ExpLit l -> do 
+            constTable %= M.insert name l
+            return EmptyTree
+        -- Otherwise store the expression in a register
+        -- to be read from when used elsewhere
+        _ -> do
+            -- If variable non constant, if there exists an entry for a variable in the
+            --  above scope of the same name in the constant table, erase it
+            constTable %= M.delete name
             curThread <- getThread
-            exprs' <- mapM reduceExpr exprs
-            let call = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("", curThread) [show cName, filter (/='"') $ show method]
-            evalExprs <- mapM genExpr exprs'
-            return $ SymbolList quoted (call : evalExprs)
+            let assignSymbol = Symbol $ GOpSymbol $
+                        MkOpSymbol False ("", curThread) ["reg", "write"]
+            evalExpr <- genExpr expr
+            reg <- updateRegs name
+            let regSymbol = Symbol $ ConstSymbol True (filter (/='"') (show reg))
+            return $ SymbolList quoted [assignSymbol, regSymbol,  evalExpr]
 
-        If expr stmt -> do
-            expr' <- reduceExpr expr
-            case expr' of
-                -- If Expression is a literal boolean we can evaluate the
-                -- branch at compile time
-             (ExpLit (Bl b)) -> 
-                if b 
-                then genStmt stmt                   
-                else return EmptyTree
+genSeqBlock :: BlockStmt -> Bool -> GenState SymbolTree
+genSeqBlock = genBlock True "seq"
+    
+genParBlock :: BlockStmt -> Bool -> GenState SymbolTree
+genParBlock = genBlock False "par"
 
-             -- Otherwise generate code to evaluate at runtime
-             _ -> do
-                curThread <- getThread
-                let ifSymbol = Symbol $ GOpSymbol $
-                     MkOpSymbol False ("", curThread) ["if"]
+genBlock :: Bool -> String -> BlockStmt -> Bool -> GenState SymbolTree
+genBlock isSeq symName (BlockStmt stmts) quoted = do
+    let symbol = Symbol $ ConstSymbol False symName
+    -- Entering a block, need to nest
+    stmts' <- genNest isSeq False $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
+    return $ SymbolList quoted (symbol : stmts')
 
-                cond <- genExpr expr'
-                evalStmt <- genStmt stmt
-                -- GPRM supports only if-then-else style, 
-                --  generate dummy statement to fill in the "else"
-                let dummyStmt = Symbol $ ConstSymbol True "0"
-                return $ SymbolList quoted [ifSymbol, cond, evalStmt, dummyStmt]
+genFunCall :: FunCall -> Bool -> GenState SymbolTree
+genFunCall (FunCall name exprs) quoted = do
+    exprs' <- mapM reduceExpr exprs
+    (BlockStmt stmts) <- genInlineFunc name exprs'
+    stmts' <- genNest False True $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
+    let parSymbol = Symbol $ ConstSymbol False "par"
+    return $ SymbolList quoted (parSymbol : stmts')
 
-        IfElse expr stmt1 stmt2 -> do
-            expr' <- reduceExpr expr
-            case expr' of
-                --Again like the If expression see if we can evaluate
-                -- which branch to take during compile time
-                (ExpLit (Bl b)) -> 
-                    if b 
-                      then genStmt stmt1
-                      else genStmt stmt2
+genMethodCall :: MethodCall -> Bool -> GenState SymbolTree
+genMethodCall (MethodCall cName method exprs) quoted = do 
+    curThread <- getThread
+    exprs' <- mapM reduceExpr exprs
+    let call = Symbol $ GOpSymbol $
+                MkOpSymbol False ("", curThread) [show cName, filter (/='"') $ show method]
+    evalExprs <- mapM genExpr exprs'
+    return $ SymbolList quoted (call : evalExprs)
 
-                _ -> do
-                    curThread <- getThread
-                    let ifSymbol = Symbol $ GOpSymbol $
-                            MkOpSymbol False ("", curThread) ["if"]
-                    cond <- genExpr expr'
-                    evalStmt1 <- genStmt stmt1
-                    evalStmt2 <- genStmt stmt2
-                    return $ SymbolList quoted [ifSymbol, cond, evalStmt1, evalStmt2]
 
-        Return expr -> do
-            expr' <- reduceExpr expr
-            evalExpr <- genExpr expr'
-            assign isReturning True
-            return $ SymbolList quoted [evalExpr]
+genIfStmt :: Expr -> Stmt -> Bool -> GenState SymbolTree
+genIfStmt expr stmt quoted= do
+    expr' <- reduceExpr expr
+    case expr' of
+        -- If Expression is a literal boolean we can evaluate the
+        -- branch at compile time
+     (ExpLit (Bl b)) -> 
+        if b 
+        then genStmt stmt                   
+        else return EmptyTree
 
-        -- For now fully loop unroll
-        ForLoop ident start stop step stmt' -> do
-           start' <- getInt =<< reduceExpr start
-           stop'  <- reduceExpr stop 
-           step'  <- getInt =<< reduceExpr step
+     -- Otherwise generate code to evaluate at runtime
+     _ -> do
+        curThread <- getThread
+        let ifSymbol = Symbol $ GOpSymbol $
+             MkOpSymbol False ("", curThread) ["if"]
 
-          
-           -- Generate an infinite loop of unrolled statements, iterating through
-           let unrolledStmts = map (\i ->
-                                    genInlineStmt [(ident, ExpLit (Number (Left i)))] (BStmt stmt'))
-                                        $ iterate (+ step') start'
+        cond <- genExpr expr'
+        evalStmt <- genStmt stmt
+        -- GPRM supports only if-then-else style, 
+        --  generate dummy statement to fill in the "else"
+        let dummyStmt = Symbol $ ConstSymbol True "0"
+        return $ SymbolList quoted [ifSymbol, cond, evalStmt, dummyStmt]
 
-           -- Obtain number of statements until end condition met
-           noStmts <- lengthInBounds ((iterate (+step') start')) ident stop'
+
+genIfElseStmt :: Expr -> Stmt -> Stmt -> Bool -> GenState SymbolTree
+genIfElseStmt expr stmt1 stmt2 quoted = do
+    expr' <- reduceExpr expr
+    case expr' of
+        --Again like the If expression see if we can evaluate
+        -- which branch to take during compile time
+        (ExpLit (Bl b)) -> 
+            if b 
+              then genStmt stmt1
+              else genStmt stmt2
+
+        _ -> do
+            curThread <- getThread
+            let ifSymbol = Symbol $ GOpSymbol $
+                    MkOpSymbol False ("", curThread) ["if"]
+            cond <- genExpr expr'
+            evalStmt1 <- genStmt stmt1
+            evalStmt2 <- genStmt stmt2
+            return $ SymbolList quoted [ifSymbol, cond, evalStmt1, evalStmt2]
+
+
+genReturnStmt :: Expr -> Bool -> GenState SymbolTree
+genReturnStmt expr quoted = do
+    expr' <- reduceExpr expr
+    evalExpr <- genExpr expr'
+    assign isReturning True
+    return $ SymbolList quoted [evalExpr]
+
+
+genForLoop :: Ident -> Expr -> Expr -> Expr -> BlockStmt -> Bool -> GenState SymbolTree
+genForLoop ident start stop step stmt quoted = do
+   start' <- getInt =<< reduceExpr start
+   stop'  <- reduceExpr stop 
+   step'  <- getInt =<< reduceExpr step
+
+  
+   -- Generate an infinite loop of unrolled statements, iterating through
+   let unrolledStmts = map (\i ->
+                            genInlineStmt [(ident, ExpLit (Number (Left i)))] (BStmt stmt))
+                                $ iterate (+ step') start'
+
+   -- Obtain number of statements until end condition met
+   noStmts <- lengthInBounds ((iterate (+step') start')) ident stop'
+   
+   unrolledStmts' <- mapM genStmt (takeWhileInclusive (not . isReturn) (take noStmts unrolledStmts))
+   return $ SymbolList quoted unrolledStmts'
+
+     where isInBounds :: Integer -> Ident -> Expr -> GenState Bool
+           isInBounds val ident stop = getBool =<< (reduceExpr $ 
+                    replaceExprIdent ident (ExpLit (Number (Left val))) stop)
+
+           lengthInBounds :: [Integer] -> Ident -> Expr -> GenState Int
+           lengthInBounds (x:xs) ident stop = do
+                inBounds <- isInBounds x ident stop
+                if inBounds
+                    then do
+                        next <- lengthInBounds xs ident stop
+                        return $ next + 1
+                    else return 0
+
+           lengthInBounds [] _ _ = return 0
            
-           unrolledStmts' <- mapM genStmt (takeWhileInclusive (not . isReturn) (take noStmts unrolledStmts))
-           return $ SymbolList quoted unrolledStmts'
+           getInt :: Expr -> GenState Integer
+           getInt (ExpLit (Number (Left i))) = return i
+           getInt er = lift $ Left $ "Compiler error, expected integer value from expression, got:" ++ 
+                        show er
 
-             where isInBounds :: Integer -> Ident -> Expr -> GenState Bool
-                   isInBounds val ident stop = getBool =<< (reduceExpr $ replaceExprIdent ident (ExpLit (Number (Left val))) stop)
+           getBool :: Expr -> GenState Bool
+           getBool (ExpLit (Bl b)) = return b
+           getBool er = lift $ Left $ "Compiler error, expected boolean value from expression, got:" ++ 
+                        show er
 
-                   lengthInBounds :: [Integer] -> Ident -> Expr -> GenState Int
-                   lengthInBounds (x:xs) ident stop = do
-                        inBounds <- isInBounds x ident stop
-                        if inBounds
-                            then do
-                                next <- lengthInBounds xs ident stop
-                                return $ next + 1
-                            else return 0
-
-                   lengthInBounds [] _ _ = return 0
-
- where
-    getInt :: Expr -> GenState Integer
-    getInt (ExpLit (Number (Left i))) = return i
-    getInt er = lift $ Left $ "Compiler error, expected integer value from expression, got:" ++ show er
-
-    getBool :: Expr -> GenState Bool
-    getBool (ExpLit (Bl b)) = return b
-    getBool er = lift $ Left $ "Compiler error, expected boolean value from expression, got:" ++ show er
 
 
 genExpr :: Expr -> GenState SymbolTree
@@ -334,9 +383,9 @@ genExpr e = do
     expr <- reduceExpr e
     case expr of
 
-     ExpBinOp bOp lExpr rExpr -> do
-        curThread <- getThread
-        let method = case bOp of
+         ExpBinOp bOp lExpr rExpr -> do
+            curThread <- getThread
+            let method = case bOp of
                     Add -> "+"
                     Sub -> "-"
                     Mul -> "*"
@@ -356,49 +405,49 @@ genExpr e = do
                     BXor -> "^"
                     BOr -> "|"
 
-        let binSymbol = Symbol $ GOpSymbol $
+            let binSymbol = Symbol $ GOpSymbol $
                         MkOpSymbol False ("", curThread) [method]
 
-        lExpr' <- genExpr lExpr
-        rExpr' <- genExpr rExpr
-        return $ SymbolList False [binSymbol, lExpr', rExpr']
+            lExpr' <- genExpr lExpr
+            rExpr' <- genExpr rExpr
+            return $ SymbolList False [binSymbol, lExpr', rExpr']
 
-     ExpUnaryOp unOp expr' -> do
-        curThread <- getThread
-        let method = case unOp of
-                    Not -> "!"
-                    Neg -> "-"
-                    BNot -> "~"
+         ExpUnaryOp unOp expr' -> do
+            curThread <- getThread
+            let method = case unOp of
+                        Not -> "!"
+                        Neg -> "-"
+                        BNot -> "~"
 
-        let unSymbol = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("", curThread) [method]
-        expr'' <- genExpr expr'
-        return $ SymbolList False [unSymbol, expr'']
+            let unSymbol = Symbol $ GOpSymbol $
+                        MkOpSymbol False ("", curThread) [method]
+            expr'' <- genExpr expr'
+            return $ SymbolList False [unSymbol, expr'']
 
-     ExpFunCall (FunCall name exprs) -> do
-        (BlockStmt stmts) <- genInlineFunc name exprs
-        stmts' <- genNest False True $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-        let parSymbol = Symbol $ ConstSymbol False "par"
-        return $ SymbolList False (parSymbol : stmts')
+         ExpFunCall (FunCall name exprs) -> do
+            (BlockStmt stmts) <- genInlineFunc name exprs
+            stmts' <- genNest False True $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
+            let parSymbol = Symbol $ ConstSymbol False "par"
+            return $ SymbolList False (parSymbol : stmts')
 
-     ExpMethodCall (MethodCall cName method exprs) -> do
-        curThread <- getThread
-        let call = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("", curThread) [show cName, filter (/='"') $ show method]
-        exprs' <- mapM genExpr exprs
-        return $ SymbolList False (call : exprs')
+         ExpMethodCall (MethodCall cName method exprs) -> do
+            curThread <- getThread
+            let call = Symbol $ GOpSymbol $
+                        MkOpSymbol False ("", curThread) [show cName, filter (/='"') $ show method]
+            exprs' <- mapM genExpr exprs
+            return $ SymbolList False (call : exprs')
 
-     -- Encountered a variable, need to read it from its register
-     ExpIdent ident -> do
-        curThread <- getThread
-        regTable <- use varRegTable
-        reg <- lift $ note regNotFound $ M.lookup ident regTable
-        let regSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("", curThread) ["reg", "read"]
-        return $ SymbolList False  [regSymbol, Symbol $ ConstSymbol True (show reg)]
-      where regNotFound = "Compiler error, register for ident " ++ show ident ++ "not found"
+         -- Encountered a variable, need to read it from its register
+         ExpIdent ident -> do
+            curThread <- getThread
+            regTable <- use varRegTable
+            reg <- lift $ note regNotFound $ M.lookup ident regTable
+            let regSymbol = Symbol $ GOpSymbol $
+                            MkOpSymbol False ("", curThread) ["reg", "read"]
+            return $ SymbolList False  [regSymbol, Symbol $ ConstSymbol True (show reg)]
+          where regNotFound = "Compiler error, register for ident " ++ show ident ++ "not found"
 
-     ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
+         ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
 
 
 -- | Generate Inline Function by replacing all identifiers
