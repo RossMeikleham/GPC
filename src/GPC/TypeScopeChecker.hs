@@ -11,6 +11,7 @@ import           Control.Monad.State.Lazy
 import           Data.Tuple
 import qualified Data.Map as M
 import           GPC.AST
+import           GPC.Errors
 
 type VarTable = M.Map (Ident SrcPos) (Type SrcPos)
 type FunTable = M.Map (Ident SrcPos) (Type SrcPos, [Type SrcPos])
@@ -47,6 +48,7 @@ isPointer :: Type a -> Bool
 isPointer (PointerType _) = True
 isPointer _ = False
 
+
 data MainBlock = MainBlock {
     _tlFuncDefs      :: FunTable, -- ^ Function Definitions
     _tlVarTypes        :: VarTable,  -- ^ Top Level Constant variable types
@@ -70,8 +72,8 @@ makeLenses ''CodeBlock
 -- Monad Transformer combining State with Either
 -- when doing type checking if a failure occurs
 -- we can return an error String
-type GenericBlockState a b = StateT a (Either String) b
-type CodeState a = GenericBlockState MainBlock a
+type GenericBlockState a b = StateT a (Either String) b 
+type CodeState a = GenericBlockState MainBlock a 
 type BlockState a = GenericBlockState CodeBlock a
 
 
@@ -564,17 +566,6 @@ getTypeUnOp vtable ftable operation expr = case operation of
             e -> Left $ errorType t ++ "Expected boolean expression, but found " ++ show e
 
 
-
-errorSrcPos :: SrcPos -> String
-errorSrcPos (SrcPos line col) = "Error line:" ++ show line ++ " column:" ++ show col ++ "\n"
-
-errorIdent :: Ident SrcPos -> String
-errorIdent (Ident sp _) = errorSrcPos sp
-
-
-errorType :: Type SrcPos -> String
-errorType (PointerType t) = errorType t
-errorType (NormalType sp _ _) = errorSrcPos sp
 
 stripAnnType :: Type a -> Type ()
 stripAnnType (PointerType t) = PointerType $ stripAnnType t

@@ -38,7 +38,7 @@ test-suite gpc-unit-tests
   default-language:   Haskell2010
   other-modules:      GPC.AST GPC.ParserTests GPC.Lexer GPC.Parser GPC.Tests GPC.CodeGen
                       GPC.CodeGenTests GPC.TypeTests GPC.TypeScopeChecker GPC.Interpreter
-                      GPC.CompileTests
+                      GPC.CompileTests, GPC.Errors
 executable gpcc
   main-is:             Main.hs
   -- other-modules:       
