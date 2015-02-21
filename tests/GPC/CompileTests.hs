@@ -40,9 +40,9 @@ passTest file = testCase file ( do
         Left err -> assertFailure err
         Right v ->  do 
             case runTypeChecker v of
-                Left err -> assertFailure err
-                Right reduced -> 
-                    case genGPIR fileName (simplifyAST reduced) threads of
+                Left err -> assertFailure $ show err
+                Right () -> 
+                    case genGPIR fileName (simplifyAST v) threads of
                         Left err -> assertFailure err
                         Right _ -> return ()
     )

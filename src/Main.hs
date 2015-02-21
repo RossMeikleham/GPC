@@ -1,5 +1,3 @@
--- PlaceHolder Main--
-
 import Data.List.Split
 import Data.List
 import Data.Maybe
@@ -22,9 +20,9 @@ parseResult f threads p = case p of
     Left err -> putStrLn err
     Right ast ->  do
         case runTypeChecker ast of
-            Left err -> putStrLn err
+            Left err -> putStrLn $ show err
             Right _ -> case genGPIR f (simplifyAST ast) threads of
-               Left err -> putStrLn  err
+               Left err -> putStrLn err
                Right gpir -> do 
                     outputCode (f ++ ".td") $ ";" ++ f ++ ".yml\n" ++ (genCode gpir)
     

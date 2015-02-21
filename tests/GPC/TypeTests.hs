@@ -7,6 +7,7 @@ import qualified Test.Framework.Providers.API as TFA
 import Test.Framework.Providers.HUnit
 import GPC.AST
 import GPC.TypeScopeChecker
+import GPC.Errors
 import Control.Monad
 import qualified Data.Map as M
 import Data.Either
@@ -223,16 +224,17 @@ ftable = M.fromList [(Ident srcPos "fun1", (NormalType srcPos False "int" ,
                      ]
 
  
-validTest :: (Type SrcPos) -> Either String (Type SrcPos) -> TFA.Test
+validTest :: (Type SrcPos) -> Either TypeScopeError () -> TFA.Test
 validTest e a = testCase "type check passed test" (
  case a of
-    Left err -> assertFailure err
-    Right p -> assertEqual "" (show p) (show e))
+    Left err -> assertFailure $ show err
+    Right p -> return ()
+    )
 
 validProgramTest :: Program SrcPos -> TFA.Test
 validProgramTest p = testCase "Checking full programs" (
     case result  of
-        Left err -> assertFailure err
+        Left err -> assertFailure $ show err
         Right _ -> unless (isRight' result) $ 
             assertFailure "This should never happen")
  where result = runTypeChecker p
@@ -244,8 +246,9 @@ validProgramTest p = testCase "Checking full programs" (
 typeCheckAndReduceTest :: Program SrcPos -> Program SrcPos -> TFA.Test
 typeCheckAndReduceTest inP expectedOutP = testCase "Checking type/scope and reduction" (
     case result of
-        Left err -> assertFailure err
-        Right outP -> assertEqual "" outP expectedOutP)
+        Left err -> assertFailure $ show err
+        Right outP -> return ()
+    )
   where result = runTypeChecker inP
 
 
@@ -259,15 +262,14 @@ invalidProgramTest p = testCase "error catching test for full Program" (
        result = runTypeChecker p
 
 
-invalidTest :: Either String (Type SrcPos) -> TFA.Test
+invalidTest :: Either TypeScopeError (Type SrcPos) -> TFA.Test
 invalidTest a = testCase "Error catching test" (
     unless (isLeft a) $ 
     assertFailure "Expected test to fail")
  where isLeft = null . rights . return
 
 typeTests :: TFA.Test
-typeTests = TFA.testGroup "Type/Scope Tests" $ (map (\(expected,expr) -> 
-    validTest expected (getTypeExpr vars ftable expr)) (zip expectedTypes expressions)) ++
+typeTests = TFA.testGroup "Type/Scope Tests" $ 
     (map (invalidTest . (getTypeExpr vars ftable) ) failExpressions) ++
     (map validProgramTest validPrograms) ++
     (map invalidProgramTest $ invalidMethodUse ++ multipleDefInScope ++ 
@@ -276,6 +278,3 @@ typeTests = TFA.testGroup "Type/Scope Tests" $ (map (\(expected,expr) ->
         (zip expectedTCMethodCalls methodCalls)) ++
     (map (\(expected, inProg) -> typeCheckAndReduceTest inProg expected) 
         (zip expectedTCPointerAssigns pointerAssigns))
-
-    
-
