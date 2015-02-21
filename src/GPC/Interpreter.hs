@@ -223,7 +223,7 @@ genStmt s = do
         ForLoop ident start stop step stmt' -> genForLoop ident start stop step stmt' quoted
 
 
-
+-- | Generate Assignment Statement
 genAssignStmt :: Assign -> Bool -> GenState SymbolTree
 genAssignStmt (Assign name expr) quoted = do
     expr' <- reduceExpr expr
@@ -248,12 +248,18 @@ genAssignStmt (Assign name expr) quoted = do
             let regSymbol = Symbol $ ConstSymbol True (filter (/='"') (show reg))
             return $ SymbolList quoted [assignSymbol, regSymbol,  evalExpr]
 
+
+-- | Generate Sequential Block
 genSeqBlock :: BlockStmt -> Bool -> GenState SymbolTree
 genSeqBlock = genBlock True "seq"
+
     
+-- | Generate Parallel Block
 genParBlock :: BlockStmt -> Bool -> GenState SymbolTree
 genParBlock = genBlock False "par"
 
+
+-- | Generic Block generate
 genBlock :: Bool -> String -> BlockStmt -> Bool -> GenState SymbolTree
 genBlock isSeq symName (BlockStmt stmts) quoted = do
     let symbol = Symbol $ ConstSymbol False symName
@@ -261,6 +267,8 @@ genBlock isSeq symName (BlockStmt stmts) quoted = do
     stmts' <- genNest isSeq False $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
     return $ SymbolList quoted (symbol : stmts')
 
+
+-- | Evaluate function call, and interpret function
 genFunCall :: FunCall -> Bool -> GenState SymbolTree
 genFunCall (FunCall name exprs) quoted = do
     exprs' <- mapM reduceExpr exprs
@@ -269,6 +277,8 @@ genFunCall (FunCall name exprs) quoted = do
     let parSymbol = Symbol $ ConstSymbol False "par"
     return $ SymbolList quoted (parSymbol : stmts')
 
+
+-- | Generate Method Call
 genMethodCall :: MethodCall -> Bool -> GenState SymbolTree
 genMethodCall (MethodCall cName method exprs) quoted = do 
     curThread <- getThread
@@ -279,6 +289,7 @@ genMethodCall (MethodCall cName method exprs) quoted = do
     return $ SymbolList quoted (call : evalExprs)
 
 
+-- | Generate If Statement
 genIfStmt :: Expr -> Stmt -> Bool -> GenState SymbolTree
 genIfStmt expr stmt quoted= do
     expr' <- reduceExpr expr
@@ -303,7 +314,7 @@ genIfStmt expr stmt quoted= do
         let dummyStmt = Symbol $ ConstSymbol True "0"
         return $ SymbolList quoted [ifSymbol, cond, evalStmt, dummyStmt]
 
-
+-- | Generate If Else statement
 genIfElseStmt :: Expr -> Stmt -> Stmt -> Bool -> GenState SymbolTree
 genIfElseStmt expr stmt1 stmt2 quoted = do
     expr' <- reduceExpr expr
@@ -325,6 +336,7 @@ genIfElseStmt expr stmt1 stmt2 quoted = do
             return $ SymbolList quoted [ifSymbol, cond, evalStmt1, evalStmt2]
 
 
+-- | Generate Return Stmt
 genReturnStmt :: Expr -> Bool -> GenState SymbolTree
 genReturnStmt expr quoted = do
     expr' <- reduceExpr expr
@@ -332,12 +344,13 @@ genReturnStmt expr quoted = do
     assign isReturning True
     return $ SymbolList quoted [evalExpr]
 
-
+-- | generate For Loop by entirely unrolling it, compiler cannot currently
+--   deal with infinite loops
 genForLoop :: Ident -> Expr -> Expr -> Expr -> BlockStmt -> Bool -> GenState SymbolTree
 genForLoop ident start stop step stmt quoted = do
-   start' <- getInt =<< reduceExpr start
-   stop'  <- reduceExpr stop 
-   step'  <- getInt =<< reduceExpr step
+   start' <- getInt =<< reduceExpr start -- Get exact start value
+   stop'  <- reduceExpr stop -- Get stop expr but don't evaluate it 
+   step'  <- getInt =<< reduceExpr step -- Get exact stop value
 
   
    -- Generate an infinite loop of unrolled statements, iterating through
@@ -377,77 +390,75 @@ genForLoop ident start stop step stmt quoted = do
                         show er
 
 
-
+-- | Generate an Expression
 genExpr :: Expr -> GenState SymbolTree
 genExpr e = do 
     expr <- reduceExpr e
     case expr of
 
-         ExpBinOp bOp lExpr rExpr -> do
-            curThread <- getThread
-            let method = case bOp of
-                    Add -> "+"
-                    Sub -> "-"
-                    Mul -> "*"
-                    Div -> "/"
-                    And -> "&&"
-                    Or -> "||"
-                    Mod -> "%"
-                    Less -> "<"
-                    LessEq -> "<="
-                    Greater -> ">"
-                    GreaterEq -> ">="
-                    Equals -> "=="
-                    NEquals -> "!="
-                    ShiftL -> "<<"
-                    ShiftR -> ">>"
-                    BAnd -> "&"
-                    BXor -> "^"
-                    BOr -> "|"
-
-            let binSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("", curThread) [method]
-
-            lExpr' <- genExpr lExpr
-            rExpr' <- genExpr rExpr
-            return $ SymbolList False [binSymbol, lExpr', rExpr']
-
-         ExpUnaryOp unOp expr' -> do
-            curThread <- getThread
-            let method = case unOp of
-                        Not -> "!"
-                        Neg -> "-"
-                        BNot -> "~"
-
-            let unSymbol = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("", curThread) [method]
-            expr'' <- genExpr expr'
-            return $ SymbolList False [unSymbol, expr'']
-
-         ExpFunCall (FunCall name exprs) -> do
-            (BlockStmt stmts) <- genInlineFunc name exprs
-            stmts' <- genNest False True $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-            let parSymbol = Symbol $ ConstSymbol False "par"
-            return $ SymbolList False (parSymbol : stmts')
-
-         ExpMethodCall (MethodCall cName method exprs) -> do
-            curThread <- getThread
-            let call = Symbol $ GOpSymbol $
-                        MkOpSymbol False ("", curThread) [show cName, filter (/='"') $ show method]
-            exprs' <- mapM genExpr exprs
-            return $ SymbolList False (call : exprs')
-
-         -- Encountered a variable, need to read it from its register
-         ExpIdent ident -> do
-            curThread <- getThread
-            regTable <- use varRegTable
-            reg <- lift $ note regNotFound $ M.lookup ident regTable
-            let regSymbol = Symbol $ GOpSymbol $
-                            MkOpSymbol False ("", curThread) ["reg", "read"]
-            return $ SymbolList False  [regSymbol, Symbol $ ConstSymbol True (show reg)]
-          where regNotFound = "Compiler error, register for ident " ++ show ident ++ "not found"
-
+         ExpBinOp binOp lExpr rExpr -> genBinExpr binOp lExpr rExpr
+         ExpUnaryOp unOp expr' -> genUnaryExpr unOp expr'
+         ExpFunCall f -> genFunCall f False
+         ExpMethodCall m -> genMethodCall m False 
+         ExpIdent ident -> genIdentExpr ident
          ExpLit lit -> return $ Symbol $ ConstSymbol True (show lit)
+
+
+genBinExpr :: BinOps -> Expr -> Expr -> GenState SymbolTree
+genBinExpr bOp lExpr rExpr = do
+    curThread <- getThread
+    let method = case bOp of
+            Add -> "+"
+            Sub -> "-"
+            Mul -> "*"
+            Div -> "/"
+            And -> "&&"
+            Or -> "||"
+            Mod -> "%"
+            Less -> "<"
+            LessEq -> "<="
+            Greater -> ">"
+            GreaterEq -> ">="
+            Equals -> "=="
+            NEquals -> "!="
+            ShiftL -> "<<"
+            ShiftR -> ">>"
+            BAnd -> "&"
+            BXor -> "^"
+            BOr -> "|"
+
+    let binSymbol = Symbol $ GOpSymbol $
+                MkOpSymbol False ("", curThread) [method]
+
+    lExpr' <- genExpr lExpr
+    rExpr' <- genExpr rExpr
+    return $ SymbolList False [binSymbol, lExpr', rExpr']
+
+
+genUnaryExpr :: UnaryOps -> Expr -> GenState SymbolTree
+genUnaryExpr unOp expr = do
+    curThread <- getThread
+    let method = case unOp of
+                Not -> "!"
+                Neg -> "-"
+                BNot -> "~"
+
+    let unSymbol = Symbol $ GOpSymbol $
+                MkOpSymbol False ("", curThread) [method]
+    expr' <- genExpr expr
+    return $ SymbolList False [unSymbol, expr']
+
+
+genIdentExpr :: Ident -> GenState SymbolTree
+genIdentExpr ident = do
+    curThread <- getThread
+    regTable <- use varRegTable
+    reg <- lift $ note regNotFound $ M.lookup ident regTable
+    let regSymbol = Symbol $ GOpSymbol $
+                    MkOpSymbol False ("", curThread) ["reg", "read"]
+    return $ SymbolList False  [regSymbol, Symbol $ ConstSymbol True (show reg)]
+  
+  where regNotFound = "Compiler error, register for ident " ++ show ident ++ "not found"
 
 
 -- | Generate Inline Function by replacing all identifiers
@@ -463,6 +474,8 @@ genInlineFunc name args = do
         Nothing -> lift $ Left "Compiler error genInlineFunc"
 
 
+-- | Replace all instance of given identifiers in a statement with
+--   a given expression
 genInlineStmt :: [(Ident, Expr)] -> Stmt -> Stmt
 genInlineStmt exprs stmt = case stmt of
 
@@ -505,7 +518,8 @@ genInlineStmt exprs stmt = case stmt of
     inScope _ = True
     idents = map fst exprs
 
-
+-- | Replace instances of identities in an expression
+--   with another expression 
 replaceExprIdents :: [(Ident, Expr)] -> Expr -> Expr
 replaceExprIdents replaceExprs givenExpr =
     foldl (\gExpr (ident, rExpr) -> replaceExprIdent ident rExpr gExpr) givenExpr replaceExprs
@@ -541,12 +555,11 @@ incMapWhile cond f (x:xs) = if cond res then res : incMapWhile cond f xs else [r
 incMapWhile _ _ [] = []
 
 
+-- | Checks if given Expression is a Literal value
 checkConst :: Expr -> GenState Literal
 checkConst expr = case expr of
     (ExpLit l) -> return l
     _ -> lift $ Left "Expected constant expression"
-
-
 
 
 -- | Attempts to reduce an expression as much as possible
