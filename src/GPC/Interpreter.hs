@@ -115,7 +115,7 @@ genTopLevel name tls = do
     -- Object declarations are taken care of in config files.
     let tls' = filter (\x -> not (isAssign x || isObject x || isNonEntryFunc name x)) tls
     symbolTrees <- mapM genTopLevelStmt tls'
-    return $ SymbolList False $ symbolTrees
+    return $ SymbolList False symbolTrees
 
 
 -- | Generate all Top Level Assignments
@@ -127,7 +127,7 @@ genTLAssigns tls = mapM_ genTLAssign $ filter isAssign tls
             (ExpLit l) -> do
                 cTable <- use constTable
                 assign constTable $ M.insert ident l cTable
-            _ -> lift $ Left $ (show expr) ++ "Compiler error, in top level assignment code generation"
+            _ -> lift $ Left $ show expr ++ "Compiler error, in top level assignment code generation"
 
         genTLAssign _ = lift $ Left "Not top level Assignment statement"
 
@@ -160,7 +160,7 @@ genTLConstructObjs (ConstructObjs ns var exprs) = do
 
     curThread <- getThread
     let constructor = Symbol $ GOpSymbol $
-                    MkOpSymbol False ("", curThread) (map ((filter (/='"')) . show) ns)
+                    MkOpSymbol False ("", curThread) (map (filter (/='"') . show) ns)
     args <- mapM checkConst exprs
     let args' = map (Symbol . ConstSymbol True . show) args
 
@@ -359,13 +359,13 @@ genForLoop ident start stop step stmt quoted = do
                                 $ iterate (+ step') start'
 
    -- Obtain number of statements until end condition met
-   noStmts <- lengthInBounds ((iterate (+step') start')) ident stop'
+   noStmts <- lengthInBounds (iterate (+step') start') ident stop'
    
    unrolledStmts' <- mapM genStmt (takeWhileInclusive (not . isReturn) (take noStmts unrolledStmts))
    return $ SymbolList quoted unrolledStmts'
 
      where isInBounds :: Integer -> Ident -> Expr -> GenState Bool
-           isInBounds val ident stop = getBool =<< (reduceExpr $ 
+           isInBounds val ident stop = getBool =<< (reduceExpr $
                     replaceExprIdent ident (ExpLit (Number (Left val))) stop)
 
            lengthInBounds :: [Integer] -> Ident -> Expr -> GenState Int
@@ -604,7 +604,7 @@ evaluateBinExpr b (ExpLit l1) (ExpLit l2) =
         (Div, Number (Left 0)) -> divBy0Err 
         (Div, Number (Right 0.0)) -> divBy0Err
         _ -> binOpTable b l1 l2
-  where divBy0Err = Left $ "Error, attempted to divide by 0"
+  where divBy0Err = Left "Error, attempted to divide by 0"
 
 evaluateBinExpr  b e1 e2 = return $ ExpBinOp b e1 e2
  

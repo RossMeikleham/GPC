@@ -159,7 +159,7 @@ data Type a = PointerType (Type a) -- Pointer to a Type
           deriving (Eq) 
 
 instance Show (Type a) where
-    show (PointerType p) = "\"" ++ (filter (/= '"') (show p ++ "*")) ++ "\""
+    show (PointerType p) = "\"" ++ filter (/= '"') (show p ++ "*") ++ "\""
     show (NormalType _ True s) = show $ "Kernel " ++ s 
     show (NormalType _ False s) = show s
 

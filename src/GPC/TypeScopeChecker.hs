@@ -212,7 +212,7 @@ checkFunCall f@(FunCall _ _) = do
     oldVtable <- use prevVars
     vTable <- use curVars
     let scopeVars = vTable `M.union` oldVtable
-    _ <- lift $ getTypeExpr scopeVars fTable (ExpFunCall f)
+    lift $ getTypeExpr scopeVars fTable (ExpFunCall f)
     return ()
 
 
@@ -343,16 +343,14 @@ checkMethodCall (MethodCall var _ args) = do
 -- | Checks that 2 given types match
 checkType :: (Show a) =>  Type SrcPos -> Type a -> GenericBlockState b ()
 checkType expected actual =
-    if stripAnnType expected == stripAnnType actual
-        then return ()
-        else raiseError (TypeMismatch expected actual) 
+    unless (stripAnnType expected == stripAnnType actual)
+        (raiseError (TypeMismatch expected actual))
 
 
 checkType' :: (Show a) => Type SrcPos -> Type a -> Either TypeScopeError ()
 checkType' expected actual =
-    if stripAnnType expected == stripAnnType actual 
-        then return () 
-        else Left (TypeMismatch expected actual) 
+    unless (stripAnnType expected == stripAnnType actual) 
+        $ Left (TypeMismatch expected actual) 
 
 
 -- | Given an identity and var table, if the identity is already
@@ -405,7 +403,7 @@ getTypeExpr vtable ftable expr = case expr of
     checkArgTypes :: [(Type SrcPos, Type SrcPos)] -> Either TypeScopeError ()
     checkArgTypes [] = return ()
     checkArgTypes (x:xs) = do 
-        checkType' (fst x) (snd x)
+        uncurry checkType' x
         checkArgTypes xs
 
 

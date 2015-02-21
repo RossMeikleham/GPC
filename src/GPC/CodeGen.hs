@@ -17,7 +17,7 @@ genCode' (Symbol gSymbol) carryQuote = case gSymbol of
      where strQuoted = if quoted || carryQuote then "'"  else ""
 
     GOpSymbol (MkOpSymbol quoted thread method) ->
-        text $ strQuoted ++ (method' method) ++ "[" ++ (show $ snd thread) ++ "]"
+        text $ strQuoted ++ method' method ++ "[" ++ show (snd thread) ++ "]"
      where strQuoted = if quoted || carryQuote then "'" else ""
            method' = foldl1 (\a b -> a ++ "." ++ b)
 
@@ -25,13 +25,13 @@ genCode' (Symbol gSymbol) carryQuote = case gSymbol of
 genCode' (SymbolList quoted symbolTree) carryQuote = case filter (/= EmptyTree) symbolTree of
     [] -> text ""
     ([x]) -> genCode' x quoted -- If tree contains 1 element, carry the quote over
-    xs -> if (onlyContainsLists xs)
+    xs -> if onlyContainsLists xs
                 then foldl1 (<+>) (map (`genCode'` (quoted || carryQuote)) xs)
                 else parens' (quoted || carryQuote) $
                         foldl1 (<+>) (map (`genCode'` False) xs)
      where
         onlyContainsLists :: [SymbolTree] -> Bool
-        onlyContainsLists xs = xs == (filter (isList) xs)
+        onlyContainsLists xs = xs == filter isList xs
 
 genCode' EmptyTree _ = text ""
 
@@ -43,5 +43,5 @@ nest' :: Int -> Doc -> Doc
 nest' n d = text "" <$> nest n d
 
 isList :: SymbolTree -> Bool
-isList (SymbolList _ xs) = (length xs) > 1
+isList (SymbolList _ xs) = length xs > 1
 isList _ = False

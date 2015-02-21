@@ -8,27 +8,27 @@ import Control.Monad.Error
 
 data TypeScopeError where   
      -- ^ Identifier not in scope
-     NotInScope :: (Ident SrcPos) -> TypeScopeError 
+     NotInScope :: Ident SrcPos -> TypeScopeError 
      -- ^ Duplicate Argument names in given Function
-     DuplicateArgNames :: (Ident SrcPos) -> (Ident SrcPos) -> TypeScopeError   
+     DuplicateArgNames :: Ident SrcPos -> Ident SrcPos -> TypeScopeError   
      -- ^ Function expects no of args but was given a different number
-     WrongNoArgs :: (Ident SrcPos) -> Int -> Int -> TypeScopeError    
+     WrongNoArgs :: Ident SrcPos -> Int -> Int -> TypeScopeError    
      -- ^ Multiple Functions of the same name declared
-     MultipleFunctionDecl :: (Ident SrcPos) -> TypeScopeError     
+     MultipleFunctionDecl :: Ident SrcPos -> TypeScopeError     
      -- ^ Type mismatch, expected, actual 
-     TypeMismatch :: (Show a) => (Type SrcPos) -> a -> TypeScopeError     
+     TypeMismatch :: (Show a) => Type SrcPos -> a -> TypeScopeError     
      -- ^ Multiple instances of an identifier in current scope 
-     MultipleInstances :: (Ident SrcPos) -> TypeScopeError   
+     MultipleInstances :: Ident SrcPos -> TypeScopeError   
      -- ^ Assigning to array   
-     AssignArray :: (Ident SrcPos) -> TypeScopeError
+     AssignArray :: Ident SrcPos -> TypeScopeError
      -- ^Attempting to index something which isn't an array  
-     IndexingNotArray :: (Ident SrcPos) -> TypeScopeError     
+     IndexingNotArray :: Ident SrcPos -> TypeScopeError     
      -- ^ Redefining in scope
-     Redefine :: (Ident SrcPos) -> TypeScopeError
+     Redefine :: Ident SrcPos -> TypeScopeError
      -- ^ Binary operation error
-     BinaryOpError :: (BinOps SrcPos) -> String -> TypeScopeError
+     BinaryOpError :: BinOps SrcPos -> String -> TypeScopeError
      -- ^ Unary operation error
-     UnaryOpError :: (UnaryOps SrcPos) -> String -> TypeScopeError 
+     UnaryOpError :: UnaryOps SrcPos -> String -> TypeScopeError 
      WrongNamespace :: [Ident SrcPos] -> [Ident SrcPos] -> TypeScopeError
      ExpectedConstructor :: [Ident SrcPos] -> [Ident SrcPos] -> TypeScopeError
      OtherError :: String -> TypeScopeError
@@ -36,18 +36,18 @@ data TypeScopeError where
 
 instance Show TypeScopeError where
     show (NotInScope i) = 
-        errorIdent i ++ "Identifier \"" ++ (show i) ++ "\" not in scope" 
+        errorIdent i ++ "Identifier \"" ++ show i ++ "\" not in scope" 
 
     show (DuplicateArgNames fI aI) = 
-        errorIdent aI ++ "Duplicate instance of argument \"" ++ (show aI) ++
-                         "\" in function definition for function \"" ++ (show fI) ++ "\"."
+        errorIdent aI ++ "Duplicate instance of argument \"" ++ show aI ++
+                         "\" in function definition for function \"" ++ show fI ++ "\"."
     
     show (WrongNoArgs fI expected actual) = 
         errorIdent fI ++ "Function \"" ++ show fI ++  "\" expects " ++ show expected ++
                       " arguments but was given " ++ show actual ++ "."
 
     show (MultipleFunctionDecl i) = 
-        "Multiple definitions of function \"" ++ (show i) ++ "\"."
+        "Multiple definitions of function \"" ++ show i ++ "\"."
 
     show (TypeMismatch expected actual) = 
         errorType expected ++ "Expected type " ++ show expected ++ 
@@ -68,9 +68,9 @@ instance Show TypeScopeError where
         errorIdent i ++ "Cannot redefine identifier \"" ++ show i ++ "\"" ++
                         "in current scope." 
 
-    show (BinaryOpError bOp message) = (errorBinOp bOp) ++ message
+    show (BinaryOpError bOp message) = errorBinOp bOp ++ message
 
-    show (UnaryOpError uOp message) = (errorUnOp uOp) ++ message
+    show (UnaryOpError uOp message) = errorUnOp uOp ++ message
 
     show (WrongNamespace ns1 ns2) = "No Object(s) declared with namespace \"" ++
              show (init ns1) ++ "\" perhaps you meant " ++ show ns2 ++ "?"
@@ -83,7 +83,7 @@ instance Show TypeScopeError where
 
 instance Error TypeScopeError where
     noMsg = OtherError "Type/Scope error!"
-    strMsg s = OtherError s
+    strMsg = OtherError
 
 type TypeErrorMonad = Either TypeScopeError
 

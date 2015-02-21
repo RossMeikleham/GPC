@@ -26,7 +26,7 @@ data Var =
          deriving (Eq)
 
 instance Show Var where
-    show (VarArrayElem (Ident i) expr) = i ++ (show expr)
+    show (VarArrayElem (Ident i) expr) = i ++ show expr
     show (VarIdent (Ident i)) = i
 
 -- | Constructing Objects
