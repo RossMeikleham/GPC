@@ -38,7 +38,6 @@ languageDef = emptyDef {
      , Token.identStart    = letter 
      , Token.identLetter   = alphaNum <|> oneOf "'_"
      , Token.reservedNames =   otherReserved ++ reservedTypes
-     , Token.reservedOpNames = []
                                
      , Token.caseSensitive = True
      }
