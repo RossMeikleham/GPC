@@ -1,9 +1,10 @@
 GPRM::Kernel::Test obj;
 obj = GPRM::Kernel::Test::Test();
 
-void arith2() {
+void arith2(int z) {
    seq {
     int a = obj.m1();
+    obj.m0((a / 6) + z);
     bool b = obj.m2(a << 4, a >> 3, a * 2, a & 2, a ^ 2, a | 3,
            a < 2, a <= 2, a > 1, a >= 1, ~a, -a, a % 2, a != 10); 
     char c = obj.m3(b || false, b && true, b == true, !b); 
@@ -45,6 +46,6 @@ int arithmetic() {
     
     int blah = g % e;
 
-    arith2();
+    arith2(10);
     return 1;    
 }
