@@ -45,7 +45,9 @@ passTest file = testCase file ( do
                 Right () -> 
                     case genGPIR fileName (simplifyAST v) threads of
                         Left err -> assertFailure err
-                        Right s -> (genCode s) `seq` (return ())
+                        Right s -> do 
+                            writeFile "test.out" (genCode s)
+                            (return ())
     )
  where
     filePath = passDir ++ file 
