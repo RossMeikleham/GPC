@@ -16,6 +16,7 @@ import GPC.Parser
 import GPC.TypeScopeChecker
 import GPC.Interpreter
 import GPC.SimplifyAST
+import GPC.CodeGen
 
 passDir =  "tests/examples/pass/"
 failDir =  "tests/examples/fail/"
@@ -44,7 +45,7 @@ passTest file = testCase file ( do
                 Right () -> 
                     case genGPIR fileName (simplifyAST v) threads of
                         Left err -> assertFailure err
-                        Right _ -> return ()
+                        Right s -> (genCode s) `seq` (return ())
     )
  where
     filePath = passDir ++ file 
