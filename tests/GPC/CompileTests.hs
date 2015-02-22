@@ -64,9 +64,9 @@ failTest file = testCase file ( do
         Left _ -> return () 
         Right ast ->  do 
             case runTypeChecker ast of
-                Left _ -> return ()
+                Left err -> err `seq` (return ())
                 Right _ -> case genGPIR fileName (simplifyAST ast) threads of
-                    Left _ -> return ()
+                    Left err' -> err' `seq` (return ())
                     Right e -> assertFailure $ "Program shouldn't have compiled " ++ show e
     )
  where
