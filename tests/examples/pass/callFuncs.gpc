@@ -6,7 +6,7 @@ int m = 7;
 
 bool fun1(int a, int b, string c) {
     int x = 4;
-    test.m1();
+    test.m1(b);
     if (x < 4) {
         return a == b;
     } else {

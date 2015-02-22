@@ -29,9 +29,9 @@ int arithmetic() {
     bool m = l != k;
     bool n = m && l;
     double o = 0.5;
-    double p = -0.5; 
-
+    double p = -(x + 3.0); 
     bool q = obj.m1();
+    double r = 10.0/5.0;
     
     int blah = g % e;
 
