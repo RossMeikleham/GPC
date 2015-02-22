@@ -357,7 +357,7 @@ checkType' expected actual =
 -- part ofr the variable table, then returns a multiple instance error
 checkMultipleInstance :: Ident SrcPos -> VarTable -> GenericBlockState a ()
 checkMultipleInstance ident vTable = 
-    when (ident `M.member` vTable) $ raiseError (NotInScope ident)  
+    when (ident `M.member` vTable) $ raiseError (MultipleInstances ident)  
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope

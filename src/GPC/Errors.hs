@@ -4,7 +4,7 @@
 module GPC.Errors where
 
 import GPC.AST
-import Control.Monad.Error
+--import Control.Monad.Error
 
 data TypeScopeError where   
      -- ^ Identifier not in scope
@@ -31,7 +31,7 @@ data TypeScopeError where
      UnaryOpError :: UnaryOps SrcPos -> String -> TypeScopeError 
      WrongNamespace :: [Ident SrcPos] -> [Ident SrcPos] -> TypeScopeError
      ExpectedConstructor :: [Ident SrcPos] -> [Ident SrcPos] -> TypeScopeError
-     OtherError :: String -> TypeScopeError
+--     OtherError :: String -> TypeScopeError
 
 
 instance Show TypeScopeError where
@@ -78,12 +78,12 @@ instance Show TypeScopeError where
     show (ExpectedConstructor ns1 ns2) = "Expected object constructor \"" ++
                 show ns1 ++ "\" but found \"" ++ show ns2 ++ "\""
 
-    show (OtherError s) = s
+--    show (OtherError s) = s
 
 
-instance Error TypeScopeError where
-    noMsg = OtherError "Type/Scope error!"
-    strMsg = OtherError
+--instance Error TypeScopeError where
+--    noMsg = OtherError "Type/Scope error!"
+--    strMsg = OtherError
 
 type TypeErrorMonad = Either TypeScopeError
 
