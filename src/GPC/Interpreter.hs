@@ -672,7 +672,7 @@ performBinBoolOp _ _ _ = Left "Error expected boolean values"
 -- |well
 evaluateUnExpr :: UnaryOps -> Expr -> Either String Expr
 evaluateUnExpr unOp (ExpLit l) = unOpTable unOp l
-evaluateUnExpr _ e = Right e
+evaluateUnExpr u e = Right (ExpUnaryOp u e)
 
 -- | Function table of Unary operations on literals
 unOpTable u = case u of

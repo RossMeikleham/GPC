@@ -45,7 +45,6 @@ simplifyExpr (T.ExpFunCall fc) = S.ExpFunCall $ simplifyFunCall fc
 simplifyExpr (T.ExpMethodCall mc) = S.ExpMethodCall $ simplifyMethodCall mc
 simplifyExpr (T.ExpIdent name) = S.ExpIdent $ simplifyIdent name
 simplifyExpr (T.ExpLit l) = S.ExpLit $ simplifyLit l
---simplifyExpr (T.ExpPointer (T.Pointer (T.Ident s a) n) = S.ExpLit $ S.N
 
 simplifyAssign :: T.Assign a -> S.Assign
 simplifyAssign (T.Assign _ name expr) = S.Assign (simplifyIdent name) (simplifyExpr expr)
