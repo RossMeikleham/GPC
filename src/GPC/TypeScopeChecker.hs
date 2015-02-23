@@ -228,6 +228,8 @@ checkAssign (Assign gType ident expr) = do
     -- scope
     redefineCheck vTable
 
+    exprType <- lift $ getTypeExpr scopeVars ftable expr
+
     -- If expression is a method call, we implicitly lift the type
     -- of the entire expression into the GPRM::Kernel
     if isMethodCall expr then do
@@ -235,7 +237,6 @@ checkAssign (Assign gType ident expr) = do
         assign curVars $ M.insert ident gType' vTable
 
     else do 
-        exprType <- lift $ getTypeExpr scopeVars ftable expr
         checkType gType exprType
         -- Update Var table with new variable
         assign curVars   $ M.insert ident gType vTable
@@ -318,33 +319,18 @@ checkReturn expr = do
 
 
 checkMethodCall :: MethodCall SrcPos -> BlockState ()
-checkMethodCall (MethodCall var _ args) = do
-    vTable <- M.union <$> use curVars <*> use prevVars
+checkMethodCall m = do
     fTable <- use funcDefs
     scopeVars <- M.union <$> use curVars <*> use prevVars
-    _ <- lift $ mapM (getTypeExpr scopeVars fTable) args
+    lift $ getTypeExpr scopeVars fTable (ExpMethodCall m)
+    return ()
 
-    case var of
-        (VarIdent i) -> do
-            gType <- lift $ findType i vTable
-            checkType gType objectType
-            
-        -- Check we're accessing an element of an array of objects,
-        -- and that the element is an integer type
-        (VarArrayElem i el) -> do
-            gType <- lift $ findType i vTable
-            elemType <- lift $ getTypeExpr scopeVars fTable el
-            checkType elemType (intType False)
-            checkType  gType arrayObjType
-
-
-  where findType i vTable = note (NotInScope i) (M.lookup i vTable)
 
 -- | Checks that 2 given types match
 checkType :: (Show a) =>  Type SrcPos -> Type a -> GenericBlockState b ()
 checkType expected actual =
     unless (stripAnnType expected == stripAnnType actual)
-        (raiseError (TypeMismatch expected actual))
+        $ raiseError (TypeMismatch expected actual) 
 
 
 checkType' :: (Show a) => Type SrcPos -> Type a -> Either TypeScopeError ()
@@ -357,7 +343,7 @@ checkType' expected actual =
 -- part ofr the variable table, then returns a multiple instance error
 checkMultipleInstance :: Ident SrcPos -> VarTable -> GenericBlockState a ()
 checkMultipleInstance ident vTable = 
-    when (ident `M.member` vTable) $ raiseError (MultipleInstances ident)  
+    when (ident `M.member` vTable) $ raiseError (NotInScope ident)  
 
 -- | Obtain Type of Expression, returns error message
 -- | if types arn't consistent, or identifiers arn't in scope
@@ -374,21 +360,24 @@ getTypeExpr vtable ftable expr = case expr of
                 checkArgTypes (zip ts argTypes)
                 return retT
 
-    (ExpMethodCall (MethodCall var _ args)) -> do
+    (ExpMethodCall (MethodCall var (Ident sp _) args)) -> do
         _ <- mapM (getTypeExpr vtable ftable) args
-
         case var of
-            (VarIdent i@(Ident sp _)) -> do
-                objType <- note (NotInScope i) (M.lookup i vtable)
-                checkType' objType objectType
+            (VarIdent i) -> do
+                gType <- findType i vtable
+                checkType' gType objectType            
                 return $ NormalType sp inKernel "object"
-            
-            (VarArrayElem i@(Ident sp _) el) -> do
-                objType <- note (NotInScope i) (M.lookup i vtable)
+
+            -- Check we're accessing an element of an array of objects,
+            -- and that the element is an integer type
+            (VarArrayElem i el) -> do
+                gType <- findType i vtable
                 elemType <- getTypeExpr vtable ftable el
                 checkType' elemType (intType False)
-                checkType' objType arrayObjType
+                checkType'  gType arrayObjType
                 return $ NormalType sp inKernel "object"
+
+          where findType i vt = note (NotInScope i) (M.lookup i vt)
 
     (ExpIdent i) -> note (NotInScope i) (M.lookup i vtable)
 
@@ -403,7 +392,7 @@ getTypeExpr vtable ftable expr = case expr of
     checkArgTypes :: [(Type SrcPos, Type SrcPos)] -> Either TypeScopeError ()
     checkArgTypes [] = return ()
     checkArgTypes (x:xs) = do 
-        uncurry checkType' x
+        checkType' (fst x) (snd x)
         checkArgTypes xs
 
 
