@@ -365,15 +365,15 @@ genForLoop ident start stop step stmt quoted = do
    return $ SymbolList quoted unrolledStmts'
 
      where isInBounds :: Integer -> Ident -> Expr -> GenState Bool
-           isInBounds val ident stop = getBool =<< (reduceExpr $
-                    replaceExprIdent ident (ExpLit (Number (Left val))) stop)
+           isInBounds val ident' stop' = getBool =<< (reduceExpr $
+                    replaceExprIdent ident' (ExpLit (Number (Left val))) stop')
 
            lengthInBounds :: [Integer] -> Ident -> Expr -> GenState Int
-           lengthInBounds (x:xs) ident stop = do
-                inBounds <- isInBounds x ident stop
+           lengthInBounds (x:xs) ident' stop' = do
+                inBounds <- isInBounds x ident' stop'
                 if inBounds
                     then do
-                        next <- lengthInBounds xs ident stop
+                        next <- lengthInBounds xs ident' stop'
                         return $ next + 1
                     else return 0
 
@@ -501,18 +501,18 @@ genInlineStmt exprs stmt = case stmt of
         ForLoop name (replaceExprIdents exprs start)
                      (replaceExprIdents exprs stop)
                      (replaceExprIdents exprs step)
-                     (BlockStmt $ genBlock stmts)
+                     (BlockStmt $ replaceIdents stmts)
 
-    Seq (BlockStmt stmts) -> Seq $ BlockStmt $ genBlock stmts
+    Seq (BlockStmt stmts) -> Seq $ BlockStmt $ replaceIdents stmts
 
-    BStmt (BlockStmt stmts) -> BStmt $ BlockStmt $ genBlock stmts
+    BStmt (BlockStmt stmts) -> BStmt $ BlockStmt $ replaceIdents stmts
 
   where
-    -- Once the identifier goes out of scope we don't replace it
+    -- Once an identifier goes out of scope we don't replace it
     -- map up until the identifier is out of scope, and then add on the rest of
     -- the unmapped statements to the block as they won't need any substitution
-    genBlock :: [Stmt] -> [Stmt]
-    genBlock stmts = mappedVals ++ drop (length mappedVals) stmts
+    replaceIdents :: [Stmt] -> [Stmt]
+    replaceIdents stmts = mappedVals ++ drop (length mappedVals) stmts
       where mappedVals = incMapWhile inScope (genInlineStmt exprs) stmts
     inScope (AssignStmt (Assign name _)) = name `notElem` idents
     inScope _ = True

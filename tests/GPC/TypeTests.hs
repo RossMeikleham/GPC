@@ -18,8 +18,8 @@ doubleConst a = ExpLit $ Number srcPos (Right a)
 intConst :: Integer -> Expr SrcPos
 intConst a = ExpLit $ Number srcPos (Left a)
 
-strConst :: String -> Expr SrcPos
-strConst s = ExpLit $ Str srcPos s 
+--strConst :: String -> Expr SrcPos
+--strConst s = ExpLit $ Str srcPos s 
 
 isRight' = either (const False) (const True)
 
@@ -31,21 +31,22 @@ intTypeK  = NormalType srcPos True  "int"
 boolTypeNK = NormalType srcPos False "bool"
 --boolTypeK = NormalType True "bool"
 
-expressions = [intConst 20 -- ^ Check constant integer
+{-expressions = [intConst 20 -- ^ Check constant integer
               ,(ExpBinOp (Less srcPos) (intConst 10) (ExpIdent $ Ident srcPos "a")) -- ^ Check binary expression
               ,(ExpFunCall $ FunCall (Ident srcPos "fun1")  -- ^ Check Function call expression
                 [intConst 10, ExpBinOp (Add srcPos) (intConst 20) (ExpIdent $ Ident srcPos "a")]) 
               ,strConst "hi" -- ^ Check string literal
               ,(ExpUnaryOp (BNot srcPos) (ExpIdent $ Ident srcPos "b")) -- ^ Check unary expression
               ] 
+-}
 
-
-expectedTypes = map (NormalType srcPos False) ["int"
+{-expectedTypes = map (NormalType srcPos False) ["int"
                            ,"bool"
                            ,"int"
                            ,"string"
                            ,"int"
                            ]
+-}
 
 -- ^ Invalid expressions which are expected to give an error message
 failExpressions = [(ExpBinOp (Less srcPos) (intConst 10) (doubleConst 20.0))
@@ -224,12 +225,13 @@ ftable = M.fromList [(Ident srcPos "fun1", (NormalType srcPos False "int" ,
                      ]
 
  
-validTest :: (Type SrcPos) -> Either TypeScopeError () -> TFA.Test
+{-validTest :: (Type SrcPos) -> Either TypeScopeError () -> TFA.Test
 validTest e a = testCase "type check passed test" (
  case a of
     Left err -> assertFailure $ show err
     Right p -> return ()
     )
+-}
 
 validProgramTest :: Program SrcPos -> TFA.Test
 validProgramTest p = testCase "Checking full programs" (
@@ -244,10 +246,10 @@ validProgramTest p = testCase "Checking full programs" (
 -- type checking is correct and the reduced program
 -- matches the expected reduced program
 typeCheckAndReduceTest :: Program SrcPos -> Program SrcPos -> TFA.Test
-typeCheckAndReduceTest inP expectedOutP = testCase "Checking type/scope and reduction" (
+typeCheckAndReduceTest inP _ = testCase "Checking type/scope and reduction" (
     case result of
         Left err -> assertFailure $ show err
-        Right outP -> return ()
+        Right _ -> return ()
     )
   where result = runTypeChecker inP
 

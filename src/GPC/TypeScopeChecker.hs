@@ -212,7 +212,7 @@ checkFunCall f@(FunCall _ _) = do
     oldVtable <- use prevVars
     vTable <- use curVars
     let scopeVars = vTable `M.union` oldVtable
-    lift $ getTypeExpr scopeVars fTable (ExpFunCall f)
+    _ <- lift $ getTypeExpr scopeVars fTable (ExpFunCall f)
     return ()
 
 
@@ -322,7 +322,7 @@ checkMethodCall :: MethodCall SrcPos -> BlockState ()
 checkMethodCall m = do
     fTable <- use funcDefs
     scopeVars <- M.union <$> use curVars <*> use prevVars
-    lift $ getTypeExpr scopeVars fTable (ExpMethodCall m)
+    _ <- lift $ getTypeExpr scopeVars fTable (ExpMethodCall m)
     return ()
 
 
