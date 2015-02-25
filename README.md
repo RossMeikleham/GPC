@@ -8,6 +8,8 @@ GPC is a front end language for the Glasgow Parallel Reduction Machine (GPRM) fr
 
 The compiler (GPCC) is a hybrid compiler/interpreter implemented in Haskell which performs type/scope checking on the entire GPC file. It then interprets the execution path of the GPC code from the entry function (except for actual kernel calls) and generates the kernel calls as Glasgow Parallel Intermediate Representation (GPIR) code to be ran on the GPRM. The purely functional nature of the language makes it possible to interpret the entire program at compile time.
 
+My dissertation on the design and compliation of the language can be found [here](https://github.com/RossMeikleham/Dissertation)
+
 The GPRM is a research project at the University Of Glasgow, more information on it can be found [here]( http://arxiv.org/pdf/1312.2703v1.pdf)
 
 
