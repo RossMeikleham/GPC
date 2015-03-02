@@ -11,6 +11,8 @@ genCode :: SymbolTree -> String
 genCode st = show $ genCode' st False
 
 
+parSymbol = Symbol $ ConstSymbol False "par"
+
 genCode' :: SymbolTree -> Quoted -> Doc
 genCode' (Symbol gSymbol) carryQuote = case gSymbol of
     ConstSymbol quoted str -> text (strQuoted ++ str)
@@ -28,10 +30,15 @@ genCode' (SymbolList quoted symbolTree) carryQuote = case filter (/= EmptyTree) 
     xs -> if onlyContainsLists xs
                 then foldl1 (<+>) (map (`genCode'` (quoted || carryQuote)) xs)
                 else parens' (quoted || carryQuote) $
-                        foldl1 (<+>) (map (`genCode'` False) xs)
+                        foldl1 (<+>) (map (`genCode'` False) xs')
+
+            where xs' = case head xs of
+                        (Symbol _) -> xs
+                        _ -> parSymbol : xs 
      where
         onlyContainsLists :: [SymbolTree] -> Bool
         onlyContainsLists xs = xs == filter isList xs
+        
 
 genCode' EmptyTree _ = text ""
 
