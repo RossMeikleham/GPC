@@ -1,7 +1,8 @@
 
 GPRM::Kernel::Test test;
 
-int forLoop(int i) {
+int forLoop() {
+    seq {
 
     for(int j = 2; j < 10; j += 1) {
         test.m1(j);
@@ -11,6 +12,7 @@ int forLoop(int i) {
     for(int j = 20; j > 3; j -= 2) {
         test.m3(j);
     }
-
+    
     return 1;
+    }
 }

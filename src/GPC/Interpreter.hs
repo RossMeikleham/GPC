@@ -347,22 +347,23 @@ genReturnStmt expr quoted = do
 -- | generate For Loop by entirely unrolling it, compiler cannot currently
 --   deal with infinite loops
 genForLoop :: Ident -> Expr -> Expr -> Expr -> BlockStmt -> Bool -> GenState SymbolTree
-genForLoop ident start stop step stmt quoted = do
+genForLoop ident start stop step (BlockStmt stmts) quoted = do
    start' <- getInt =<< reduceExpr start -- Get exact start value
    stop'  <- reduceExpr stop -- Get stop expr but don't evaluate it 
    step'  <- getInt =<< reduceExpr step -- Get exact stop value
 
   
    -- Generate an infinite loop of unrolled statements, iterating through
-   let unrolledStmts = map (\i ->
-                            genInlineStmt [(ident, ExpLit (Number (Left i)))] (BStmt stmt))
+   let unrolledStmts = concatMap (\i ->
+                            map (genInlineStmt [(ident, ExpLit (Number (Left i)))]) stmts)
                                 $ iterate (+ step') start'
 
    -- Obtain number of statements until end condition met
-   noStmts <- lengthInBounds (iterate (+step') start') ident stop'
+   noStmts <- (* length stmts) `fmap` lengthInBounds (iterate (+step') start') ident stop'
    
-   unrolledStmts' <- mapM genStmt (takeWhileInclusive (not . isReturn) (take noStmts unrolledStmts))
-   return $ SymbolList quoted unrolledStmts'
+   unrolledStmts' <- genStmt $ BStmt $ BlockStmt
+                    (takeWhileInclusive (not . isReturn) $ take noStmts unrolledStmts)
+   return $ SymbolList quoted [unrolledStmts']
 
      where isInBounds :: Integer -> Ident -> Expr -> GenState Bool
            isInBounds val ident' stop' = getBool =<< (reduceExpr $
