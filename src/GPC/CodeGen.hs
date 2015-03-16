@@ -26,7 +26,7 @@ genCode' (Symbol gSymbol) carryQuote = case gSymbol of
 -- | Generate Source Code for Symbol Tree
 genCode' (SymbolList quoted symbolTree) carryQuote = case filter (/= EmptyTree) symbolTree of
     [] -> text ""
-    ([x]) -> genCode' x quoted -- If tree contains 1 element, carry the quote over
+    ([x]) -> genCode' x (quoted || carryQuote) -- If tree contains 1 element, carry the quote over
     xs -> if onlyContainsLists xs
                 then foldl1 (<+>) (map (`genCode'` (quoted || carryQuote)) xs)
                 else parens' (quoted || carryQuote) $

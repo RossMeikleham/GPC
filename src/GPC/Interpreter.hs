@@ -268,8 +268,9 @@ genBlock isSeq symName (BlockStmt stmts) quoted = do
     let symbol = Symbol $ ConstSymbol False symName
     -- Entering a block, need to nest
     stmts' <- genNest isSeq False $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
-    return $ SymbolList quoted (symbol : stmts')
-
+    if length stmts' > 1
+        then return $ SymbolList quoted (symbol : stmts')
+        else return $ SymbolList quoted stmts'
 
 -- | Evaluate function call, and interpret function
 genFunCall :: FunCall -> Bool -> GenState SymbolTree
@@ -278,8 +279,9 @@ genFunCall (FunCall name exprs) quoted = do
     (BlockStmt stmts) <- genInlineFunc name exprs'
     stmts' <- genNest False True $ mapM genStmt (takeWhileInclusive (not . isReturn) stmts)
     let parSymbol = Symbol $ ConstSymbol False "par"
-    return $ SymbolList quoted (parSymbol : stmts')
-
+    --if length stmts' > 1 
+    --    then return $ SymbolList quoted (parSymbol : stmts')
+    return $ SymbolList quoted stmts'
 
 -- | Generate Method Call
 genMethodCall :: MethodCall -> Bool -> GenState SymbolTree
