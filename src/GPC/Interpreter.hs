@@ -123,11 +123,14 @@ genTLAssigns :: [TopLevel] -> GenState ()
 genTLAssigns tls = mapM_ genTLAssign $ filter isAssign tls
   where 
         genTLAssign :: TopLevel -> GenState ()
-        genTLAssign (TLAssign (Assign ident expr)) = case expr of
-            (ExpLit l) -> do
-                cTable <- use constTable
-                assign constTable $ M.insert ident l cTable
-            _ -> lift $ Left $ show expr ++ "Compiler error, in top level assignment code generation"
+        genTLAssign (TLAssign (Assign ident expr)) = do 
+            expr' <- reduceExpr expr 
+            case expr' of
+
+             (ExpLit l) -> do
+                    cTable <- use constTable
+                    assign constTable $ M.insert ident l cTable
+             _ -> lift $ Left $ show expr ++ "Compiler error, in top level assignment code generation"
 
         genTLAssign _ = lift $ Left "Not top level Assignment statement"
 

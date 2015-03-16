@@ -22,8 +22,8 @@ type ObjectTable = M.Map (Ident SrcPos) (Objects SrcPos)
 
 data MainBlock = MainBlock {
     _tlFuncDefs      :: FunTable, -- ^ Function Definitions
-    _tlVarTypes        :: VarTable,  -- ^ Top Level Constant variable types
-    _objects         :: ObjectTable   
+    _tlVarTypes      :: VarTable,  -- ^ Top Level Constant variable types
+    _objects         :: ObjectTable  -- ^ Table of current Kernel objects declared 
 } deriving (Show)
 
 

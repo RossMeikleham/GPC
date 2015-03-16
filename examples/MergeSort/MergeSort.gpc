@@ -1,13 +1,26 @@
 GPRM::Kernel::Mergesort MS;
 
-int size = 20000000;
+int overall_size = 20000000; //80 million integers
+int cutoff = overall_size/2; //2048; // Set cutoff value to 2048 
 
-void MergeSort() {
+void Sort(int size, int index) {
+    int new_size = size/2;
+
+    if (size <= cutoff) {
+        MS.serial_ms(index, size);
+    } else {
+        MS.merge_two(new_size, Sort(new_size, index), Sort(new_size, index + new_size));
+    }
+}
+   // MS.merge_two(size/2, 
+   //     MS.merge_two(size/2, MS.serial_ms(0, size/4), MS.serial_ms(5, size/4)),
+   //     MS.merge_two(size/2, MS.serial_ms(10, size/4), MS.serial_ms(15, size/4))
+   // );  
+//}
+
+void GPRM_MergeSort() {
     seq {
-        MS.array(size);
-        MS.merge_two(size, 
-            MS.merge_two(size/2, MS.serial_ms(0, size/4), MS.serial_ms(5, size/4)),
-            MS.merge_two(size/2, MS.serial_ms(10, size/4), MS.serial_ms(15, size/4))
-        );  
+        MS.array(overall_size);
+        Sort(overall_size, 0);
     }
 }
