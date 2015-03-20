@@ -1,3 +1,0 @@
-GPRM::Kernel::A a[2];
-
-//a[0] = GPRM::Kernel::A::A();
