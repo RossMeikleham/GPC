@@ -115,12 +115,19 @@ genTopLevel name tls = do
     -- Object declarations are taken care of in config files.
     let tls' = filter (\x -> not (isAssign x || isObject x || isNonEntryFunc name x)) tls
     -- Check program actually has entry function
-    when ((length $ filter (== True) $ map isFunc tls') == 0) (
+    when ((length $ filter isFunc tls') == 0) (
         lift $ Left $ "Error, program must contain entry function with name \"" ++ name ++ 
             "\". No function with this name has been defined." 
         )
-    symbolTrees <- mapM genTopLevelStmt tls'
-    return $ SymbolList False symbolTrees
+
+    tlSymbols <- mapM genTopLevelStmt (filter (not . isFunc) tls')
+    mainSymbolTrees <- mapM genTopLevelStmt (filter isFunc tls')
+
+    let seqSymbol = Symbol $ ConstSymbol False "seq"
+
+    if length tlSymbols == 0 
+        then return $ SymbolList False mainSymbolTrees
+        else return $ SymbolList False $ seqSymbol : (tlSymbols ++ [(SymbolList True mainSymbolTrees)])
 
 
 -- | Generate all Top Level Assignments
@@ -290,11 +297,20 @@ genFunCall (FunCall name exprs) quoted = do
 
 -- | Generate Method Call
 genMethodCall :: MethodCall -> Bool -> GenState SymbolTree
-genMethodCall (MethodCall cName method exprs) quoted = do 
+genMethodCall (MethodCall var method exprs) quoted = do 
     curThread <- getThread
     exprs' <- mapM reduceExpr exprs
+    objName <-  case var of
+          VarIdent (Ident i) -> return i
+          VarArrayElem (Ident i) e -> do
+            e' <- reduceExpr e 
+            case e' of
+                (ExpLit (Number (Left n))) -> return $ i ++ show n 
+                _ -> lift $ Left $ "Compiler error with array indexing, expected literal integer value got:" 
+                        ++ show e'
+
     let call = Symbol $ GOpSymbol $
-                MkOpSymbol False ("", curThread) [show cName, filter (/='"') $ show method]
+                MkOpSymbol False ("", curThread) [objName, filter (/='"') $ show method]
     evalExprs <- mapM genExpr exprs'
     return $ SymbolList quoted (call : evalExprs)
 
@@ -496,8 +512,8 @@ genInlineStmt exprs stmt = case stmt of
     FunCallStmt (FunCall name args) ->
         FunCallStmt (FunCall name $ map (replaceExprIdents exprs) args)
 
-    MethodStmt (MethodCall cName method args) ->
-        MethodStmt (MethodCall cName method $ map (replaceExprIdents exprs) args)
+    MethodStmt (MethodCall var method args) ->
+        MethodStmt (MethodCall (newVar var) method $ map (replaceExprIdents exprs) args)
 
     If expr stmt' ->
         If (replaceExprIdents exprs expr) (genInlineStmt exprs stmt')
@@ -528,6 +544,10 @@ genInlineStmt exprs stmt = case stmt of
     inScope (AssignStmt (Assign name _)) = name `notElem` idents
     inScope _ = True
     idents = map fst exprs
+    newVar v = case v of
+          VarArrayElem i e -> VarArrayElem i (replaceExprIdents exprs e)
+          _ -> v 
+
 
 -- | Replace instances of identities in an expression
 --   with another expression 
