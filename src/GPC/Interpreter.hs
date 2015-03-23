@@ -114,6 +114,11 @@ genTopLevel name tls = do
     -- transformed when they are interpreted from the entry function. 
     -- Object declarations are taken care of in config files.
     let tls' = filter (\x -> not (isAssign x || isObject x || isNonEntryFunc name x)) tls
+    -- Check program actually has entry function
+    when ((length $ filter (== True) $ map isFunc tls') == 0) (
+        lift $ Left $ "Error, program must contain entry function with name \"" ++ name ++ 
+            "\". No function with this name has been defined." 
+        )
     symbolTrees <- mapM genTopLevelStmt tls'
     return $ SymbolList False symbolTrees
 
