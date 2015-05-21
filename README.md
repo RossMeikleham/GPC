@@ -1,6 +1,10 @@
 [![Build Status](https://travis-ci.org/RossMeikleham/GPC.svg?branch=master)](https://travis-ci.org/RossMeikleham/GPC)
 [![Coverage Status](https://img.shields.io/coveralls/RossMeikleham/GPC.svg)](https://coveralls.io/r/RossMeikleham/GPC)
 
+Note
+====
+GPC is now being maintained by Wim Vanderbauwhede as part of the GPRM project which can be found [here](https://github.com/wimvanderbauwhede/gprm).
+
 About
 ===
 
